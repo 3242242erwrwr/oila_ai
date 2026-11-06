@@ -21,17 +21,26 @@ const STATUSES = {
   out:    { label: '🚶 Tashqaridaman', text: 'tashqarida', room: 'Tashqarida' },
 };
 
+const BTN_JOIN = "👨‍👩‍👧‍👦 Oilaga a'zo bo'lish";
 const BTN_STATUS = "🎭 Holatni o'zgartirish";
-const BTN_CHAT = '💬 Suhbat';
 const BTN_ROOM = '🏠 3D Uyni ochish';
+const BTN_CHAT = '💬 Suhbat';
 const BTN_BACK = '🔙 Orqaga';
 const LOCATION_BUTTON = '📍 Joylashuvni yuborish';
 
-// Lichkada chiqadigan asosiy tugmalar
+// Yangi foydalanuvchi /start bosganda chiqadigan tugma
+function joinKeyboard() {
+  return new Keyboard()
+    .text(BTN_JOIN)
+    .resized()
+    .persistent();
+}
+
+// Ro'yxatdan o'tgandan keyin DOIM turadigan 3 ta asosiy tugma
 function mainKeyboard() {
   return new Keyboard()
-    .text(BTN_STATUS).text(BTN_CHAT).row()
-    .text(BTN_ROOM)
+    .text(BTN_STATUS).text(BTN_ROOM).row()
+    .text(BTN_CHAT)
     .resized()
     .persistent();
 }
@@ -225,8 +234,11 @@ async function startBot(token, onStatus, options = {}) {
     });
     const intro = isEdit
       ? `✏️ *${ctx.from.first_name || ''}, profilingizni yangilaymiz!*\n\n1️⃣ Ismingizni yozing:`
-      : "Assalomu alaykum! 🏠 *Oilaviy uyga xush kelibsiz.*\n\nPersonajingiz sizga o'xshashi uchun 4 ta qisqa savol:\n\n1️⃣ *Ismingizni yozing:*";
-    await ctx.reply(intro, { parse_mode: 'Markdown', reply_markup: mainKeyboard() });
+      : "1️⃣ *Ismingizni yozing:*";
+    await ctx.reply(intro, {
+      parse_mode: 'Markdown',
+      reply_markup: { remove_keyboard: true },
+    });
   };
 
   bot.command('start', async (ctx) => {
@@ -248,13 +260,19 @@ async function startBot(token, onStatus, options = {}) {
       }
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
-        `👤 Yosh: ${m.age} • Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
+        `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
         `Pastdagi tugmalardan foydalaning:`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
       );
       return;
     }
-    await beginWizard(ctx, false);
+
+    wizard.delete(ctx.from.id);
+    await ctx.reply(
+      "Assalomu alaykum! 🏠 *Oilaviy uyga xush kelibsiz.*\n\n" +
+      "Oilaga qo'shilish uchun pastdagi *👨‍👩‍👧‍👦 Oilaga a'zo bo'lish* tugmasini bosing:",
+      { parse_mode: 'Markdown', reply_markup: joinKeyboard() }
+    );
   });
 
   bot.command('xona', sendRoomLink);
@@ -360,7 +378,13 @@ async function startBot(token, onStatus, options = {}) {
     // Guruhda boshqa hech qanday bot funksiyasi ishlamaydi (faqat 3D Uyni ochish!)
     if (!isPrivate) return;
 
-    // 1. Ro'yxatdan o'tish / Profil savol-javobi (faqat lichkada)
+    // "👨‍👩‍👧‍👦 Oilaga a'zo bo'lish" tugmasi bosilganda savol-javob boshlanadi
+    if (text === BTN_JOIN) {
+      await beginWizard(ctx, Boolean(store.get(id)));
+      return;
+    }
+
+    // 1. Ro'yxatdan o'tish / Profil savol-javobi: Ism -> Jins -> Kasb
     if (wizard.has(id)) {
       const state = wizard.get(id);
       if (state.step === 'name') {
@@ -390,22 +414,8 @@ async function startBot(token, onStatus, options = {}) {
           });
           return;
         }
-        state.step = 'age';
-        await ctx.reply('3️⃣ *Yoshingiz nechada?* (raqam bilan yozing, masalan: 28):', {
-          parse_mode: 'Markdown',
-        });
-        return;
-      }
-
-      if (state.step === 'age') {
-        const age = parseInt(text.replace(/\D/g, ''), 10);
-        if (!age || age < 1 || age > 110) {
-          await ctx.reply('Iltimos, yoshingizni raqamda yozing (masalan: 25):');
-          return;
-        }
-        state.age = age;
         state.step = 'job';
-        await ctx.reply('4️⃣ *Nima ish qilasiz (kasbingiz)?* Pastdagi tugmalardan tanlang:', {
+        await ctx.reply('3️⃣ *Kasbingizni tanlang:*', {
           parse_mode: 'Markdown',
           reply_markup: jobKeyboard(),
         });
@@ -419,17 +429,17 @@ async function startBot(token, onStatus, options = {}) {
         wizard.delete(id);
 
         if (store.get(id)) {
-          store.updateProfile(id, { name: state.name, gender: state.gender, age: state.age, job: jobKey });
+          store.updateProfile(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
           await ctx.reply(
-            `✅ *${state.name}* profili yangilandi! (${state.age} yosh, ${JOBS[jobKey].label})`,
+            `✅ *${state.name}* profili yangilandi! (${JOBS[jobKey].label})`,
             { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
           );
         } else {
-          store.add(id, { name: state.name, gender: state.gender, age: state.age, job: jobKey });
+          store.add(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
           await ctx.reply(
-            `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaviy uyga qo'shildingiz.\n` +
-            `👤 Yosh: *${state.age}* • Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `Pastdagi tugmalardan foydalaning!`,
+            `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
+            `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
+            `Endi doimiy tugmalardan foydalanishingiz mumkin:`,
             { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
           );
         }
@@ -439,7 +449,10 @@ async function startBot(token, onStatus, options = {}) {
 
     const m = store.get(id);
     if (!m) {
-      await ctx.reply("Siz hali a'zo emassiz. /start bosib ro'yxatdan o'ting!", { reply_markup: mainKeyboard() });
+      await ctx.reply(
+        "Siz hali oilaga a'zo bo'lmagansiz. Pastdagi *👨‍👩‍👧‍👦 Oilaga a'zo bo'lish* tugmasini bosing:",
+        { parse_mode: 'Markdown', reply_markup: joinKeyboard() }
+      );
       return;
     }
 
