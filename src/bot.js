@@ -37,12 +37,19 @@ function joinKeyboard() {
 }
 
 // Ro'yxatdan o'tgandan keyin DOIM turadigan 3 ta asosiy tugma
-function mainKeyboard() {
-  return new Keyboard()
-    .text(BTN_STATUS).text(BTN_ROOM).row()
-    .text(BTN_CHAT)
-    .resized()
-    .persistent();
+// ("🏠 3D Uyni ochish" bosilganda to'g'ridan-to'g'ri avtomatik 3D Uy ochiladi!)
+function mainKeyboard(uid = '') {
+  const baseUrl = getPublicUrlFn();
+  const personalUrl = uid
+    ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}`
+    : baseUrl;
+  const kb = new Keyboard().text(BTN_STATUS);
+  if (personalUrl.startsWith('https://')) {
+    kb.webApp(BTN_ROOM, personalUrl);
+  } else {
+    kb.text(BTN_ROOM);
+  }
+  return kb.row().text(BTN_CHAT).resized().persistent();
 }
 
 // Guruhda FAQAT "🏠 3D Uyni ochish" tugmasi chiqadi
@@ -262,7 +269,7 @@ async function startBot(token, onStatus, options = {}) {
         `Xush kelibsiz, *${m.name}*! 👋\n` +
         `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
         `Pastdagi tugmalardan foydalaning:`,
-        { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+        { parse_mode: 'Markdown', reply_markup: mainKeyboard(ctx.from.id) }
       );
       return;
     }
@@ -290,7 +297,7 @@ async function startBot(token, onStatus, options = {}) {
   bot.command('holat', async (ctx) => {
     if (ctx.chat?.type !== 'private') return;
     const m = store.get(ctx.from.id);
-    if (!m) return ctx.reply('Avval /start bosing.', { reply_markup: mainKeyboard() });
+    if (!m) return ctx.reply('Avval /start bosing.', { reply_markup: joinKeyboard() });
     const lines = store.all().map((x) => {
       const st = STATUSES[x.status];
       const jobIcon = JOBS[x.job]?.label.split(' ')[0] || '👤';
@@ -303,7 +310,7 @@ async function startBot(token, onStatus, options = {}) {
     });
     await ctx.reply(`👨‍👩‍👧‍👦 *Oila a'zolari:*\n\n${lines.join('\n')}`, {
       parse_mode: 'Markdown',
-      reply_markup: mainKeyboard(),
+      reply_markup: mainKeyboard(ctx.from.id),
     });
   });
 
@@ -319,7 +326,7 @@ async function startBot(token, onStatus, options = {}) {
 
   bot.command('joylashuv', async (ctx) => {
     if (ctx.chat?.type !== 'private') return;
-    await ctx.reply(LIVE_HELP, { parse_mode: 'Markdown', reply_markup: mainKeyboard() });
+    await ctx.reply(LIVE_HELP, { parse_mode: 'Markdown', reply_markup: mainKeyboard(ctx.from.id) });
   });
 
   const handleLocation = async (ctx, msg, edited) => {
@@ -336,7 +343,7 @@ async function startBot(token, onStatus, options = {}) {
       awaitingHome.delete(id);
       store.setHome(lat, lon, m.name);
       await ctx.reply("✅ Uy manzili saqlandi! Endi kim uyga 150 m yaqinlashsa, uyda paydo bo'ladi.", {
-        reply_markup: mainKeyboard(),
+        reply_markup: mainKeyboard(id),
       });
       return;
     }
@@ -348,7 +355,7 @@ async function startBot(token, onStatus, options = {}) {
     if (!edited) {
       let text = live ? '🔴 Jonli joylashuv ulandi! Xaritada kuzatib boriladi.' : '📍 Joylashuvingiz saqlandi.';
       if (!store.getHome()) text += "\n\nℹ️ Hali uy manzili belgilanmagan. /uy buyrug'i bilan belgilang.";
-      await ctx.reply(text, { reply_markup: mainKeyboard() });
+      await ctx.reply(text, { reply_markup: mainKeyboard(id) });
     }
   };
 
@@ -432,7 +439,7 @@ async function startBot(token, onStatus, options = {}) {
           store.updateProfile(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
           await ctx.reply(
             `✅ *${state.name}* profili yangilandi! (${JOBS[jobKey].label})`,
-            { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+            { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
           );
         } else {
           store.add(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
@@ -440,7 +447,7 @@ async function startBot(token, onStatus, options = {}) {
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
             `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
             `Endi doimiy tugmalardan foydalanishingiz mumkin:`,
-            { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+            { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
           );
         }
         return;
@@ -468,7 +475,7 @@ async function startBot(token, onStatus, options = {}) {
     if (text === BTN_CHAT) {
       const others = store.all().filter((x) => x.id !== id);
       if (!others.length) {
-        await ctx.reply("Hozircha uyda sizdan boshqa a'zo yo'q.", { reply_markup: mainKeyboard() });
+        await ctx.reply("Hozircha uyda sizdan boshqa a'zo yo'q.", { reply_markup: mainKeyboard(id) });
         return;
       }
       await ctx.reply("💬 *Kim bilan lichkada gaplashmoqchisiz?* Tanlang:", {
@@ -480,7 +487,7 @@ async function startBot(token, onStatus, options = {}) {
 
     if (text === BTN_BACK) {
       activeChatTarget.delete(id);
-      await ctx.reply('🏠 Asosiy menyu:', { reply_markup: mainKeyboard() });
+      await ctx.reply('🏠 Asosiy menyu:', { reply_markup: mainKeyboard(id) });
       return;
     }
 
@@ -521,7 +528,7 @@ async function startBot(token, onStatus, options = {}) {
       };
       await ctx.reply(replies[statusKey] || `Holat: ${st.text}`, {
         parse_mode: 'Markdown',
-        reply_markup: mainKeyboard(),
+        reply_markup: mainKeyboard(id),
       });
       return;
     }
@@ -546,7 +553,7 @@ async function startBot(token, onStatus, options = {}) {
       await bot.api.sendMessage(
         target.id,
         `💬 *${m.name} sizga yozdi:*\n${msgText}`,
-        { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+        { parse_mode: 'Markdown', reply_markup: mainKeyboard(target.id) }
       ).catch(() => {});
       await ctx.reply(`✅ *${target.name}*ga yuborildi (3D uyda borib aytdi!)`, {
         parse_mode: 'Markdown',
@@ -557,6 +564,16 @@ async function startBot(token, onStatus, options = {}) {
   bot.catch((err) => console.error('Bot xatosi:', err.error || err));
 
   await bot.init();
+  const initialUrl = getPublicUrlFn();
+  if (initialUrl && initialUrl.startsWith('https://')) {
+    await bot.api.setChatMenuButton({
+      menu_button: {
+        type: 'web_app',
+        text: '🏠 3D Uy',
+        web_app: { url: initialUrl },
+      },
+    }).catch(() => {});
+  }
   await bot.api.setMyCommands([
     { command: 'start', description: "A'zo bo'lish va tugmalar" },
     { command: 'xona', description: "3D Uyni telefonda / PC'da ochish" },
