@@ -1,7 +1,7 @@
-// Gemini AI va Kontekstual AI orqali mustaqil harakatlanuvchi doimiy personajlar:
-// 1. 🤖 AI Robot (id: 900001) - Uy yordamchisi: har qanday aytilgan narsani (choy, suv, banan, meva, taom, buyum) 3D patnisda real olib keladi va barcha buyruqlarni bajaradi
-// 2. 🐱 Mushuk (id: 900002)   - Mustaqil xonalarda aylanib yuradi, miyovlaydi va erkalanadi
-// 3. 🐶 It / Kuchuk (id: 900003) - Uyni qo'riqlaydi, a'zolar oldiga boradi va vovullaydi
+// Haqiqiy AI (Gemini / LLM) orqali mustaqil fikrlovchi va har qanday buyruqni tushunib bajaruvchi tizim:
+// 1. 🤖 AI Robot (id: 900001) - Har qanday erkin buyruqni AI orqali tahlil qilib, 1-3 qadamli harakat rejasini tuzadi va bajaradi
+// 2. 🐱 Mushuk (id: 900002)   - Mustaqil xonalarda aylanib yuradi
+// 3. 🐶 It / Kuchuk (id: 900003) - Uyni qo'riqlaydi va a'zolar bilan muloqot qiladi
 
 const DEFAULT_GEMINI_KEY = ['AQ.Ab8RN6IcHQp10wpbLj8t', 'IC4cODcm1HhdVGrQs7Sc4qtrD3fpbg'].join('');
 
@@ -49,19 +49,12 @@ const PERMANENT_AI_MEMBERS = [
   },
 ];
 
-const INDOOR_ROOMS = ['home', 'tv', 'pc', 'eat', 'cook', 'sleep', 'wc'];
-const ROOM_NAMES = {
-  home: 'mehmonxona',
-  tv: 'mehmonxona',
-  pc: 'kompyuter stoli',
-  eat: 'oshxona',
-  cook: 'oshxona',
-  sleep: 'yotoqxona',
-  wc: 'vannaxona',
-};
+const VALID_STATUSES = new Set(['home', 'tv', 'pc', 'eat', 'cook', 'sleep', 'wc', 'garage', 'out']);
+const INDOOR_ROOMS = ['home', 'tv', 'pc', 'eat', 'cook', 'sleep', 'wc', 'garage'];
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+let geminiDirectBlocked = false;
 let robotBusyUntil = 0;
 let robotStepTimers = [];
 
@@ -78,78 +71,60 @@ function scheduleRobotStep(fn, delayMs) {
 function moveAi(store, id, status, extra = {}) {
   const m = store.get(id);
   if (!m) return;
+  const validStatus = VALID_STATUSES.has(status) ? status : m.status;
   const nextSeq = (m.taskSeq || 0) + 1;
-  store.update(id, { status, taskSeq: nextSeq, ...extra });
+  store.update(id, { status: validStatus, taskSeq: nextSeq, ...extra });
 }
 
-// ==================== BUYUMLAR LUG'ATI VA AQLLI ANIQLAGICH ====================
-const ITEM_CATALOG = [
-  { keys: ['banan', 'banana'], type: 'banana', emoji: '🍌', label: 'Banan', sourceRoom: 'cook' },
-  { keys: ['tarvuz', 'qovun'], type: 'watermelon', emoji: '🍉', label: 'Shirin tarvuz', sourceRoom: 'cook' },
-  { keys: ['olma', 'nok', 'shaftoli', 'anor', "o'rik", 'apelsin', 'mandarin', 'uzum', 'gilos', 'qulupnay', 'kivi', 'limon', 'meva'], type: 'apple', emoji: '🍎', label: 'Meva', sourceRoom: 'cook' },
-  { keys: ['suv', 'muzdek suv', 'mineral'], type: 'water', emoji: '💧', label: 'Muzdek suv', sourceRoom: 'cook' },
-  { keys: ['kola', 'coca', 'pepsi', 'fanta', 'sprait', 'sharbat', 'sok', 'kompot', 'ayron', 'ichimlik', 'mojito', 'energetik'], type: 'water', emoji: '🥤', label: 'Muzdek ichimlik', sourceRoom: 'cook' },
-  { keys: ['sut', 'qatiq', 'qaymoq', 'kefir'], type: 'water', emoji: '🥛', label: 'Toza sut', sourceRoom: 'cook' },
-  { keys: ['kofe', 'qahva', 'kapuchino', 'latte', 'espresso'], type: 'tea', emoji: '☕', label: 'Issiq qahva', sourceRoom: 'cook' },
-  { keys: ['choy', "ko'k choy", 'qora choy', 'limon choy'], type: 'tea', emoji: '🍵', label: 'Issiq choy', sourceRoom: 'cook' },
-  { keys: ['tort', 'pirojniy', 'shirinlik', 'shokolad', 'konfet', 'muzqaymoq', 'pechenye', 'paxlava', 'asal', 'murabbo', 'desert'], type: 'cake', emoji: '🍰', label: 'Shirinlik', sourceRoom: 'cook' },
-  { keys: ['osh', 'palov', 'ovqat', 'taom', 'shashlik', 'kabob', 'somsa', 'manti', "lag'mon", "sho'rva", 'mastava', 'chuchvara', 'norin', 'qozonkabob', 'baliq', 'tovuq', 'kotlet', 'tuxum', 'kolbasa', 'pishloq', 'salat', 'non', 'tandir', 'patir', 'gamburger', 'burger', 'pitsa', 'lavash', 'xotdog', 'fri', 'chips'], type: 'food', emoji: '🍽️', label: 'Mazali taom', sourceRoom: 'cook' },
-  { keys: ['telefon', 'ayfon', 'smartfon', 'zaryadka', 'quvvatlagich', 'pult', 'quloqchin', 'naushnik', 'noutbuk', 'planshet'], type: 'item', emoji: '📱', label: 'Gadjet', sourceRoom: 'pc' },
-  { keys: ['kitob', 'daftar', 'ruchka', 'qalam', 'jurnal', 'gazeta'], type: 'item', emoji: '📚', label: 'Kitob', sourceRoom: 'sleep' },
-  { keys: ['yostiq', "ko'rpa", 'adyol', 'pled', 'kiyim', "ko'ylak", 'shim', 'paypoq', "ro'mol", "do'ppi"], type: 'item', emoji: '🛏️', label: 'Buyum', sourceRoom: 'sleep' },
-  { keys: ['dori', 'tabletka', 'aptechka', 'vitamin', 'termometr'], type: 'item', emoji: '💊', label: 'Dori', sourceRoom: 'wc' },
-  { keys: ['sochiq', 'sovun', 'shampun', 'salfetka', 'qog\'oz'], type: 'item', emoji: '🧻', label: 'Sochiq', sourceRoom: 'wc' },
-  { keys: ['gul', 'atirgul', 'buket', "sovg'a", 'hadya'], type: 'item', emoji: '💐', label: 'Chiroyli gul', sourceRoom: 'home' },
-];
-
-function capitalize(s) {
-  if (!s) return '';
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-// Matndan so'ralgan narsani (yoki har qanday "olib kel / ber / keltir" buyrug'idagi buyumni) ajratib olish
-function extractRequestedItem(rawText, mentionedName = '') {
-  const lower = rawText.toLowerCase();
-
-  // 1. Katalogdagi aniq buyumlardan qidiramiz
-  for (const entry of ITEM_CATALOG) {
-    for (const k of entry.keys) {
-      if (lower.includes(k)) {
-        return {
-          type: entry.type,
-          emoji: entry.emoji,
-          label: capitalize(k),
-          sourceRoom: entry.sourceRoom,
-        };
-      }
+function parseJsonSafe(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  try {
+    const cleaned = raw.replace(/```json|```/gi, '').trim();
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      return JSON.parse(cleaned.slice(firstBrace, lastBrace + 1));
     }
+    return JSON.parse(cleaned);
+  } catch {
+    return null;
   }
+}
 
-  // 2. Agar katalogda yo'q narsa so'ralgan bo'lsa (masalan: "menga ... olib kel / keltir / ber / uzat")
-  const bringTriggers = [
-    'olib kel', 'olibkel', 'opkel', 'ober', 'olib ber', 'olib bor',
-    'keltir', 'keltirib ber', 'uzat', 'topib kel', 'ber',
-  ];
-  const hasBringTrigger = bringTriggers.some((t) => lower.includes(t));
-  if (hasBringTrigger) {
-    let cleaned = lower;
-    if (mentionedName) {
-      cleaned = cleaned.replace(new RegExp(mentionedName.toLowerCase() + '[a-z\']*', 'g'), '');
-    }
-    cleaned = cleaned
-      .replace(/robot|jarvis|ai|menga|bizga|unga|iltimos|tez|tezroq|borib|oshxonadan|yotoqxonadan|uydan|xonadan|bitta|ikkita|bir/g, '')
-      .replace(/olib\s*kel\w*|olibkel\w*|opkel\w*|ober\w*|olib\s*ber\w*|olib\s*bor\w*|keltir\w*|uzat\w*|topib\s*kel\w*|\bber\b/g, '')
-      .replace(/[^\p{L}\p{N}\s'-]/gu, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+// ==================== HAQIQIY GEMINI AI SO'ROVI (QOLIPSIZ ERKIN FIKRLASH) ====================
+const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.5-flash'];
 
-    if (cleaned.length >= 2) {
-      return {
-        type: 'item',
-        emoji: '🎁',
-        label: capitalize(cleaned.slice(0, 24)),
-        sourceRoom: 'cook',
-      };
+async function askAiPlan(systemPrompt, userPrompt) {
+  const key = (process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY).trim();
+  if (!key) return null;
+
+  for (const model of GEMINI_MODELS) {
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    try {
+      const res = await fetch(geminiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+          generationConfig: {
+            temperature: 0.35,
+            maxOutputTokens: 600,
+            responseMimeType: 'application/json',
+          },
+        }),
+        signal: AbortSignal.timeout(5500),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const textPart = parts.find((p) => typeof p.text === 'string' && p.text.includes('{')) || parts[0];
+        const parsed = parseJsonSafe(textPart?.text);
+        if (parsed && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (err) {
+      console.warn(`Gemini (${model}) xatosi:`, err.message);
     }
   }
 
@@ -165,265 +140,299 @@ async function handleRobotCommand(fromMember, rawText, store) {
   if (!robot) return;
 
   clearRobotTimers();
-  robotBusyUntil = Date.now() + 26_000;
+  robotBusyUntil = Date.now() + 28_000;
 
   const humans = store.all().filter((m) => !m.isAi);
   const fromName = fromMember?.name || "Xo'jayin";
-  const lower = text.toLowerCase();
+  const fromRoom = fromMember?.status || 'home';
+  const fromId = fromMember?.id || humans[0]?.id || null;
 
-  // Buyruqda biror oila a'zosining ismi aytilganmi?
-  const mentionedMember = humans.find(
-    (m) => m.name && lower.includes(m.name.toLowerCase())
-  );
-  const recipient = mentionedMember || fromMember || humans[0] || null;
-  const recipientName = recipient?.name || fromName;
+  // Darhol "Buyruqni tahlil qilyapman..." deb bildiramiz
+  const membersInfo = humans
+    .map((m) => `- ${m.name} (id: ${m.id}, joyi: "${m.status}")`)
+    .join('\n');
 
-  // 1. MUSHUK VA ITGA OVQAT BERISH / QARASH
-  if (lower.includes('mushuk') || lower.includes('itga') || lower.includes('kuchuk')) {
-    const milkItem = { type: 'water', emoji: '🥛', label: 'Sut va suyak' };
-    moveAi(store, AI_IDS.ROBOT, 'cook', { heldItem: null, deliverToId: null });
-    store.say(AI_IDS.ROBOT, `🤖 Xo'p bo'ladi, ${fromName}! Oshxonadan mushuk va kuchuk uchun sut hamda suyak olyapman! 🥛🦴`, null);
+  const systemPrompt = `Sen 3D Oilaviy Uydagi aqlli "AI Robot" yordamchisan.
+Foydalanuvchi senga O'zbek tilida buyruq yoki savol yozdi. Sen qolipga tushmasdan, buyruqning haqiqiy ma'nosini tushunib, 1 dan 3 tagacha ketma-ket qadamdan (steps) iborat JSON harakat rejasini qaytarasan.
 
-    scheduleRobotStep(() => {
-      moveAi(store, AI_IDS.CAT, 'eat');
-      moveAi(store, AI_IDS.DOG, 'eat');
-      moveAi(store, AI_IDS.ROBOT, 'eat', { heldItem: milkItem, deliverToId: AI_IDS.CAT });
-      store.say(AI_IDS.ROBOT, `🤖 Momiqvoy va Bobik, mana sizlarga iliq sut va mazali suyak! 🐱🥛🐶🦴`, null);
-    }, 4000);
+Uydagi mavjud joylar ("status" qiymati faqat shulardan biri bo'lishi shart):
+- "home": Mehmonxona markazi (gilam va katta stol atrofi)
+- "tv": Mehmonxonadagi Televizor va divan oldi
+- "pc": Kompyuter stoli oldi
+- "cook": Oshxona (muzlatgich, qozon va plita oldi)
+- "eat": Oshxona (ovqatlanish stoli)
+- "sleep": Yotoqxona (karavotlar)
+- "wc": Hojatxona / Vannaxona
+- "garage": Garaj (mashina turadigan xona)
+- "out": Ko'cha / Tashqari (eshikni ochib uydan tashqariga chiqib ketish!)
 
-    scheduleRobotStep(() => {
-      store.say(AI_IDS.CAT, '🐱 Miyov~ Mazali sut uchun rahmat, AI Robot! 🥛❤️', null);
-      store.say(AI_IDS.DOG, '🐶 Vov-vov! Suyak uchun rahmat! 🦴❤️', null);
-    }, 6500);
+Qo'lda ko'tarib yurish mumkin bo'lgan 3D buyum ("item"):
+- Agar buyruqda hech narsa olib kelish/ko'tarish kerak bo'lmasa (masalan: "ko'chaga chiq", "garajga bor", "uxla", "oshxonaga bor", "salom", savol-javob): "item": null bo'lsin!
+- Agar biror narsa olib kelish yoki tozalash buyurilgan bo'lsa:
+  "item": { "type": "tea|water|banana|apple|watermelon|food|cake|broom|item", "emoji": "🍌", "label": "Buyum nomi" }
+  ("tea"=choy/kofe, "water"=suv/sharbat/kola/sut, "banana"=banan, "apple"=olma/meva, "watermelon"=tarvuz/qovun, "food"=osh/ovqat/non/taom, "cake"=tort/shirinlik/muzqaymoq, "broom"=supurgi, "item"=boshqa buyum).
 
-    scheduleRobotStep(() => {
-      moveAi(store, AI_IDS.ROBOT, 'eat', { heldItem: null, deliverToId: null });
-    }, 11000);
-    return;
+"deliverToId":
+- Agar Robot ma'lum bir odamning patnisda narsa olib borishi yoki shaxsan yoniga borib gapirishi kerak bo'lsa: o'sha odamning ID raqami (masalan: ${fromId || 'null'}).
+- Agar shunchaki biror xonaga borish ("cook", "garage", "sleep", "out" va h.k.) kerak bo'lsa: "deliverToId": null.
+
+MUHIM QOIDALAR:
+1. "ko'chaga chiq", "tashqariga chiq", "uydan chiq", "ket" deyilsa -> 1 ta qadam: status: "out", item: null, deliverToId: null, reply: "🤖 Xo'p bo'ladi! Eshikni ochib ko'chaga chiqyapman! 🚪🚶".
+2. "uyga kir", "qaytib kel", "ichkariga kir" deyilsa -> status: "${INDOOR_ROOMS.includes(fromRoom) ? fromRoom : 'home'}", item: null, deliverToId: ${fromId || 'null'}.
+3. "garajga bor", "mashinani ko'r" deyilsa -> status: "garage", item: null, deliverToId: null.
+4. Biror narsa "olib kel" deyilsa (masalan: "banan olib kel", "suv olib kel", "choy olib kel") ->
+   - 1-qadam: o'sha narsa turgan xonaga borish (status: "cook", item: null, deliverToId: null, reply: "🤖 Xo'p bo'ladi! Oshxonadan ... olib kelaman!")
+   - 2-qadam: qo'lga buyumni olib so'ragan odamning oldiga borish (status: "${INDOOR_ROOMS.includes(fromRoom) ? fromRoom : 'home'}", item: {...}, deliverToId: ${fromId || 'null'}, reply: "🤖 Mana, siz so'ragan ...ni olib keldim! Marhamat! ✨").
+
+Faqat quyidagi JSON formatda javob qaytar:
+{
+  "steps": [
+    {
+      "status": "home|tv|pc|cook|eat|sleep|wc|garage|out",
+      "reply": "🤖 O'zbek tilida qisqa va aniq javob",
+      "item": null,
+      "deliverToId": null
+    }
+  ]
+}`;
+
+  const userPrompt = `Buyruq beruvchi: ${fromName} (id: ${fromId}, hozirgi joyi: "${fromRoom}").
+Robotning hozirgi joyi: "${robot.status}".
+Uydagi a'zolar:
+${membersInfo || 'Hech kim yoq'}
+
+Foydalanuvchi buyrug'i: "${text}"`;
+
+  let plan = await askAiPlan(systemPrompt, userPrompt);
+
+  // Agar internet uzilishi sababli AI javob bermasa, ma'noni buzmaydigan zaxira mantiq
+  if (!plan || !Array.isArray(plan.steps) || !plan.steps.length) {
+    plan = buildFallbackPlan(fromMember, text, humans, robot);
   }
 
-  // 2. UYNI SUPURISH / TOZALASH (Qo'liga 3D supurgi olib xonalarni ketma-ket tozalaydi!)
-  if (lower.includes('tozala') || lower.includes('supur') || lower.includes('pol') || lower.includes('chang')) {
-    const broomItem = { type: 'broom', emoji: '🧹', label: 'Supurgi' };
-    moveAi(store, AI_IDS.ROBOT, 'home', { heldItem: broomItem, deliverToId: null });
-    store.say(AI_IDS.ROBOT, `🤖 Xo'p bo'ladi, ${fromName}! Qo'limga supurgi olib mehmonxonani tozalayapman! 🧹✨`, null);
+  // Rejadagi qadamlarni ketma-ket bajaramiz
+  const steps = plan.steps.slice(0, 4);
+  steps.forEach((step, idx) => {
+    const runStep = () => {
+      const targetStatus = VALID_STATUSES.has(step.status) ? step.status : robot.status;
+      const heldItem = step.item && typeof step.item === 'object' && step.item.label ? step.item : null;
+      const delivId = step.deliverToId ? Number(step.deliverToId) : null;
 
-    scheduleRobotStep(() => {
-      moveAi(store, AI_IDS.ROBOT, 'eat', { heldItem: broomItem, deliverToId: null });
-      store.say(AI_IDS.ROBOT, `🤖 Oshxona pollarini va stol atrofini supurib tozalayapman! 🧹✨`, null);
-    }, 4800);
-
-    scheduleRobotStep(() => {
-      moveAi(store, AI_IDS.ROBOT, 'sleep', { heldItem: broomItem, deliverToId: null });
-      store.say(AI_IDS.ROBOT, `🤖 Yotoqxonani ham tozalab chiqdim! Uy top-toza bo'ldi! 🌟`, null);
-    }, 9500);
-
-    scheduleRobotStep(() => {
-      const rec = recipient && store.get(recipient.id);
-      const backRoom = rec && INDOOR_ROOMS.includes(rec.status) ? rec.status : 'home';
-      moveAi(store, AI_IDS.ROBOT, backRoom, { heldItem: null, deliverToId: null });
-      store.say(AI_IDS.ROBOT, `🤖 ${fromName}, butun uyni tozalab bo'ldim! ✨`, null);
-    }, 14500);
-    return;
-  }
-
-  // 3. HAR QANDAY BUYUM / CHOY / SUV / BANAN / OVQAT OLIB KELISH!
-  const requestedItem = extractRequestedItem(text, mentionedMember?.name || '');
-  if (requestedItem) {
-    const srcRoom = requestedItem.sourceRoom || 'cook';
-    const srcRoomName = ROOM_NAMES[srcRoom] || 'oshxona';
-
-    // 1-qadam: Robot buyum turgan xonaga (masalan, oshxonaga) yurib boradi
-    moveAi(store, AI_IDS.ROBOT, srcRoom, { heldItem: null, deliverToId: null });
-    store.say(
-      AI_IDS.ROBOT,
-      `🤖 Xo'p bo'ladi, ${fromName}! Hozir ${srcRoomName}dan ${requestedItem.emoji} ${requestedItem.label} olib kelaman!`,
-      null
-    );
-
-    // 2-qadam: Buyumni 3D patnisga oladi va SO'RAGAN ODAMNING YONIGA yurib boradi!
-    scheduleRobotStep(() => {
-      const recNow = recipient ? store.get(recipient.id) : null;
-      const destRoom = recNow && INDOOR_ROOMS.includes(recNow.status) ? recNow.status : 'home';
-      const delivId = recNow && INDOOR_ROOMS.includes(recNow.status) ? recNow.id : null;
-
-      moveAi(store, AI_IDS.ROBOT, destRoom, {
-        heldItem: requestedItem,
-        deliverToId: delivId,
-      });
-      store.say(
-        AI_IDS.ROBOT,
-        `🤖 ${requestedItem.emoji} ${requestedItem.label}ni oldim! ${recipientName}ning oldiga olib boryapman! 🚀`,
-        null
-      );
-    }, 4200);
-
-    // 3-qadam: Yetib borgach, patnisda uzatib "Marhamat, oling!" deydi
-    scheduleRobotStep(() => {
-      store.say(
-        AI_IDS.ROBOT,
-        `🤖 Mana, ${recipientName}! Siz so'ragan ${requestedItem.emoji} ${requestedItem.label}ni olib keldim! Marhamat, oling! ✨`,
-        null
-      );
-    }, 8200);
-
-    // 4-qadam: Odam olgach, patnisni yig'ishtiradi
-    scheduleRobotStep(() => {
-      const rNow = store.get(AI_IDS.ROBOT);
-      if (rNow) {
-        moveAi(store, AI_IDS.ROBOT, rNow.status, { heldItem: null, deliverToId: null });
+      // Agar Mushuk yoki It haqida gap ketgan bo'lsa
+      if (step.callPets) {
+        moveAi(store, AI_IDS.CAT, targetStatus);
+        moveAi(store, AI_IDS.DOG, targetStatus);
       }
-    }, 16000);
-    return;
-  }
 
-  // 4. YOTOQXONANI YIG'ISHTIRISH
-  if (lower.includes('yotoq') || lower.includes('karavot') || lower.includes("yig'ishtir") || lower.includes('uxla')) {
-    moveAi(store, AI_IDS.ROBOT, 'sleep', { heldItem: null, deliverToId: null });
-    store.say(AI_IDS.ROBOT, `🤖 Yotoqxonaga borib karavot va yostiqlarni tartibga keltiryapman! 🛏️✨`, null);
-    scheduleRobotStep(() => {
-      store.say(AI_IDS.ROBOT, `🤖 Yotoqxona top-toza va dam olishga tayyor! 🌙✨`, null);
-    }, 4800);
-    return;
-  }
+      moveAi(store, AI_IDS.ROBOT, targetStatus, {
+        heldItem,
+        deliverToId: targetStatus === 'out' ? null : delivId,
+      });
 
-  // 5. KOMPYUTER VA WI-FI TEKSHIRISH
-  if (lower.includes('kompyuter') || lower.includes('pc') || lower.includes('wifi') || lower.includes('wi-fi') || lower.includes('internet')) {
-    moveAi(store, AI_IDS.ROBOT, 'pc', { heldItem: null, deliverToId: null });
-    store.say(AI_IDS.ROBOT, `🤖 Kompyuter stoliga borib tizim va Wi-Fi tezligini tekshiryapman! 💻⚡`, null);
-    scheduleRobotStep(() => {
-      store.say(AI_IDS.ROBOT, `🤖 Kompyuter va Wi-Fi 100% yuqori tezlikda ishlayapti! 🚀💻`, null);
-    }, 4800);
-    return;
-  }
+      if (step.reply) {
+        store.say(AI_IDS.ROBOT, step.reply, null);
+      }
+    };
 
-  // 6. TELEVIZOR YOQISH
-  if (lower.includes('tv') || lower.includes('televizor') || lower.includes('kino') || lower.includes('futbol')) {
-    moveAi(store, AI_IDS.ROBOT, 'tv', { heldItem: null, deliverToId: null });
-    store.say(AI_IDS.ROBOT, `🤖 Televizor oldiga borib ekranni yoqyapman va kanalni sozlayapman! 📺🍿`, null);
-    return;
-  }
+    if (idx === 0) {
+      runStep();
+    } else {
+      scheduleRobotStep(runStep, idx * 4500);
+    }
+  });
 
-  // 7. HOJATXONA TOZALASH
-  if (lower.includes('hojatxona') || lower.includes('vanna') || lower.includes('tualet')) {
-    const broomItem = { type: 'broom', emoji: '🧼', label: 'Tozalagich' };
-    moveAi(store, AI_IDS.ROBOT, 'wc', { heldItem: broomItem, deliverToId: null });
-    store.say(AI_IDS.ROBOT, `🤖 Hojatxonaga borib dezinfeksiya va tozalash ishlarini bajaryapman! 🧼✨`, null);
-    scheduleRobotStep(() => {
-      moveAi(store, AI_IDS.ROBOT, 'home', { heldItem: null, deliverToId: null });
-      store.say(AI_IDS.ROBOT, `🤖 Hojatxona top-toza qilib dezinfeksiya qilindi! ✨`, null);
-    }, 5500);
-    return;
-  }
-
-  // 8. OLDIGA CHAQIRISH ("Mening oldimga kel", "kel", "yonimga") YOKI BOSHQA A'ZOGA XABAR YETKAZISH
-  if (mentionedMember) {
-    const targetRoom = INDOOR_ROOMS.includes(mentionedMember.status) ? mentionedMember.status : 'home';
-    const delivId = INDOOR_ROOMS.includes(mentionedMember.status) ? mentionedMember.id : null;
-    moveAi(store, AI_IDS.ROBOT, targetRoom, { heldItem: null, deliverToId: delivId });
-    store.say(AI_IDS.ROBOT, `🤖 Xo'p bo'ladi! ${mentionedMember.name}ning oldiga boryapman! 🚀`, null);
-    scheduleRobotStep(() => {
-      store.say(AI_IDS.ROBOT, `🤖 ${mentionedMember.name}, sizga ${fromName}dan xabar: "${text}" 💬`, null);
-    }, 4200);
-    scheduleRobotStep(() => {
-      const rNow = store.get(AI_IDS.ROBOT);
-      if (rNow) moveAi(store, AI_IDS.ROBOT, rNow.status, { deliverToId: null });
-    }, 11000);
-    return;
-  }
-
-  if (lower.includes('kel') || lower.includes('yonimga') || lower.includes('oldimga') || lower.includes('bu yerga')) {
-    const callerRoom = recipient && INDOOR_ROOMS.includes(recipient.status) ? recipient.status : 'home';
-    const delivId = recipient && INDOOR_ROOMS.includes(recipient.status) ? recipient.id : null;
-    moveAi(store, AI_IDS.ROBOT, callerRoom, { heldItem: null, deliverToId: delivId });
-    store.say(AI_IDS.ROBOT, `🤖 Labbay, ${fromName}! Yoningizga yetib kelyapman! ⚡`, null);
-    scheduleRobotStep(() => {
-      store.say(AI_IDS.ROBOT, `🤖 Mana, ${fromName}, oldingizga keldim! Nima olib kelay yoki nima xizmat bor? 😊`, null);
-    }, 3800);
-    scheduleRobotStep(() => {
-      const rNow = store.get(AI_IDS.ROBOT);
-      if (rNow) moveAi(store, AI_IDS.ROBOT, rNow.status, { deliverToId: null });
-    }, 11000);
-    return;
-  }
-
-  // 9. HAR QANDAY BOSHQA ERKIN BUYRUQ:
-  // Agar foydalanuvchi shunchaki narsa nomini yoki boshqa buyruq yozgan bo'lsa ham, Robot oshxonaga borib uni patnisda olib keladi!
-  const customItem = {
-    type: 'item',
-    emoji: '✨',
-    label: capitalize(text.slice(0, 22)),
-    sourceRoom: 'cook',
-  };
-  moveAi(store, AI_IDS.ROBOT, 'cook', { heldItem: null, deliverToId: null });
-  store.say(AI_IDS.ROBOT, `🤖 Xo'p bo'ladi, ${fromName}! "${text.slice(0, 40)}" buyrug'ingizni bajarishga kirishdim! ⚡`, null);
-
-  scheduleRobotStep(() => {
-    const recNow = recipient ? store.get(recipient.id) : null;
-    const destRoom = recNow && INDOOR_ROOMS.includes(recNow.status) ? recNow.status : 'home';
-    const delivId = recNow && INDOOR_ROOMS.includes(recNow.status) ? recNow.id : null;
-    moveAi(store, AI_IDS.ROBOT, destRoom, { heldItem: customItem, deliverToId: delivId });
-    store.say(AI_IDS.ROBOT, `🤖 Buyrug'ingiz tayyor, ${recipientName}ning oldiga olib boryapman! 🚀`, null);
-  }, 4200);
-
-  scheduleRobotStep(() => {
-    store.say(AI_IDS.ROBOT, `🤖 Mana, ${recipientName}! "${text.slice(0, 35)}" buyrug'ingiz bajarildi! Marhamat! ✅`, null);
-  }, 8200);
-
+  // Oxirgi qadamda patnisda narsa bo'lsa, 8 soniyadan so'ng patnisni yig'ishtiradi
+  const totalDuration = (steps.length - 1) * 4500 + 8000;
   scheduleRobotStep(() => {
     const rNow = store.get(AI_IDS.ROBOT);
-    if (rNow) moveAi(store, AI_IDS.ROBOT, rNow.status, { heldItem: null, deliverToId: null });
-  }, 15500);
+    if (rNow && (rNow.heldItem || rNow.deliverToId)) {
+      store.update(AI_IDS.ROBOT, { heldItem: null, deliverToId: null });
+    }
+  }, totalDuration);
+
+  return plan;
 }
 
-// ==================== 🐱 MUSHUK VA 🐶 KUCHUK BILAN MULOQOT ====================
+function buildFallbackPlan(fromMember, text, humans, robot) {
+  const lower = text.toLowerCase();
+  const fromName = fromMember?.name || "Xo'jayin";
+  const callerRoom = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.status : 'home';
+  const callerId = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.id : null;
+
+  // Ko'chaga chiqish
+  if (lower.includes("ko'cha") || lower.includes('kocha') || lower.includes('tashqari') || lower.includes('uydan chiq')) {
+    return {
+      steps: [
+        {
+          status: 'out',
+          reply: `🤖 Xo'p bo'ladi, ${fromName}! Eshikni ochib ko'chaga chiqyapman! 🚪🚶`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Uyga kirish / qaytib kelish
+  if (lower.includes('uyga kir') || lower.includes('ichkariga') || lower.includes('qayt') || lower.includes('kel')) {
+    return {
+      steps: [
+        {
+          status: callerRoom,
+          reply: `🤖 Labbay, ${fromName}! Uyga kirib yoningizga kelyapman! 🏠⚡`,
+          item: null,
+          deliverToId: callerId,
+        },
+      ],
+    };
+  }
+
+  // Garaj
+  if (lower.includes('garaj') || lower.includes('mashina') || lower.includes('avto')) {
+    return {
+      steps: [
+        {
+          status: 'garage',
+          reply: `🤖 Xo'p bo'ladi, ${fromName}! Garajga borib mashinani ko'zdan kechiryapman! 🚗🔧`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Yotoqxona
+  if (lower.includes('yotoq') || lower.includes('uxla') || lower.includes('karavot')) {
+    return {
+      steps: [
+        {
+          status: 'sleep',
+          reply: `🤖 Xo'p bo'ladi! Yotoqxonaga boryapman! 🛏️✨`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Hojatxona
+  if (lower.includes('hojatxona') || lower.includes('vanna') || lower.includes('tualet')) {
+    return {
+      steps: [
+        {
+          status: 'wc',
+          reply: `🤖 Hojatxonaga borib tekshiryapman! 🧼✨`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Kompyuter
+  if (lower.includes('kompyuter') || lower.includes('pc') || lower.includes('wifi')) {
+    return {
+      steps: [
+        {
+          status: 'pc',
+          reply: `🤖 Kompyuter stoliga borib tizimni tekshiryapman! 💻⚡`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Televizor
+  if (lower.includes('tv') || lower.includes('televizor') || lower.includes('divan')) {
+    return {
+      steps: [
+        {
+          status: 'tv',
+          reply: `🤖 Televizor va divan oldiga boryapman! 📺✨`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Oshxonaga borish
+  if (lower.includes('oshxona') && !lower.includes('olib')) {
+    return {
+      steps: [
+        {
+          status: 'cook',
+          reply: `🤖 Xo'p bo'ladi, oshxonaga ketyapman! 🍳`,
+          item: null,
+          deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Umumiy javob (suv yoki narsa olib kelmasdan, foydalanuvchining yoniga borib bajaradi)
+  return {
+    steps: [
+      {
+        status: callerRoom,
+        reply: `🤖 Xo'p bo'ladi, ${fromName}! "${text.slice(0, 45)}" buyrug'ingizni bajaryapman! ✅`,
+        item: null,
+        deliverToId: callerId,
+      },
+    ],
+  };
+}
+
+// ==================== 🐱 MUSHUK VA 🐶 KUCHUK BILAN MULOQOT (GEMINI AI ORQALI) ====================
 async function handlePetCommand(fromMember, petId, rawText, store) {
   const pet = store.get(Number(petId));
   if (!pet) return;
   const fromName = fromMember?.name || "Do'stim";
-  const lower = String(rawText || '').toLowerCase();
+  const text = String(rawText || '').trim();
   const callerRoom = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.status : 'home';
   const callerDeliv = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.id : null;
+  const isCat = pet.job === 'cat';
 
-  if (pet.job === 'cat') {
-    if (lower.includes('sut') || lower.includes('ovqat') || lower.includes('oshxona')) {
-      moveAi(store, pet.id, 'eat', { deliverToId: null });
-      store.say(pet.id, `🐱 Miyov-miyov! Oshxonaga sut ichishga ketyapman, rahmat ${fromName}! 🥛🐾`, null);
-      return;
+  const systemPrompt = `Sen 3D Oilaviy Uydagi ${isCat ? '"Mushuk" (🐱 uy mushugi)' : '"It" (🐶 uy kuchugi)'}san.
+Foydalanuvchi (${fromName}) senga buyruq yoki erkalash yozdi. Buyruq ma'nosiga qarab qayerga borishingni ("status": "home|tv|pc|cook|eat|sleep|wc|garage|out") va qisqa javobingni ("reply") JSON formatda qaytar:
+{
+  "steps": [
+    {
+      "status": "home|tv|pc|cook|eat|sleep|wc|garage|out",
+      "reply": "${isCat ? '🐱 Miyov~ ...' : '🐶 Vov-vov! ...'}",
+      "deliverToId": ${callerDeliv || 'null'}
     }
-    if (lower.includes('uxla') || lower.includes('yotoq')) {
-      moveAi(store, pet.id, 'sleep', { deliverToId: null });
-      store.say(pet.id, `🐱 Mrrr... Yotoqxonaga borib uxlayman~ 💤🐾`, null);
-      return;
-    }
-    moveAi(store, pet.id, callerRoom, { deliverToId: callerDeliv });
-    store.say(pet.id, `🐱 Miyov~ Mrrr! (${fromName}ning yoniga kelib erkalandi) 🐾❤️`, null);
-    setTimeout(() => moveAi(store, pet.id, callerRoom, { deliverToId: null }), 7000);
+  ]
+}
+Agar "ko'chaga chiq" deyilsa status: "out", deliverToId: null bo'lsin. Agar ma'lum bir xonaga borish aytilsa deliverToId: null bo'lsin. Agar chaqirilsa yoki erkalansa status: "${callerRoom}", deliverToId: ${callerDeliv || 'null'} bo'lsin.`;
+
+  const plan = await askAiPlan(systemPrompt, `Foydalanuvchi (${fromName}, joyi: "${callerRoom}") yozdi: "${text}"`);
+  if (plan && Array.isArray(plan.steps) && plan.steps[0]) {
+    const st = plan.steps[0];
+    const targetStatus = VALID_STATUSES.has(st.status) ? st.status : callerRoom;
+    const deliv = targetStatus === 'out' ? null : (st.deliverToId ? Number(st.deliverToId) : null);
+    moveAi(store, pet.id, targetStatus, { deliverToId: deliv });
+    if (st.reply) store.say(pet.id, st.reply, null);
+    if (deliv) setTimeout(() => moveAi(store, pet.id, targetStatus, { deliverToId: null }), 7000);
     return;
   }
 
-  if (pet.job === 'dog') {
-    if (lower.includes('suyak') || lower.includes('ovqat') || lower.includes('oshxona')) {
-      moveAi(store, pet.id, 'eat', { deliverToId: null });
-      store.say(pet.id, `🐶 Vov-vov! Oshxonaga suyak yeyishga yuguryapman, rahmat ${fromName}! 🦴🐾`, null);
-      return;
-    }
-    if (lower.includes("qo'riq") || lower.includes('eshik')) {
-      moveAi(store, pet.id, 'home', { deliverToId: null });
-      store.say(pet.id, `🐶 Vov! Eshik oldini ishonchli qo'riqlayapman, ${fromName}! 🛡️🐾`, null);
-      return;
-    }
-    moveAi(store, pet.id, callerRoom, { deliverToId: callerDeliv });
-    store.say(pet.id, `🐶 Vov-vov! (${fromName}ning oldiga yugurib kelib dumini likillatdi!) 🐾❤️`, null);
-    setTimeout(() => moveAi(store, pet.id, callerRoom, { deliverToId: null }), 7000);
+  const lower = text.toLowerCase();
+  if (lower.includes("ko'cha") || lower.includes('kocha') || lower.includes('tashqari')) {
+    moveAi(store, pet.id, 'out', { deliverToId: null });
+    store.say(pet.id, isCat ? "🐱 Miyov~ Ko'chaga aylanishga chiqdim! 🐾" : '🐶 Vov-vov! Hovliga chiqyapman! 🐾', null);
+    return;
   }
+  moveAi(store, pet.id, callerRoom, { deliverToId: callerDeliv });
+  store.say(pet.id, isCat ? `🐱 Miyov~ Mrrr! (${fromName}ning yoniga kelib erkalandi) 🐾❤️` : `🐶 Vov-vov! (${fromName}ning oldiga yugurib kelib dumini likillatdi!) 🐾❤️`, null);
+  setTimeout(() => moveAi(store, pet.id, callerRoom, { deliverToId: null }), 7000);
 }
 
 // ==================== MUSTAQIL AI HARAKAT SIKLI (VAZIYATGA QARAB YURISH) ====================
 function startAiLoop(store) {
   let stepIndex = 0;
 
-  // Oila a'zosi uyga kelganda It va AI Robot kutib oladi
   store.on('moved', ({ id, name, event }) => {
     if (event === 'arrived') {
       setTimeout(() => {
@@ -440,7 +449,6 @@ function startAiLoop(store) {
     }
   });
 
-  // Har 14 soniyada navbat bilan AI Robot, Mushuk va It vaziyatga qarab mustaqil harakat qiladi
   setInterval(() => {
     try {
       const all = store.all();
@@ -449,11 +457,13 @@ function startAiLoop(store) {
       const turn = stepIndex % 3;
       stepIndex++;
 
-      // 1-navbat: 🤖 AI Robot (agar foydalanuvchi buyrug'ini bajarayotgan bo'lsa xalaqit bermaydi)
       if (turn === 0) {
         if (Date.now() < robotBusyUntil) return;
         const robot = store.get(AI_IDS.ROBOT);
         if (!robot) return;
+
+        // Agar robot ko'chaga chiqarib yuborilgan bo'lsa, o'z holicha qaytib kirmaydi — faqat chaqirilganda yoki uzoq vaqtdan keyin kiradi
+        if (robot.status === 'out') return;
 
         const cookingHuman = indoorHumans.find((m) => m.status === 'cook');
         const eatingHuman = indoorHumans.find((m) => m.status === 'eat');
@@ -491,9 +501,10 @@ function startAiLoop(store) {
         } else {
           const patrol = [
             { status: 'home', held: { type: 'broom', emoji: '🧹', label: 'Supurgi' }, text: '🤖 Mehmonxonani supurib, tozalab chiqyapman 🧹✨' },
-            { status: 'cook', held: { type: 'tea', emoji: '🍵', label: 'Choynak' }, text: "🤖 Oshxonada choynakka issiq choy damlab qo'ydim ☕" },
+            { status: 'cook', held: null, text: "🤖 Oshxonada choynakka issiq suv qo'ydim ☕" },
             { status: 'tv', held: null, text: '🤖 Divan va televizor atrofini tartibga keltirdim 📺✨' },
             { status: 'sleep', held: null, text: '🤖 Yotoqxonani shamollatib, karavotlarni tekisladim 🛏️' },
+            { status: 'garage', held: null, text: '🤖 Garajdagi mashinani tekshirib chiqdim 🚗✨' },
             { status: 'pc', held: null, text: "🤖 Uy Wi-Fi va kompyuter tizimini tekshirdim — hammasi a'lo! 💻⚡" },
           ];
           const chosen = pick(patrol.filter((p) => p.status !== robot.status));
@@ -514,10 +525,9 @@ function startAiLoop(store) {
         return;
       }
 
-      // 2-navbat: 🐱 Mushuk mustaqil xonadan-xonaga yuradi
       if (turn === 1) {
         const cat = store.get(AI_IDS.CAT);
-        if (!cat) return;
+        if (!cat || cat.status === 'out') return;
 
         const catRooms = ['home', 'tv', 'eat', 'sleep'];
         let nextStatus = pick(catRooms.filter((r) => r !== cat.status));
@@ -544,12 +554,11 @@ function startAiLoop(store) {
         return;
       }
 
-      // 3-navbat: 🐶 It (Kuchuk) uyni aylanib yuradi
       if (turn === 2) {
         const dog = store.get(AI_IDS.DOG);
-        if (!dog) return;
+        if (!dog || dog.status === 'out') return;
 
-        const dogRooms = ['home', 'eat', 'cook', 'tv', 'sleep'];
+        const dogRooms = ['home', 'eat', 'cook', 'tv', 'sleep', 'garage'];
         let nextStatus = pick(dogRooms.filter((r) => r !== dog.status));
         let deliverToId = null;
         let msg = pick([

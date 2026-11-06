@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=7';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=7';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=7';
+import { Room, DOOR } from './room.js?v=8';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=8';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=8';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -15,9 +15,10 @@ const STATUS_TEXT = {
   cook: 'Ovqat pishiryapti',
   sleep: 'Yotoqxonada uxlayapti',
   wc: 'Hojatxonada',
+  garage: 'Garajda',
   work: 'Ishda',
   school: "O'qishda",
-  out: 'Tashqarida',
+  out: "Ko'chada (tashqarida)",
 };
 
 const JOB_TITLE = {
@@ -34,7 +35,7 @@ const JOB_TITLE = {
   other: "Oila a'zosi",
 };
 
-const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc']);
+const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc', 'garage']);
 
 const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'));
 document.getElementById('map-btn').addEventListener('click', () => fmap.toggle());
@@ -127,7 +128,7 @@ function sync(members, animate) {
 
   for (const m of members) {
     let c = chars.get(m.id);
-    const indoor = INDOOR.has(m.status);
+    const indoor = INDOOR.has(m.status) || Boolean(m.isAi);
     const spot = spots.get(m.id);
     const car = room.getCarForMember(m.id);
 
@@ -766,7 +767,7 @@ if (api) {
   });
   api.onSay(({ id, name, status, text, toId }) => {
     const c = chars.get(id);
-    if (c && INDOOR.has(status) && c.group.visible) {
+    if (c && (INDOOR.has(status) || c.member?.isAi) && c.group.visible) {
       c.say(text);
       const target = toId && chars.get(toId);
       if (

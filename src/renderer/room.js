@@ -890,6 +890,14 @@ export class Room {
         { pos: new THREE.Vector3(5.8, 0, 3.6), approach: new THREE.Vector3(5.3, 0, 3.1), node: 'wc_door', rotY: Math.PI / 2, pose: 'stand' },
         { pos: new THREE.Vector3(6.6, 0, 3.1), approach: new THREE.Vector3(6.0, 0, 3.0), node: 'wc_mid', rotY: Math.PI, pose: 'stand' },
       ],
+      garage: [
+        { pos: new THREE.Vector3(-4.6, 0, 4.3), approach: new THREE.Vector3(-4.2, 0, 4.4), node: 'gar_door', rotY: -Math.PI / 2, pose: 'stand' },
+        { pos: new THREE.Vector3(-6.8, 0, 4.3), approach: new THREE.Vector3(-6.2, 0, 4.4), node: 'gar_mid', rotY: Math.PI, pose: 'stand' },
+      ],
+      out: [
+        { pos: new THREE.Vector3(-0.3, 0, 8.1), approach: new THREE.Vector3(-1.8, 0, 7.3), node: 'door_out', rotY: 0, pose: 'stand' },
+        { pos: new THREE.Vector3(-3.3, 0, 8.1), approach: new THREE.Vector3(-1.8, 0, 7.3), node: 'door_out', rotY: 0, pose: 'stand' },
+      ],
     };
 
     const ordered = [

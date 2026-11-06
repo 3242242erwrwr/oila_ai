@@ -22,7 +22,7 @@ const JOBS = {
   other:     { label: '🌟 Boshqa', title: "Oila a'zosi", outfit: 'casual' },
 };
 
-const INDOOR_STATUSES = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc']);
+const INDOOR_STATUSES = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc', 'garage']);
 
 // Vaqtinchalik holatlar: ma'lum vaqtdan keyin avtomatik 'home' (Mehmonxona) ga qaytadi
 const AUTO_REVERT_MS = {
@@ -143,7 +143,7 @@ class Store extends EventEmitter {
         existingAi.job = aiDef.job;
         existingAi.isAi = true;
         existingAi.aiType = aiDef.aiType;
-        if (!INDOOR_STATUSES.has(existingAi.status)) existingAi.status = 'home';
+        if (!INDOOR_STATUSES.has(existingAi.status) && existingAi.status !== 'out') existingAi.status = 'home';
         existingAi.appearance = buildAppearance({ gender: aiDef.gender, age: aiDef.age, job: aiDef.job });
       }
     }

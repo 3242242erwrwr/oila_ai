@@ -15,6 +15,7 @@ export const STATUS_ICON = {
   cook: '🍳',
   sleep: '😴',
   wc: '🚽',
+  garage: '🚗',
   work: '💼',
   school: '🏫',
   out: '🚶',
