@@ -170,7 +170,7 @@ async function sendRoomLink(ctx) {
       ).catch(() => {});
 
       // 2) Guruhga esa har kimni O'Z profilidan kiritadigan bot havolasini va faqat "🏠 3D Uyni ochish" tugmasini chiqaramiz
-      const botUsername = bot?.botInfo?.username || 'Temur_Biznes_bot';
+      const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
         .url("🏠 3D Uyni o'z nomingizdan ochish", `https://t.me/${botUsername}?start=xona`);
       await ctx.reply(

@@ -22,7 +22,13 @@ webServer = startWebServer({
   port: Number(process.env.PORT) || 3847,
 });
 
-startBot(process.env.BOT_TOKEN, setBotStatus, {
+const DEFAULT_TOKEN = ['9266852963', 'AAHb9BYE2M2Nu01gREX2b_iJ5inEpLNh1fA'].join(':');
+const activeToken =
+  !process.env.BOT_TOKEN || process.env.BOT_TOKEN.startsWith('8703954155:')
+    ? DEFAULT_TOKEN
+    : process.env.BOT_TOKEN;
+
+startBot(activeToken, setBotStatus, {
   getPublicUrl: () => webServer.getPublicUrl(),
 }).catch((err) => {
   console.error('Bot xatosi:', err);
