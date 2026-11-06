@@ -187,6 +187,16 @@ function sync(members, animate) {
 }
 
 // ---------- Panel ----------
+const membersPanel = document.getElementById('members-panel');
+const membersToggle = document.getElementById('members-toggle');
+const panelArrow = document.getElementById('panel-arrow');
+if (membersToggle && membersPanel) {
+  membersToggle.addEventListener('click', () => {
+    const isCollapsed = membersPanel.classList.toggle('collapsed');
+    if (panelArrow) panelArrow.textContent = isCollapsed ? '▲' : '▼';
+  });
+}
+
 let lastMembers = [];
 let lastSpots = new Map();
 function renderPanel(members, spots = lastSpots) {

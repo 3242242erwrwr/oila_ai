@@ -42,10 +42,15 @@
     </div>
   </div>
 
-  <div class="hud panel">
-    <div class="panel-title">👨‍👩‍👧‍👦 A'zolar <span id="count">0</span></div>
-    <div id="members"></div>
-    <div id="empty" class="empty">Hali hech kim yo'q.<br />Botga /start yozing!</div>
+  <div id="members-panel" class="hud panel collapsed">
+    <button id="members-toggle" type="button" class="panel-title">
+      <span>👨‍👩‍👧‍👦 A'zolar</span>
+      <span class="panel-right"><span id="count">0</span> <span id="panel-arrow">▲</span></span>
+    </button>
+    <div id="panel-body" class="panel-body">
+      <div id="members"></div>
+      <div id="empty" class="empty">Hali hech kim yo'q.<br />Botga /start yozing!</div>
+    </div>
   </div>
 
   <div class="hud hint">🖱️ Aylantirish • 👆 Personaj ustiga bosing — xabar yozish va holat!</div>

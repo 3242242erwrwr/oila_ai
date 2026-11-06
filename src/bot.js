@@ -37,19 +37,12 @@ function joinKeyboard() {
 }
 
 // Ro'yxatdan o'tgandan keyin DOIM turadigan 3 ta asosiy tugma
-// ("🏠 3D Uyni ochish" bosilganda to'g'ridan-to'g'ri avtomatik 3D Uy ochiladi!)
-function mainKeyboard(uid = '') {
-  const baseUrl = getPublicUrlFn();
-  const personalUrl = uid
-    ? `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}`
-    : baseUrl;
-  const kb = new Keyboard().text(BTN_STATUS);
-  if (personalUrl.startsWith('https://')) {
-    kb.webApp(BTN_ROOM, personalUrl);
-  } else {
-    kb.text(BTN_ROOM);
-  }
-  return kb.row().text(BTN_CHAT).resized().persistent();
+function mainKeyboard() {
+  return new Keyboard()
+    .text(BTN_STATUS).text(BTN_ROOM).row()
+    .text(BTN_CHAT)
+    .resized()
+    .persistent();
 }
 
 // Guruhda FAQAT "🏠 3D Uyni ochish" tugmasi chiqadi
@@ -156,27 +149,20 @@ async function sendRoomLink(ctx) {
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp('📱 3D Uyni Telegram ichida ochish', personalUrl).row()
-        .url("🌐 3D Uyni telefonda / PC'da ochish", personalUrl);
+        .url("🌐 3D Uyni ochish (Tezkor havola)", personalUrl);
       await ctx.reply(
-        "🏠 *Oilaviy 3D Uy tayyor!*\n\n" +
-        "Pastdagi tugmani bosib 3D uyni o'z nomingizdan oching.\n" +
-        "👆 Xonadagi boshqa personaj ustiga bosib unga xabar yozsangiz, sizning personajingiz uning yoniga borib gapiradi!",
+        `🏠 *Oilaviy 3D Uy tayyor!*\n\n🔗 Tezkor kirish: ${personalUrl}`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
-      // Guruhda birov boshqa odamning ?uid= havolasiga bosib qo'ymasligi uchun:
-      // 1) So'ragan odamning o'z lichkasiga shaxsiy havolasini yuboramiz
       const personalIkb = new InlineKeyboard()
-        .webApp('📱 3D Uyni Telegram ichida ochish', personalUrl).row()
-        .url("🌐 3D Uyni telefonda / PC'da ochish", personalUrl);
+        .url("🌐 3D Uyni ochish (Tezkor havola)", personalUrl);
       await bot.api.sendMessage(
         uid,
-        "🏠 *Sizning shaxsiy 3D Uy havolangiz:*",
+        `🏠 *Sizning shaxsiy 3D Uy havolangiz:*\n${personalUrl}`,
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
-      // 2) Guruhga esa har kimni O'Z profilidan kiritadigan bot havolasini va faqat "🏠 3D Uyni ochish" tugmasini chiqaramiz
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
         .url("🏠 3D Uyni o'z nomingizdan ochish", `https://t.me/${botUsername}?start=xona`);
@@ -564,16 +550,9 @@ async function startBot(token, onStatus, options = {}) {
   bot.catch((err) => console.error('Bot xatosi:', err.error || err));
 
   await bot.init();
-  const initialUrl = getPublicUrlFn();
-  if (initialUrl && initialUrl.startsWith('https://')) {
-    await bot.api.setChatMenuButton({
-      menu_button: {
-        type: 'web_app',
-        text: '🏠 3D Uy',
-        web_app: { url: initialUrl },
-      },
-    }).catch(() => {});
-  }
+  await bot.api.setChatMenuButton({
+    menu_button: { type: 'commands' },
+  }).catch(() => {});
   await bot.api.setMyCommands([
     { command: 'start', description: "A'zo bo'lish va tugmalar" },
     { command: 'xona', description: "3D Uyni telefonda / PC'da ochish" },
