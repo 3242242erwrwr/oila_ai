@@ -143,7 +143,7 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=9`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=10`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
@@ -520,26 +520,39 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    // 4. Lichkada suhbat xabari
+    // 4. Lichkada suhbat yoki buyruq xabari
     const msgText = text.slice(0, 160);
+    const lower = msgText.toLowerCase();
     const others = store.all().filter((x) => x.id !== id);
+    const robot = store.get(900001);
+
     let targetId = activeChatTarget.get(id);
     let target = targetId && others.find((x) => x.id === targetId);
     if (!target) {
-      target = others.find((x) => msgText.toLowerCase().includes(x.name.toLowerCase()));
+      target = others.find((x) => lower.includes(x.name.toLowerCase()));
     }
-    if (!target && others.length === 1) {
-      target = others[0];
+
+    const isHumanTarget = target && !target.isAi;
+    const isCommand = lower.includes('olib') || lower.includes('keltir') || lower.includes('chiq') ||
+                      lower.includes('kir') || lower.includes('bor') || lower.includes('tozala') ||
+                      lower.includes('supur') || lower.includes('uyg') || lower.includes('choy') ||
+                      lower.includes('suv') || lower.includes('banan') || lower.includes('olma') ||
+                      lower.includes('ovqat') || lower.includes('tort') || lower.includes('robot') ||
+                      lower.includes('qil') || lower.includes('bajar') || lower.includes('ishla') ||
+                      lower.includes('kel');
+
+    // Agar inson tanlanmagan bo'lsa yoki buyruq berilgan bo'lsa -> 🤖 AI Robot bajaradi
+    if (!isHumanTarget || lower.includes('robot') || isCommand) {
+      const dec = await handleRobotCommand(m, msgText, store);
+      await ctx.reply(dec?.reply || `🤖 Buyruq qabul qilindi va 3D uyda bajarilmoqda!`, {
+        reply_markup: mainKeyboard(id),
+      });
+      return;
     }
 
     store.say(id, msgText, target?.id || null);
 
     if (target) {
-      if (target.job === 'robot') {
-        const dec = await handleRobotCommand(m, msgText, store);
-        await ctx.reply(dec?.reply || `🤖 Buyruq bajarildi!`);
-        return;
-      }
       if (target.job === 'cat' || target.job === 'dog') {
         await handlePetCommand(m, target.id, msgText, store);
         await ctx.reply(`🐾 *${target.name}*ga yetkazildi!`, { parse_mode: 'Markdown' });

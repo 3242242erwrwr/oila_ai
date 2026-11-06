@@ -176,13 +176,17 @@ Qo'lda ko'tarib yurish mumkin bo'lgan 3D buyum ("item"):
 - Agar Robot ma'lum bir odamning patnisda narsa olib borishi yoki shaxsan yoniga borib gapirishi kerak bo'lsa: o'sha odamning ID raqami (masalan: ${fromId || 'null'}).
 - Agar shunchaki biror xonaga borish ("cook", "garage", "sleep", "out" va h.k.) kerak bo'lsa: "deliverToId": null.
 
+"wakeMemberId":
+- Agar foydalanuvchi biror a'zoni uyg'otishni buyurgan bo'lsa (masalan: "Dilraboni uyg'ot"): o'sha a'zoning ID raqami.
+
 MUHIM QOIDALAR:
 1. "ko'chaga chiq", "tashqariga chiq", "uydan chiq", "ket" deyilsa -> 1 ta qadam: status: "out", item: null, deliverToId: null, reply: "🤖 Xo'p bo'ladi! Eshikni ochib ko'chaga chiqyapman! 🚪🚶".
-2. "uyga kir", "qaytib kel", "ichkariga kir" deyilsa -> status: "${INDOOR_ROOMS.includes(fromRoom) ? fromRoom : 'home'}", item: null, deliverToId: ${fromId || 'null'}.
-3. "garajga bor", "mashinani ko'r" deyilsa -> status: "garage", item: null, deliverToId: null.
-4. Biror narsa "olib kel" deyilsa (masalan: "banan olib kel", "suv olib kel", "choy olib kel") ->
-   - 1-qadam: o'sha narsa turgan xonaga borish (status: "cook", item: null, deliverToId: null, reply: "🤖 Xo'p bo'ladi! Oshxonadan ... olib kelaman!")
-   - 2-qadam: qo'lga buyumni olib so'ragan odamning oldiga borish (status: "${INDOOR_ROOMS.includes(fromRoom) ? fromRoom : 'home'}", item: {...}, deliverToId: ${fromId || 'null'}, reply: "🤖 Mana, siz so'ragan ...ni olib keldim! Marhamat! ✨").
+2. "uyga kir", "qaytib kel", "ichkariga kir" deyilsa -> status: "${INDOOR_ROOMS.includes(fromRoom) ? fromRoom : 'home'}", item: null, deliverToId: ${fromId || 'null'}, reply: "🤖 Labbay! Uyga kirib yoningizga kelyapman! 🏠⚡".
+3. "garajga bor", "mashinani ko'r" deyilsa -> status: "garage", item: null, deliverToId: null, reply: "🤖 Xo'p bo'ladi! Garajga yo'l oldim! 🚗🔧".
+4. Biror narsa "olib kel" deyilsa (masalan: "banan olib kel", "suv olib kel", "choy olib kel", "olma olib kel", "ovqat olib kel", "tort olib kel") ->
+   - 1-qadam: o'sha narsa turgan oshxonaga borish (status: "cook", item: null, deliverToId: null, reply: "🤖 Xo'p bo'ladi! Oshxonadan ... olib kelaman!")
+   - 2-qadam: qo'lga buyumni olib so'ragan odamning oldiga borish (status: "${INDOOR_ROOMS.includes(fromRoom) ? fromRoom : 'home'}", item: { "type": "banana|tea|water|apple|watermelon|food|cake|item", "emoji": "...", "label": "..." }, deliverToId: ${fromId || 'null'}, reply: "🤖 Mana, siz so'ragan ...ni olib keldim! Marhamat! ✨").
+5. Biror odamni "uyg'ot" yoki "chaqir" deyilsa -> status: "sleep", deliverToId: <o'sha odam IDsi>, wakeMemberId: <o'sha odam IDsi>, reply: "🤖 Xo'p bo'ladi! ...ni uyg'otgani yotoqxonaga boryapman! 🏃‍♂️".
 
 Faqat quyidagi JSON formatda javob qaytar:
 {
@@ -191,7 +195,8 @@ Faqat quyidagi JSON formatda javob qaytar:
       "status": "home|tv|pc|cook|eat|sleep|wc|garage|out",
       "reply": "🤖 O'zbek tilida qisqa va aniq javob",
       "item": null,
-      "deliverToId": null
+      "deliverToId": null,
+      "wakeMemberId": null
     }
   ]
 }`;
@@ -229,6 +234,16 @@ Foydalanuvchi buyrug'i: "${text}"`;
         deliverToId: targetStatus === 'out' ? null : delivId,
       });
 
+      if (step.wakeMemberId) {
+        const targetMember = store.get(Number(step.wakeMemberId));
+        if (targetMember && targetMember.status === 'sleep') {
+          setTimeout(() => {
+            store.update(Number(step.wakeMemberId), { status: 'home' });
+            store.say(Number(step.wakeMemberId), "🥱 Uyqudan turdim, xayrli kun!", null);
+          }, 1500);
+        }
+      }
+
       if (step.reply) {
         store.say(AI_IDS.ROBOT, step.reply, null);
       }
@@ -241,8 +256,8 @@ Foydalanuvchi buyrug'i: "${text}"`;
     }
   });
 
-  // Oxirgi qadamda patnisda narsa bo'lsa, 8 soniyadan so'ng patnisni yig'ishtiradi
-  const totalDuration = (steps.length - 1) * 4500 + 8000;
+  // Oxirgi qadamda patnisda narsa bo'lsa, foydalanuvchi ko'rib rohatlanishi uchun 25 soniyadan so'ng patnisni yig'ishtiradi
+  const totalDuration = (steps.length - 1) * 4500 + 25000;
   scheduleRobotStep(() => {
     const rNow = store.get(AI_IDS.ROBOT);
     if (rNow && (rNow.heldItem || rNow.deliverToId)) {
@@ -250,7 +265,12 @@ Foydalanuvchi buyrug'i: "${text}"`;
     }
   }, totalDuration);
 
-  return plan;
+  const replyText = steps
+    .map((s) => s.reply)
+    .filter(Boolean)
+    .join('\n') || `🤖 Xo'p bo'ladi, buyrug'ingizni bajaryapman!`;
+
+  return { reply: replyText, steps };
 }
 
 function buildFallbackPlan(fromMember, text, humans, robot) {
@@ -371,6 +391,24 @@ function buildFallbackPlan(fromMember, text, humans, robot) {
     };
   }
 
+  // Odamni uyg'otish (masalan: "Dilraboni uyg'ot")
+  if (lower.includes('uyg') || lower.includes('turgaz') || lower.includes('chaqir')) {
+    const sleeping = humans.find((h) => h.status === 'sleep' || lower.includes(h.name.toLowerCase()));
+    if (sleeping) {
+      return {
+        steps: [
+          {
+            status: 'sleep',
+            reply: `🤖 Xo'p bo'ladi, ${fromName}! ${sleeping.name}ni uyg'otish uchun yotoqxonaga boryapman! 🏃‍♂️`,
+            item: null,
+            deliverToId: sleeping.id,
+            wakeMemberId: sleeping.id,
+          },
+        ],
+      };
+    }
+  }
+
   // Umumiy javob (suv yoki narsa olib kelmasdan, foydalanuvchining yoniga borib bajaradi)
   return {
     steps: [
@@ -474,41 +512,28 @@ function startAiLoop(store) {
         let heldItem = null;
         let deliverToId = null;
 
-        if (cookingHuman && Math.random() < 0.6) {
+        if (cookingHuman && Math.random() < 0.45) {
           nextStatus = 'cook';
           deliverToId = cookingHuman.id;
           msg = `🤖 ${cookingHuman.name}, ovqat pishirishga yordam beraman! 🍳✨`;
-        } else if (eatingHuman && Math.random() < 0.6) {
+        } else if (eatingHuman && Math.random() < 0.45) {
           nextStatus = 'eat';
           heldItem = { type: 'tea', emoji: '🍵', label: 'Issiq choy' };
           deliverToId = eatingHuman.id;
           msg = `🤖 Yoqimli ishtaha, ${eatingHuman.name}! Issiq choy olib keldim! ☕🍽️`;
-        } else if (allSleeping) {
-          nextStatus = pick(['home', 'sleep']);
-          msg = `🤖 Hamma shirin uyquda, uyni tinch nazorat qilyapman 🌙✨`;
-        } else if (pcHuman && Math.random() < 0.5) {
+        } else if (pcHuman && Math.random() < 0.4) {
           nextStatus = 'pc';
           heldItem = { type: 'tea', emoji: '☕', label: 'Issiq qahva' };
           deliverToId = pcHuman.id;
           msg = `🤖 ${pcHuman.name}, kompyuterda charchamang! Issiq qahva olib keldim! 💻☕`;
-        } else if (tvHuman && Math.random() < 0.5) {
+        } else if (tvHuman && Math.random() < 0.4) {
           nextStatus = 'tv';
           heldItem = { type: 'apple', emoji: '🍎', label: 'Mevalar' };
           deliverToId = tvHuman.id;
           msg = `🤖 ${tvHuman.name}, televizor ko'rishga meva olib keldim! 📺🍎`;
         } else {
-          const patrol = [
-            { status: 'home', held: { type: 'broom', emoji: '🧹', label: 'Supurgi' }, text: '🤖 Mehmonxonani supurib, tozalab chiqyapman 🧹✨' },
-            { status: 'cook', held: null, text: "🤖 Oshxonada choynakka issiq suv qo'ydim ☕" },
-            { status: 'tv', held: null, text: '🤖 Divan va televizor atrofini tartibga keltirdim 📺✨' },
-            { status: 'sleep', held: null, text: '🤖 Yotoqxonani shamollatib, karavotlarni tekisladim 🛏️' },
-            { status: 'garage', held: null, text: '🤖 Garajdagi mashinani tekshirib chiqdim 🚗✨' },
-            { status: 'pc', held: null, text: "🤖 Uy Wi-Fi va kompyuter tizimini tekshirdim — hammasi a'lo! 💻⚡" },
-          ];
-          const chosen = pick(patrol.filter((p) => p.status !== robot.status));
-          nextStatus = chosen.status;
-          heldItem = chosen.held;
-          msg = chosen.text;
+          // Bo'sh paytda robot o'zicha soxta gaplar va harakatlar bilan buyruqlarni buzmaydi
+          return;
         }
 
         moveAi(store, AI_IDS.ROBOT, nextStatus, { heldItem, deliverToId });

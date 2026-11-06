@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=9';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=9';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=9';
+import { Room, DOOR } from './room.js?v=10';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=10';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=10';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
