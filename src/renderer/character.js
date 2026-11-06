@@ -64,6 +64,13 @@ export class Character {
     this.label.position.y = 1.75;
     this.group.add(this.label);
 
+    this.itemBadgeEl = document.createElement('div');
+    this.itemBadgeEl.className = 'item-badge';
+    this.itemBadgeEl.style.display = 'none';
+    this.itemLabel = new CSS2DObject(this.itemBadgeEl);
+    this.itemLabel.position.set(0, 0.88, 0.38);
+    this.body.add(this.itemLabel);
+
     this.state = 'hidden';
     this.path = [];
     this.spot = null;
@@ -344,6 +351,133 @@ export class Character {
     this.head.add(antPole, antBall);
 
     this.body.add(this.head);
+
+    // Robot qo'lida ko'tarib yuradigan 3D patnis va buyumlar guruhi
+    this.trayGroup = new THREE.Group();
+    this.trayGroup.position.set(0, 0.54, 0.34);
+    this.trayGroup.visible = false;
+    this.body.add(this.trayGroup);
+    this.heldItemKey = '';
+  }
+
+  updateHeldItem(heldItem) {
+    if (!this.isRobot || !this.trayGroup) {
+      if (this.itemBadgeEl) this.itemBadgeEl.style.display = 'none';
+      return;
+    }
+    const key = heldItem ? `${heldItem.type}:${heldItem.emoji}:${heldItem.label}` : '';
+    if (key === this.heldItemKey) return;
+    this.heldItemKey = key;
+    this.trayGroup.clear();
+
+    if (!heldItem) {
+      this.trayGroup.visible = false;
+      this.itemBadgeEl.style.display = 'none';
+      return;
+    }
+
+    this.trayGroup.visible = true;
+    this.itemBadgeEl.textContent = `${heldItem.emoji || '✨'} ${heldItem.label || ''}`.trim();
+    this.itemBadgeEl.style.display = '';
+
+    const m = (col) => toon(col);
+    const type = heldItem.type || 'item';
+
+    if (type === 'broom') {
+      // 3D Supurgi / mop
+      const stick = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.75, 8), m('#8d5524'));
+      stick.position.set(0.18, 0.05, 0);
+      stick.rotation.x = 0.25;
+      const head = mesh(new THREE.BoxGeometry(0.28, 0.08, 0.12), m('#ffd166'));
+      head.position.set(0.18, -0.32, 0.09);
+      this.trayGroup.add(stick, head);
+      return;
+    }
+
+    // Kumush patnis (tray)
+    const tray = mesh(new THREE.CylinderGeometry(0.23, 0.2, 0.025, 22), m('#e2e8f0'));
+    const rim = mesh(new THREE.TorusGeometry(0.22, 0.015, 8, 22), m('#94a3b8'));
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.015;
+    this.trayGroup.add(tray, rim);
+
+    if (type === 'banana') {
+      // 3D Sariq bananlar
+      for (const zOff of [-0.04, 0.04]) {
+        const ban = mesh(new THREE.TorusGeometry(0.11, 0.032, 8, 16, Math.PI * 0.85), m('#ffd166'));
+        ban.position.set(0, 0.05, zOff);
+        ban.rotation.x = Math.PI / 2;
+        ban.rotation.z = 0.3;
+        const tip = mesh(new THREE.SphereGeometry(0.025, 8, 6), m('#583101'));
+        tip.position.set(0.1, 0.05, zOff);
+        this.trayGroup.add(ban, tip);
+      }
+    } else if (type === 'water') {
+      // 3D Muzdek suv / ichimlik stakani va naycha
+      const glass = mesh(new THREE.CylinderGeometry(0.075, 0.058, 0.2, 16), m('#38bdf8'));
+      glass.position.set(0, 0.11, 0);
+      const foam = mesh(new THREE.CylinderGeometry(0.076, 0.076, 0.025, 16), m('#e0f2fe'));
+      foam.position.set(0, 0.2, 0);
+      const straw = mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.26, 8), m('#ef476f'));
+      straw.position.set(0.03, 0.15, 0);
+      straw.rotation.z = -0.22;
+      this.trayGroup.add(glass, foam, straw);
+    } else if (type === 'tea') {
+      // 3D Ko'k o'zbek choynagi va piyola
+      const pot = mesh(new THREE.SphereGeometry(0.1, 16, 12), m('#1d3557'));
+      pot.position.set(-0.05, 0.09, 0);
+      const lid = mesh(new THREE.SphereGeometry(0.04, 10, 8), m('#ffd166'));
+      lid.position.set(-0.05, 0.19, 0);
+      const cup = mesh(new THREE.CylinderGeometry(0.05, 0.035, 0.065, 14), m('#ffffff'));
+      cup.position.set(0.1, 0.045, 0.03);
+      this.trayGroup.add(pot, lid, cup);
+    } else if (type === 'apple') {
+      // 3D Qizil va sariq olmalar / mevalar
+      const a1 = mesh(new THREE.SphereGeometry(0.075, 14, 12), m('#e63946'));
+      a1.position.set(-0.06, 0.075, 0);
+      const leaf = mesh(new THREE.BoxGeometry(0.04, 0.015, 0.02), m('#06d6a0'));
+      leaf.position.set(-0.05, 0.15, 0);
+      const a2 = mesh(new THREE.SphereGeometry(0.068, 14, 12), m('#ffd166'));
+      a2.position.set(0.07, 0.068, 0.03);
+      this.trayGroup.add(a1, leaf, a2);
+    } else if (type === 'watermelon') {
+      // 3D Tarvuz pallasi
+      const rind = mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.05, 16, 1, false, 0, Math.PI), m('#2a9d8f'));
+      rind.rotation.y = Math.PI / 2;
+      rind.rotation.z = Math.PI / 2;
+      rind.position.set(0, 0.14, 0);
+      const red = mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.055, 16, 1, false, 0, Math.PI), m('#e63946'));
+      red.rotation.y = Math.PI / 2;
+      red.rotation.z = Math.PI / 2;
+      red.position.set(0, 0.14, 0);
+      this.trayGroup.add(rind, red);
+    } else if (type === 'cake') {
+      // 3D Tort / shirinlik
+      const base = mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.09, 18), m('#ff8fab'));
+      base.position.set(0, 0.06, 0);
+      const cream = mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.03, 18), m('#fff8eb'));
+      cream.position.set(0, 0.11, 0);
+      const cherry = mesh(new THREE.SphereGeometry(0.03, 10, 8), m('#e63946'));
+      cherry.position.set(0, 0.14, 0);
+      this.trayGroup.add(base, cream, cherry);
+    } else if (type === 'food') {
+      // 3D Laganda osh va issiq non
+      const plate = mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.03, 18), m('#ffffff'));
+      plate.position.set(-0.03, 0.03, 0);
+      const osh = mesh(new THREE.SphereGeometry(0.095, 14, 10), m('#e09f3e'));
+      osh.scale.y = 0.65;
+      osh.position.set(-0.03, 0.06, 0);
+      const non = mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.04, 14), m('#d4a359'));
+      non.position.set(0.1, 0.04, 0.05);
+      this.trayGroup.add(plate, osh, non);
+    } else {
+      // Har qanday boshqa buyum uchun chiroyli 3D idish / quti
+      const box = mesh(new THREE.BoxGeometry(0.18, 0.14, 0.16), m('#6c5ce7'));
+      box.position.set(0, 0.08, 0);
+      const ribbon = mesh(new THREE.BoxGeometry(0.19, 0.15, 0.04), m('#ffd166'));
+      ribbon.position.set(0, 0.08, 0);
+      this.trayGroup.add(box, ribbon);
+    }
   }
 
   buildCatRig(m) {
@@ -616,10 +750,12 @@ export class Character {
       this.setOpacity(this.opacity);
     }
     this.member = member;
+    this.updateHeldItem(member.heldItem || null);
     const jobIcon = JOB_ICON[member.job] || '';
     const stIcon = waitingWc ? '⏳🚽' : (STATUS_ICON[member.status] || '');
     const zzz = member.status === 'sleep' ? ' 💤' : '';
-    this.nameEl.textContent = `${stIcon} ${member.name}${jobIcon ? ' ' + jobIcon : ''}${zzz}`;
+    const itemEmoji = member.heldItem?.emoji ? ` ${member.heldItem.emoji}` : '';
+    this.nameEl.textContent = `${stIcon} ${member.name}${jobIcon ? ' ' + jobIcon : ''}${itemEmoji}${zzz}`;
   }
 
   setVisible(v) {
@@ -864,11 +1000,16 @@ export class Character {
     this.body.rotation.x = 0;
     this.body.position.z = 0;
 
-    if (pose === 'cook' || pose === 'stand') {
+    if (pose === 'cook' || pose === 'stand' || pose === 'carry') {
       this.body.position.y = 0;
       this.legL.rotation.x = this.legR.rotation.x = 0;
-      this.armL.rotation.x = pose === 'cook' ? -0.5 * k : 0;
-      this.armR.rotation.x = pose === 'cook' ? -1.1 * k : 0;
+      if (this.isRobot && this.member?.heldItem) {
+        this.armL.rotation.x = -1.1 * k;
+        this.armR.rotation.x = -1.1 * k;
+      } else {
+        this.armL.rotation.x = pose === 'cook' ? -0.5 * k : 0;
+        this.armR.rotation.x = pose === 'cook' ? -1.1 * k : 0;
+      }
       return;
     }
 
@@ -956,9 +1097,13 @@ export class Character {
       this.head.rotation.z = Math.sin(this.time * 1.5) * 0.05;
     } else if (pose === 'sleep') {
       this.body.position.y = 0.56 + Math.sin(this.time * 1.6) * 0.015;
-    } else if (pose === 'stand') {
+    } else if (pose === 'stand' || pose === 'carry') {
       this.body.position.y = Math.abs(Math.sin(this.time * 4)) * 0.025;
       this.head.rotation.y = Math.sin(this.time * 2) * 0.15;
+      if (this.isRobot && this.member?.heldItem) {
+        this.armL.rotation.x = -1.1;
+        this.armR.rotation.x = -1.1;
+      }
     } else {
       this.head.rotation.z = Math.sin(this.time * 0.8) * 0.06;
       this.head.position.y = 1.13 + Math.sin(this.time * 2) * 0.008;
@@ -999,8 +1144,13 @@ export class Character {
     const swing = Math.sin(this.time * 11) * 0.6;
     this.legL.rotation.x = swing;
     this.legR.rotation.x = -swing;
-    this.armL.rotation.x = -swing * 0.8;
-    this.armR.rotation.x = swing * 0.8;
+    if (this.isRobot && this.member?.heldItem) {
+      this.armL.rotation.x = -1.1;
+      this.armR.rotation.x = -1.1;
+    } else {
+      this.armL.rotation.x = -swing * 0.8;
+      this.armR.rotation.x = swing * 0.8;
+    }
     this.body.position.y = Math.abs(Math.cos(this.time * 11)) * 0.04;
     if (this.tail) {
       this.tail.rotation.z = Math.sin(this.time * 12) * 0.35;
@@ -1015,5 +1165,6 @@ export class Character {
     this.clearTimers();
     clearTimeout(this.bubbleTimer);
     this.tagEl.remove();
+    this.itemBadgeEl?.remove();
   }
 }

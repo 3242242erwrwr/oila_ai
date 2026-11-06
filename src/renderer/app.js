@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=6';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=6';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=6';
+import { Room, DOOR } from './room.js?v=7';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=7';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=7';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -475,13 +475,14 @@ function openCharModal(member) {
       chatTargetLabel.textContent = "🤖 AI Robotga tayyor buyruq bering yoki pastga o'zingiz yozing:";
     }
     const quickCommands = [
-      '☕ Oshxonada issiq choy va ovqat tayyorla',
-      '🧹 Uyni tozalab chiq',
-      '💻 Kompyuter va Wi-Fi tizimini tekshir',
-      '📺 Televizorni yoqib mehmonxonani tayyorla',
-      '🛏️ Yotoqxonani tartibga keltir',
+      '🍵 Menga issiq choy olib kel',
+      '💧 Muzdek suv olib kel',
+      '🍌 Banan olib kel',
+      '🍉 Shirin tarvuz olib kel',
+      '🍽️ Issiq osh va non olib kel',
+      '🍰 Tort va shirinlik olib kel',
+      '🧹 Uyni supurib tozalab chiq',
       '🐾 Mushuk va itga ovqat ber',
-      '🏃 Mening oldimga kel',
     ];
     for (const cmd of quickCommands) {
       const pill = document.createElement('button');
@@ -500,7 +501,7 @@ function openCharModal(member) {
       senderList.append(pill);
     }
     chatInput.value = '';
-    chatInput.placeholder = '🤖 AI Robotga buyruq yozing (masalan: Choy damla)...';
+    chatInput.placeholder = '🤖 Nima olib kelsin? Yozing (masalan: banan olib kel, suv olib kel)...';
     charWrap.classList.add('open');
     setTimeout(() => chatInput.focus(), 80);
     return;

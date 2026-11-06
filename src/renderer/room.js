@@ -892,16 +892,44 @@ export class Room {
       ],
     };
 
-    for (const m of members) {
+    const ordered = [
+      ...members.filter((m) => !m.isAi),
+      ...members.filter((m) => m.isAi && m.job !== 'robot'),
+      ...members.filter((m) => m.isAi && m.job === 'robot'),
+    ];
+
+    for (const m of ordered) {
       const st = m.status;
       let spot = null;
 
       if (m.isAi) {
+        if (m.deliverToId) {
+          const targetSpot = result.get(Number(m.deliverToId));
+          if (targetSpot) {
+            const deliverPos = (targetSpot.approach || targetSpot.pos).clone();
+            if (deliverPos.distanceTo(targetSpot.pos) < 0.55) {
+              deliverPos.z += targetSpot.pos.z < 0 ? 0.85 : -0.85;
+            }
+            const rotY = Math.atan2(
+              targetSpot.pos.x - deliverPos.x,
+              targetSpot.pos.z - deliverPos.z
+            );
+            spot = {
+              pos: deliverPos,
+              approach: deliverPos,
+              node: targetSpot.node,
+              rotY,
+              pose: m.heldItem ? 'carry' : 'stand',
+            };
+            result.set(m.id, spot);
+            continue;
+          }
+        }
         const list = aiRoomSpots[st] || aiRoomSpots.home;
         const baseIdx = (aiUsed[st] = (aiUsed[st] || 0) + 1) - 1;
         const idx = baseIdx + (m.taskSeq || 0);
         const chosen = list[idx % list.length];
-        const pose = m.job === 'robot' && st === 'sleep' ? 'stand' : chosen.pose;
+        const pose = m.heldItem ? 'carry' : (m.job === 'robot' && st === 'sleep' ? 'stand' : chosen.pose);
         spot = { ...chosen, pose };
         result.set(m.id, spot);
         continue;

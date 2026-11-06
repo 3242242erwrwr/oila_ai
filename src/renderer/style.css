@@ -304,6 +304,18 @@ html, body {
   background: #ffd166;
   transform: scale(1.07);
 }
+.item-badge {
+  background: #ffd166;
+  color: #1e1b2e;
+  border: 2px solid #2b2233;
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  box-shadow: 0 2px 0 #2b2233;
+  pointer-events: none;
+}
 
 /* Personaj ustiga bosilganda chiqadigan oyna */
 .char-wrap {
