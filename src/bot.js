@@ -481,16 +481,21 @@ async function startBot(token, onStatus, options = {}) {
     { command: 'uy', description: 'Uy manzilini belgilash' },
   ]).catch((err) => console.warn('setMyCommands xatosi:', err.message));
 
-  bot.start({
-    drop_pending_updates: false,
-    onStart: () => {
-      console.log(`🤖 Telegram bot ulandi: @${bot.botInfo.username}`);
-      onStatus?.({ ok: true, username: bot.botInfo.username });
-    },
-  }).catch((err) => {
-    console.error('Bot start xatosi:', err.message || err);
-    onStatus?.({ ok: false, error: String(err.message || err) });
-  });
+  let stopped = false;
+  const launchPolling = () => {
+    if (stopped) return;
+    bot.start({
+      drop_pending_updates: false,
+      onStart: () => {
+        console.log(`🤖 Telegram bot ulandi: @${bot.botInfo.username}`);
+        onStatus?.({ ok: true, username: bot.botInfo.username });
+      },
+    }).catch((err) => {
+      console.error('Bot start xatosi (5s dan keyin qayta ulanadi):', err.message || err);
+      if (!stopped) setTimeout(launchPolling, 5000);
+    });
+  };
+  launchPolling();
 
   return bot.botInfo.username;
 }
