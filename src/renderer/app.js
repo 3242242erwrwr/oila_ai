@@ -28,6 +28,9 @@ const JOB_TITLE = {
   teacher: "O'qituvchi",
   student: 'Talaba',
   builder: 'Usta',
+  robot: 'AI Yordamchi',
+  cat: 'Uy mushugi',
+  dog: "Uy qo'riqchisi",
   other: "Oila a'zosi",
 };
 
@@ -222,7 +225,7 @@ function renderPanel(members, spots = lastSpots) {
     const nm = document.createElement('div');
     nm.className = 'nm';
     const jIcon = JOB_ICON[m.job] || '';
-    nm.textContent = `${m.name} (${m.age || 25}) ${jIcon}`;
+    nm.textContent = m.isAi ? `${m.name} ${jIcon}` : `${m.name} (${m.age || 25}) ${jIcon}`;
 
     const st = document.createElement('div');
     st.className = 'st';
@@ -456,17 +459,99 @@ function openCharModal(member) {
   activeMember = latest;
   const jIcon = JOB_ICON[latest.job] || '👤';
   const stIcon = STATUS_ICON[latest.status] || '🏠';
-  charTitle.textContent = `${jIcon} ${latest.name} (${latest.age || 25}) • ${stIcon} ${STATUS_TEXT[latest.status] || ''}`;
+  charTitle.textContent = latest.isAi
+    ? `${jIcon} ${latest.name} • ${stIcon} ${STATUS_TEXT[latest.status] || ''}`
+    : `${jIcon} ${latest.name} (${latest.age || 25}) • ${stIcon} ${STATUS_TEXT[latest.status] || ''}`;
 
-  const myMember = lastMembers.find((m) => String(m.id) === String(myUid));
+  const humans = lastMembers.filter((m) => !m.isAi);
+  const myMember = humans.find((m) => String(m.id) === String(myUid)) || humans[0] || null;
+
+  // 🤖 1. AI ROBOT USTIGA BOSILGANDA: Buyruq berish oynasi
+  if (latest.job === 'robot') {
+    chatForm.style.display = 'flex';
+    if (statusSection) statusSection.style.display = 'none';
+    senderList.replaceChildren();
+    if (chatTargetLabel) {
+      chatTargetLabel.textContent = "🤖 AI Robotga tayyor buyruq bering yoki pastga o'zingiz yozing:";
+    }
+    const quickCommands = [
+      '☕ Oshxonada issiq choy va ovqat tayyorla',
+      '🧹 Uyni tozalab chiq',
+      '💻 Kompyuter va Wi-Fi tizimini tekshir',
+      '📺 Televizorni yoqib mehmonxonani tayyorla',
+      '🛏️ Yotoqxonani tartibga keltir',
+      '🐾 Mushuk va itga ovqat ber',
+      '🏃 Mening oldimga kel',
+    ];
+    for (const cmd of quickCommands) {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'sender-pill';
+      pill.textContent = cmd;
+      pill.addEventListener('click', async () => {
+        closeCharModal();
+        toast(`🤖 Buyruq yuborildi: "${cmd}"`);
+        await api.sendRoomAction({
+          type: 'robot_cmd',
+          fromId: myMember?.id || null,
+          text: cmd,
+        });
+      });
+      senderList.append(pill);
+    }
+    chatInput.value = '';
+    chatInput.placeholder = '🤖 AI Robotga buyruq yozing (masalan: Choy damla)...';
+    charWrap.classList.add('open');
+    setTimeout(() => chatInput.focus(), 80);
+    return;
+  }
+
+  // 🐱🐶 2. MUSHUK YOKI IT USTIGA BOSILGANDA: Erkalash / Chaqirish oynasi
+  if (latest.job === 'cat' || latest.job === 'dog') {
+    chatForm.style.display = 'flex';
+    if (statusSection) statusSection.style.display = 'none';
+    senderList.replaceChildren();
+    const isCat = latest.job === 'cat';
+    if (chatTargetLabel) {
+      chatTargetLabel.textContent = isCat
+        ? '🐱 Mushukchani chaqiring yoki erkalang:'
+        : '🐶 Kuchukchani chaqiring yoki buyruq bering:';
+    }
+    const petActions = isCat
+      ? ['🐾 Yonimga kel, Momiqvoy!', '🥛 Oshxonaga borib sut ich', '💤 Yotoqxonaga borib uxla']
+      : ['🐾 Yonimga kel, Bobik!', '🦴 Oshxonaga borib suyak ye', "🛡️ Eshik oldini qo'riqla"];
+    for (const act of petActions) {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'sender-pill';
+      pill.textContent = act;
+      pill.addEventListener('click', async () => {
+        closeCharModal();
+        await api.sendRoomAction({
+          type: 'pet_cmd',
+          fromId: myMember?.id || null,
+          petId: latest.id,
+          text: act,
+        });
+      });
+      senderList.append(pill);
+    }
+    chatInput.value = '';
+    chatInput.placeholder = `${latest.name}ga nima deysiz?...`;
+    charWrap.classList.add('open');
+    setTimeout(() => chatInput.focus(), 80);
+    return;
+  }
+
+  const strictMyMember = humans.find((m) => String(m.id) === String(myUid));
 
   // Agar kompyuterda ?uid= siz ochilgan bo'lsa, faqat 1 marta "Siz kimsiz?" deb so'rab bog'lab oladi
-  if (!myMember) {
+  if (!strictMyMember) {
     senderList.replaceChildren();
     if (chatTargetLabel) {
       chatTargetLabel.textContent = "🔒 Avval o'zingizni tanlang (faqat bir marta so'raladi):";
     }
-    for (const m of lastMembers) {
+    for (const m of humans) {
       const pill = document.createElement('button');
       pill.type = 'button';
       pill.className = 'sender-pill';
@@ -485,14 +570,14 @@ function openCharModal(member) {
   }
 
   chatForm.style.display = 'flex';
-  const isMe = String(latest.id) === String(myMember.id);
+  const isMe = String(latest.id) === String(strictMyMember.id);
 
   // 1. Boshqa odam ustiga bosilganda: faqat O'ZINGIZNING nomingizdan unga gapirasiz, uning holatini o'zgartira olmaysiz!
   if (!isMe) {
     selectedTargetId = String(latest.id);
     senderList.replaceChildren();
     if (chatTargetLabel) {
-      chatTargetLabel.textContent = `💬 Siz (${myMember.name}) ➡️ ${latest.name}ning yoniga borib gapirasiz:`;
+      chatTargetLabel.textContent = `💬 Siz (${strictMyMember.name}) ➡️ ${latest.name}ning yoniga borib gapirasiz:`;
     }
     if (statusSection) statusSection.style.display = 'none';
     chatInput.value = '';
@@ -503,7 +588,7 @@ function openCharModal(member) {
   }
 
   // 2. O'ZINGIZNING personajingiz ustiga bosilganda: o'z holatingizni o'zgartirasiz va kimga gapirishni tanlaysiz
-  const others = lastMembers.filter((m) => String(m.id) !== String(myMember.id));
+  const others = lastMembers.filter((m) => String(m.id) !== String(strictMyMember.id));
   if (!selectedTargetId || !others.some((m) => String(m.id) === String(selectedTargetId))) {
     selectedTargetId = others[0]?.id ? String(others[0].id) : '';
   }
@@ -512,8 +597,8 @@ function openCharModal(member) {
   const targetObj = others.find((m) => String(m.id) === String(selectedTargetId));
   if (chatTargetLabel) {
     chatTargetLabel.textContent = targetObj
-      ? `💬 Siz (${myMember.name}) ➡️ ${targetObj.name}ga gapirasiz:`
-      : `💬 Siz (${myMember.name}):`;
+      ? `💬 Siz (${strictMyMember.name}) ➡️ ${targetObj.name}ga gapirasiz:`
+      : `💬 Siz (${strictMyMember.name}):`;
   }
 
   for (const m of others) {
@@ -526,7 +611,7 @@ function openCharModal(member) {
       for (const ch of senderList.children) ch.classList.remove('active');
       pill.classList.add('active');
       if (chatTargetLabel) {
-        chatTargetLabel.textContent = `💬 Siz (${myMember.name}) ➡️ ${m.name}ga gapirasiz:`;
+        chatTargetLabel.textContent = `💬 Siz (${strictMyMember.name}) ➡️ ${m.name}ga gapirasiz:`;
       }
       chatInput.placeholder = `${m.name}ga nima deysiz? Yozing...`;
     });
@@ -541,8 +626,8 @@ function openCharModal(member) {
     btn.className = 'status-btn' + (latest.status === s.key ? ' active' : '');
     btn.textContent = s.label;
     btn.addEventListener('click', async () => {
-      await api.sendRoomAction({ type: 'status', id: myMember.id, status: s.key });
-      toast(`✅ ${myMember.name}: ${s.label}`);
+      await api.sendRoomAction({ type: 'status', id: strictMyMember.id, status: s.key });
+      toast(`✅ ${strictMyMember.name}: ${s.label}`);
       closeCharModal();
     });
     statusGrid.append(btn);
@@ -558,10 +643,40 @@ function openCharModal(member) {
 
 chatForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  if (!activeMember || !myUid) return;
+  if (!activeMember) return;
   const text = chatInput.value.trim();
   if (!text) return;
-  const myMember = lastMembers.find((m) => String(m.id) === String(myUid));
+
+  const humans = lastMembers.filter((m) => !m.isAi);
+  const myMember = humans.find((m) => String(m.id) === String(myUid)) || humans[0] || null;
+
+  // 🤖 AI Robotga buyruq yuborilgan bo'lsa
+  if (activeMember.job === 'robot') {
+    chatInput.value = '';
+    closeCharModal();
+    toast(`🤖 Buyruq yuborildi: "${text}"`);
+    await api.sendRoomAction({
+      type: 'robot_cmd',
+      fromId: myMember?.id || null,
+      text,
+    });
+    return;
+  }
+
+  // 🐱🐶 Mushuk yoki Itga yozilgan bo'lsa
+  if (activeMember.job === 'cat' || activeMember.job === 'dog') {
+    const petId = activeMember.id;
+    chatInput.value = '';
+    closeCharModal();
+    await api.sendRoomAction({
+      type: 'pet_cmd',
+      fromId: myMember?.id || null,
+      petId,
+      text,
+    });
+    return;
+  }
+
   if (!myMember) return;
 
   // Har doim FAQAT o'z nomingizdan (myMember.id) yuboriladi!
@@ -573,6 +688,28 @@ chatForm.addEventListener('submit', async (e) => {
 
   chatInput.value = '';
   closeCharModal();
+
+  // Agar o'z oynasidan AI Robotni tanlab yozgan bo'lsa ham buyruq ishlaydi
+  const targetObj = lastMembers.find((m) => String(m.id) === String(toId));
+  if (targetObj?.job === 'robot') {
+    toast(`🤖 Buyruq yuborildi: "${text}"`);
+    await api.sendRoomAction({
+      type: 'robot_cmd',
+      fromId,
+      text,
+    });
+    return;
+  }
+  if (targetObj?.job === 'cat' || targetObj?.job === 'dog') {
+    await api.sendRoomAction({
+      type: 'pet_cmd',
+      fromId,
+      petId: targetObj.id,
+      text,
+    });
+    return;
+  }
+
   await api.sendRoomAction({
     type: 'say',
     fromId,

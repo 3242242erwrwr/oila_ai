@@ -28,6 +28,9 @@ export const JOB_ICON = {
   teacher: '👨‍🏫',
   student: '🎓',
   builder: '👷',
+  robot: '🤖',
+  cat: '🐱',
+  dog: '🐶',
   other: '',
 };
 
@@ -78,14 +81,31 @@ export class Character {
   buildRig(member) {
     this.body.clear();
     const a = member.appearance || {};
-    this.appearanceKey = JSON.stringify(a);
+    this.appearanceKey = JSON.stringify(a) + ':' + (member.job || '');
     this.mats = [];
+    this.isQuadruped = member.job === 'cat' || member.job === 'dog';
+    this.isRobot = member.job === 'robot';
+    this.tail = null;
+
     const m = (color) => {
       const mat = toon(color);
       mat.userData.outlineParameters = { thickness: 0.006, color: [0.1, 0.07, 0.12], alpha: 1, visible: true };
       this.mats.push(mat);
       return mat;
     };
+
+    if (member.job === 'robot') {
+      this.buildRobotRig(m);
+      return;
+    }
+    if (member.job === 'cat') {
+      this.buildCatRig(m);
+      return;
+    }
+    if (member.job === 'dog') {
+      this.buildDogRig(m);
+      return;
+    }
 
     const skin = m(a.skin || '#f2c29b');
     const hair = m(a.hair || '#2b1d16');
@@ -237,6 +257,256 @@ export class Character {
     this.body.add(this.head);
   }
 
+  buildRobotRig(m) {
+    const metalWhite = m('#f1f5f9');
+    const metalBlue = m('#38bdf8');
+    const darkVisor = m('#0f172a');
+    const cyanGlow = m('#00f5d4');
+    const jointMat = m('#475569');
+
+    this.body.scale.setScalar(1.0);
+    this.label.position.y = 1.82;
+
+    // Robot oyoqlari
+    const makeLeg = (x) => {
+      const p = new THREE.Group();
+      p.position.set(x, HIP_Y, 0);
+      const leg = mesh(new THREE.BoxGeometry(0.13, 0.34, 0.15), jointMat);
+      leg.position.y = -0.17;
+      const boot = mesh(new THREE.BoxGeometry(0.16, 0.12, 0.24), metalWhite);
+      boot.position.set(0, -0.36, 0.03);
+      p.add(leg, boot);
+      this.body.add(p);
+      return p;
+    };
+    this.legL = makeLeg(-0.11);
+    this.legR = makeLeg(0.11);
+
+    // Robot tanasi va ko'krakdagi AI yuragi
+    const torso = mesh(new THREE.BoxGeometry(0.44, 0.46, 0.3), metalWhite);
+    torso.position.y = 0.66;
+    const chestPlate = mesh(new THREE.BoxGeometry(0.32, 0.24, 0.04), darkVisor);
+    chestPlate.position.set(0, 0.68, 0.15);
+    const core = mesh(new THREE.SphereGeometry(0.065, 14, 12), cyanGlow);
+    core.position.set(0, 0.68, 0.17);
+    const belt = mesh(new THREE.BoxGeometry(0.46, 0.07, 0.32), metalBlue);
+    belt.position.set(0, 0.45, 0);
+    this.body.add(torso, chestPlate, core, belt);
+
+    // Robot qo'llari
+    const makeArm = (x) => {
+      const p = new THREE.Group();
+      p.position.set(x, 0.82, 0);
+      const shoulder = mesh(new THREE.SphereGeometry(0.085, 12, 10), metalBlue);
+      const arm = mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.28, 12), metalWhite);
+      arm.position.y = -0.16;
+      const claw = mesh(new THREE.SphereGeometry(0.075, 10, 8), jointMat);
+      claw.position.y = -0.32;
+      p.add(shoulder, arm, claw);
+      this.body.add(p);
+      return p;
+    };
+    this.armL = makeArm(-0.29);
+    this.armR = makeArm(0.29);
+
+    this.phoneMesh = new THREE.Group();
+    this.spatulaMesh = new THREE.Group();
+
+    // Robot boshi va ekrani
+    this.head = new THREE.Group();
+    this.head.position.y = 1.14;
+    const helm = mesh(new THREE.BoxGeometry(0.54, 0.44, 0.46), metalWhite);
+    const screen = mesh(new THREE.BoxGeometry(0.44, 0.26, 0.04), darkVisor);
+    screen.position.set(0, 0.01, 0.22);
+    this.head.add(helm, screen);
+
+    // Robot ko'zlari (porlab turuvchi moviy LED)
+    this.eyes = [];
+    for (const x of [-0.11, 0.11]) {
+      const e = mesh(new THREE.SphereGeometry(0.052, 12, 10), cyanGlow);
+      e.position.set(x, 0.02, 0.24);
+      e.scale.set(1.2, 0.9, 0.5);
+      this.head.add(e);
+      this.eyes.push(e);
+    }
+
+    // Quloq lentalari va boshidagi antenna
+    for (const x of [-0.29, 0.29]) {
+      const ear = mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 12), metalBlue);
+      ear.rotation.z = Math.PI / 2;
+      ear.position.set(x, 0.01, 0);
+      this.head.add(ear);
+    }
+    const antPole = mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.18, 8), jointMat);
+    antPole.position.set(0, 0.3, 0);
+    const antBall = mesh(new THREE.SphereGeometry(0.055, 12, 10), cyanGlow);
+    antBall.position.set(0, 0.4, 0);
+    this.head.add(antPole, antBall);
+
+    this.body.add(this.head);
+  }
+
+  buildCatRig(m) {
+    const orange = m('#f4a261');
+    const cream = m('#fff8eb');
+    const pink = m('#ff8fab');
+    const dark = m('#1e1b2e');
+
+    this.body.scale.setScalar(1.0);
+    this.label.position.y = 0.95;
+
+    // 4 ta panja (oldingi: armL/armR, orqa: legL/legR)
+    const makePaw = (x, z) => {
+      const p = new THREE.Group();
+      p.position.set(x, 0.18, z);
+      const leg = mesh(new THREE.CapsuleGeometry(0.048, 0.1, 4, 8), orange);
+      leg.position.y = -0.07;
+      const paw = mesh(new THREE.SphereGeometry(0.052, 10, 8), cream);
+      paw.position.set(0, -0.15, 0.02);
+      p.add(leg, paw);
+      this.body.add(p);
+      return p;
+    };
+    this.armL = makePaw(-0.1, 0.16);
+    this.armR = makePaw(0.1, 0.16);
+    this.legL = makePaw(-0.1, -0.16);
+    this.legR = makePaw(0.1, -0.16);
+
+    // Mushuk tanasi
+    const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.28, 6, 12), orange);
+    torso.rotation.x = Math.PI / 2;
+    torso.position.set(0, 0.25, 0);
+    const chest = mesh(new THREE.SphereGeometry(0.13, 12, 10), cream);
+    chest.position.set(0, 0.24, 0.16);
+    this.body.add(torso, chest);
+
+    // Mushuk boshi
+    this.head = new THREE.Group();
+    this.head.position.set(0, 0.42, 0.24);
+    const skull = mesh(new THREE.SphereGeometry(0.19, 18, 14), orange);
+    skull.scale.set(1.08, 0.95, 0.95);
+    const muzzle = mesh(new THREE.SphereGeometry(0.09, 12, 10), cream);
+    muzzle.position.set(0, -0.04, 0.15);
+    const nose = mesh(new THREE.SphereGeometry(0.03, 8, 8), pink);
+    nose.position.set(0, -0.01, 0.22);
+    this.head.add(skull, muzzle, nose);
+
+    // Uchburchak mushuk quloqlari
+    for (const x of [-0.12, 0.12]) {
+      const ear = mesh(new THREE.ConeGeometry(0.075, 0.15, 4), orange);
+      ear.position.set(x, 0.19, 0.02);
+      ear.rotation.z = x > 0 ? -0.22 : 0.22;
+      const inner = mesh(new THREE.ConeGeometry(0.045, 0.1, 4), pink);
+      inner.position.set(x, 0.18, 0.04);
+      inner.rotation.z = ear.rotation.z;
+      this.head.add(ear, inner);
+    }
+
+    this.eyes = [];
+    for (const x of [-0.075, 0.075]) {
+      const e = mesh(new THREE.SphereGeometry(0.032, 10, 8), dark);
+      e.position.set(x, 0.03, 0.17);
+      e.scale.y = 1.25;
+      this.head.add(e);
+      this.eyes.push(e);
+    }
+
+    // Dumi
+    this.tail = new THREE.Group();
+    this.tail.position.set(0, 0.3, -0.24);
+    const tailMesh = mesh(new THREE.CapsuleGeometry(0.035, 0.26, 4, 8), orange);
+    tailMesh.position.set(0, 0.14, -0.06);
+    tailMesh.rotation.x = -0.5;
+    this.tail.add(tailMesh);
+    this.body.add(this.tail);
+
+    this.phoneMesh = new THREE.Group();
+    this.spatulaMesh = new THREE.Group();
+    this.body.add(this.head);
+  }
+
+  buildDogRig(m) {
+    const brown = m('#d4a373');
+    const darkBrown = m('#7f4f24');
+    const cream = m('#faedcd');
+    const redCollar = m('#e63946');
+    const goldTag = m('#ffd166');
+    const dark = m('#1e1b2e');
+
+    this.body.scale.setScalar(1.0);
+    this.label.position.y = 1.08;
+
+    // 4 ta oyoq
+    const makeLeg = (x, z) => {
+      const p = new THREE.Group();
+      p.position.set(x, 0.22, z);
+      const leg = mesh(new THREE.CapsuleGeometry(0.058, 0.14, 4, 8), brown);
+      leg.position.y = -0.09;
+      const paw = mesh(new THREE.SphereGeometry(0.062, 10, 8), cream);
+      paw.position.set(0, -0.18, 0.02);
+      p.add(leg, paw);
+      this.body.add(p);
+      return p;
+    };
+    this.armL = makeLeg(-0.12, 0.2);
+    this.armR = makeLeg(0.12, 0.2);
+    this.legL = makeLeg(-0.12, -0.2);
+    this.legR = makeLeg(0.12, -0.2);
+
+    // Kuchuk tanasi va qizil bo'yinbog'i
+    const torso = mesh(new THREE.CapsuleGeometry(0.18, 0.34, 6, 12), brown);
+    torso.rotation.x = Math.PI / 2;
+    torso.position.set(0, 0.31, 0);
+    const chest = mesh(new THREE.SphereGeometry(0.16, 12, 10), cream);
+    chest.position.set(0, 0.3, 0.2);
+    const collar = mesh(new THREE.TorusGeometry(0.155, 0.028, 8, 18), redCollar);
+    collar.position.set(0, 0.38, 0.23);
+    collar.rotation.x = Math.PI / 3;
+    const medal = mesh(new THREE.SphereGeometry(0.038, 10, 8), goldTag);
+    medal.position.set(0, 0.28, 0.36);
+    this.body.add(torso, chest, collar, medal);
+
+    // Kuchuk boshi va tumshug'i
+    this.head = new THREE.Group();
+    this.head.position.set(0, 0.5, 0.28);
+    const skull = mesh(new THREE.SphereGeometry(0.21, 18, 14), brown);
+    const snout = mesh(new THREE.BoxGeometry(0.16, 0.12, 0.18), cream);
+    snout.position.set(0, -0.04, 0.18);
+    const nose = mesh(new THREE.SphereGeometry(0.042, 10, 8), dark);
+    nose.position.set(0, 0.0, 0.27);
+    this.head.add(skull, snout, nose);
+
+    // Osilib turgan kuchuk quloqlari
+    for (const x of [-0.19, 0.19]) {
+      const ear = mesh(new THREE.CapsuleGeometry(0.055, 0.16, 4, 8), darkBrown);
+      ear.position.set(x, 0.02, 0.02);
+      ear.rotation.z = x > 0 ? -0.25 : 0.25;
+      this.head.add(ear);
+    }
+
+    this.eyes = [];
+    for (const x of [-0.08, 0.08]) {
+      const e = mesh(new THREE.SphereGeometry(0.035, 10, 8), dark);
+      e.position.set(x, 0.05, 0.19);
+      e.scale.y = 1.2;
+      this.head.add(e);
+      this.eyes.push(e);
+    }
+
+    // Likillab turuvchi dumi
+    this.tail = new THREE.Group();
+    this.tail.position.set(0, 0.38, -0.28);
+    const tailMesh = mesh(new THREE.CapsuleGeometry(0.042, 0.22, 4, 8), darkBrown);
+    tailMesh.position.set(0, 0.11, -0.05);
+    tailMesh.rotation.x = -0.6;
+    this.tail.add(tailMesh);
+    this.body.add(this.tail);
+
+    this.phoneMesh = new THREE.Group();
+    this.spatulaMesh = new THREE.Group();
+    this.body.add(this.head);
+  }
+
   buildHair(style, mat) {
     const capGeo = new THREE.SphereGeometry(0.35, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.52);
     const cap = mesh(capGeo, mat);
@@ -301,7 +571,7 @@ export class Character {
   }
 
   setMember(member, waitingWc = false) {
-    const newKey = JSON.stringify(member.appearance || {});
+    const newKey = JSON.stringify(member.appearance || {}) + ':' + (member.job || '');
     if (newKey !== this.appearanceKey) {
       this.buildRig(member);
       this.setOpacity(this.opacity);
@@ -531,8 +801,18 @@ export class Character {
   }
 
   applyPose(pose, k) {
-    this.phoneMesh.visible = pose === 'insta' && k > 0.6;
-    this.spatulaMesh.visible = pose === 'cook' && k > 0.6;
+    if (this.isQuadruped) {
+      // Mushuk va It har doim 4 panjasida tabiiy turadi yoki yotadi
+      this.body.rotation.x = 0;
+      this.body.position.z = 0;
+      this.legL.rotation.x = this.legR.rotation.x = 0;
+      this.armL.rotation.x = this.armR.rotation.x = 0;
+      this.body.position.y = pose === 'sleep' ? -0.08 * k : 0;
+      return;
+    }
+
+    this.phoneMesh.visible = !this.isRobot && pose === 'insta' && k > 0.6;
+    this.spatulaMesh.visible = !this.isRobot && pose === 'cook' && k > 0.6;
 
     if (pose === 'sleep') {
       this.body.position.set(0, 0.56 * k, 0.42 * k);
@@ -606,6 +886,20 @@ export class Character {
   }
 
   animatePose(pose) {
+    if (this.isQuadruped) {
+      if (this.tail) {
+        const wagSpeed = this.member?.job === 'dog' ? 9 : 3.2;
+        const wagAmp = this.member?.job === 'dog' ? 0.45 : 0.28;
+        this.tail.rotation.z = Math.sin(this.time * wagSpeed) * wagAmp;
+      }
+      this.head.rotation.z = Math.sin(this.time * 1.4) * 0.08;
+      if (this.lookYaw != null) {
+        this.head.rotation.y = lerpAngle(this.head.rotation.y, this.lookYaw, 0.15);
+      } else {
+        this.head.rotation.y = Math.sin(this.time * 1.1) * 0.18;
+      }
+      return;
+    }
     if (pose === 'pc') {
       this.armL.rotation.x = -1.15 + Math.sin(this.time * 14) * 0.12;
       this.armR.rotation.x = -1.15 + Math.cos(this.time * 14) * 0.12;
@@ -669,6 +963,9 @@ export class Character {
     this.armL.rotation.x = -swing * 0.8;
     this.armR.rotation.x = swing * 0.8;
     this.body.position.y = Math.abs(Math.cos(this.time * 11)) * 0.04;
+    if (this.tail) {
+      this.tail.rotation.z = Math.sin(this.time * 12) * 0.35;
+    }
   }
 
   isNear(point, r) {

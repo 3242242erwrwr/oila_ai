@@ -5,6 +5,7 @@ const { app, BrowserWindow, ipcMain, session } = require('electron');
 const store = require('./store');
 const { startBot, stopBot, handleRoomAction } = require('./bot');
 const { startWebServer } = require('./server');
+const { startAiLoop } = require('./ai');
 
 let win = null;
 let webServer = null;
@@ -80,6 +81,7 @@ app.whenReady().then(() => {
   );
 
   store.load();
+  startAiLoop(store);
 
   ipcMain.handle('members:get', () => store.all());
   ipcMain.handle('home:get', () => store.getHome());

@@ -505,8 +505,9 @@ export class Room {
 
   // ==================== A'ZOLAR SONIGA MOSLASHUVCHI MEBELLAR ====================
   syncLayout(members) {
-    const n = Math.max(2, members.length);
-    const taxiMembers = members.filter((m) => m.job === 'taxi');
+    const humans = members.filter((m) => !m.isAi);
+    const n = Math.max(2, humans.length);
+    const taxiMembers = humans.filter((m) => m.job === 'taxi');
     const carCount = Math.max(1, taxiMembers.length);
     const key = `${n}:${carCount}:${taxiMembers.map((m) => m.id).join(',')}`;
     if (key === this.layoutKey) return;
@@ -852,11 +853,57 @@ export class Room {
   assignSpots(members) {
     this.syncLayout(members);
     const used = { pc: 0, tv: 0, eat: 0, cook: 0, sleep: 0, wc: 0, home: 0 };
+    const aiUsed = { pc: 0, tv: 0, eat: 0, cook: 0, sleep: 0, wc: 0, home: 0 };
     const result = new Map();
+
+    // Doimiy AI personajlar (Robot, Mushuk, It) uchun har bir xonada odamlarning stul/karavotini band qilmaydigan ochiq joylar
+    const aiRoomSpots = {
+      home: [
+        { pos: new THREE.Vector3(-1.85, 0, 3.2), approach: new THREE.Vector3(-1.85, 0, 3.2), node: 'hall_w', rotY: Math.PI / 4, pose: 'stand' },
+        { pos: new THREE.Vector3(2.45, 0, 3.6), approach: new THREE.Vector3(2.45, 0, 3.6), node: 'hall_se', rotY: -Math.PI / 4, pose: 'stand' },
+        { pos: new THREE.Vector3(-0.6, 0, 4.4), approach: new THREE.Vector3(-0.6, 0, 4.4), node: 'hall_s', rotY: Math.PI, pose: 'stand' },
+      ],
+      tv: [
+        { pos: new THREE.Vector3(2.55, 0, -2.2), approach: new THREE.Vector3(2.55, 0, -2.2), node: 'hall_tv', rotY: -0.4, pose: 'stand' },
+        { pos: new THREE.Vector3(2.55, 0, -4.6), approach: new THREE.Vector3(2.55, 0, -4.6), node: 'hall_tv', rotY: -2.4, pose: 'stand' },
+        { pos: new THREE.Vector3(0.45, 0, -2.1), approach: new THREE.Vector3(0.45, 0, -2.1), node: 'hall_n', rotY: Math.PI / 2, pose: 'stand' },
+      ],
+      pc: [
+        { pos: new THREE.Vector3(-2.35, 0, -4.2), approach: new THREE.Vector3(-2.0, 0, -3.5), node: 'hall_pc', rotY: Math.PI / 3, pose: 'stand' },
+        { pos: new THREE.Vector3(0.15, 0, -4.2), approach: new THREE.Vector3(0.15, 0, -3.5), node: 'hall_pc', rotY: -Math.PI / 3, pose: 'stand' },
+      ],
+      eat: [
+        { pos: new THREE.Vector3(5.0, 0, -0.5), approach: new THREE.Vector3(5.0, 0, 0.2), node: 'kit_door', rotY: 0.4, pose: 'stand' },
+        { pos: new THREE.Vector3(7.9, 0, -0.4), approach: new THREE.Vector3(7.2, 0, 0.2), node: 'kit_s', rotY: -0.5, pose: 'stand' },
+        { pos: new THREE.Vector3(4.9, 0, -3.2), approach: new THREE.Vector3(4.9, 0, -2.4), node: 'kit_w', rotY: 1.2, pose: 'stand' },
+      ],
+      cook: [
+        { pos: new THREE.Vector3(7.55, 0, -4.45), approach: new THREE.Vector3(7.1, 0, -3.9), node: 'kit_n', rotY: Math.PI, pose: 'cook' },
+        { pos: new THREE.Vector3(4.95, 0, -4.45), approach: new THREE.Vector3(5.2, 0, -3.9), node: 'kit_n', rotY: Math.PI, pose: 'stand' },
+      ],
+      sleep: [
+        { pos: new THREE.Vector3(-4.5, 0, -2.5), approach: new THREE.Vector3(-4.5, 0, -2.5), node: 'bed_e', rotY: 0.4, pose: 'sleep' },
+        { pos: new THREE.Vector3(-6.1, 0, -2.5), approach: new THREE.Vector3(-6.1, 0, -2.5), node: 'bed_mid', rotY: -0.3, pose: 'sleep' },
+        { pos: new THREE.Vector3(-7.6, 0, -2.5), approach: new THREE.Vector3(-7.6, 0, -2.5), node: 'bed_w', rotY: 0.2, pose: 'sleep' },
+      ],
+      wc: [
+        { pos: new THREE.Vector3(5.8, 0, 3.6), approach: new THREE.Vector3(5.3, 0, 3.1), node: 'wc_door', rotY: Math.PI / 2, pose: 'stand' },
+      ],
+    };
 
     for (const m of members) {
       const st = m.status;
       let spot = null;
+
+      if (m.isAi) {
+        const list = aiRoomSpots[st] || aiRoomSpots.home;
+        const idx = (aiUsed[st] = (aiUsed[st] || 0) + 1) - 1;
+        const chosen = list[idx % list.length];
+        const pose = m.job === 'robot' && st === 'sleep' ? 'stand' : chosen.pose;
+        spot = { ...chosen, pose };
+        result.set(m.id, spot);
+        continue;
+      }
 
       if (st === 'pc') {
         const idx = used.pc++;

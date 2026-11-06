@@ -2,6 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
+const { PERMANENT_AI_MEMBERS } = require('./ai');
 
 const PALETTE = {
   skin: ['#ffd9b8', '#f2c29b', '#e0a878', '#c68a5e', '#9c6644'],
@@ -33,6 +34,51 @@ const AUTO_REVERT_MS = {
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
 function buildAppearance({ gender = 'male', age = 25, job = 'other', existing = {} } = {}) {
+  if (job === 'robot') {
+    return {
+      skin: '#e2e8f0',
+      hair: '#38bdf8',
+      hairStyle: 0,
+      shirt: '#38bdf8',
+      pants: '#1e293b',
+      scale: 0.95,
+      glasses: false,
+      mustache: false,
+      beard: false,
+      hat: 'none',
+      outfit: 'robot',
+    };
+  }
+  if (job === 'cat') {
+    return {
+      skin: '#f4a261',
+      hair: '#e76f51',
+      hairStyle: 0,
+      shirt: '#f4a261',
+      pants: '#ffffff',
+      scale: 0.85,
+      glasses: false,
+      mustache: false,
+      beard: false,
+      hat: 'none',
+      outfit: 'cat',
+    };
+  }
+  if (job === 'dog') {
+    return {
+      skin: '#d4a373',
+      hair: '#8d5524',
+      hairStyle: 0,
+      shirt: '#d4a373',
+      pants: '#8d5524',
+      scale: 0.9,
+      glasses: false,
+      mustache: false,
+      beard: false,
+      hat: 'none',
+      outfit: 'dog',
+    };
+  }
   const j = JOBS[job] || JOBS.other;
   const isChild = age <= 12;
   const isTeen = age > 12 && age <= 17;
@@ -78,7 +124,32 @@ class Store extends EventEmitter {
     }
     if (!Array.isArray(this.data.members)) this.data.members = [];
     let changed = false;
+
+    // Doimiy AI personajlar (AI Robot, Mushuk, It) har doim uyda mavjud bo'lishini ta'minlaymiz
+    const now = new Date().toISOString();
+    for (const aiDef of PERMANENT_AI_MEMBERS) {
+      let existingAi = this.data.members.find((m) => m.id === aiDef.id);
+      if (!existingAi) {
+        this.data.members.push({
+          ...aiDef,
+          statusAt: now,
+          seat: this.freeSeat(),
+          appearance: buildAppearance({ gender: aiDef.gender, age: aiDef.age, job: aiDef.job }),
+          joinedAt: now,
+        });
+        changed = true;
+      } else {
+        existingAi.name = aiDef.name;
+        existingAi.job = aiDef.job;
+        existingAi.isAi = true;
+        existingAi.aiType = aiDef.aiType;
+        if (!INDOOR_STATUSES.has(existingAi.status)) existingAi.status = 'home';
+        existingAi.appearance = buildAppearance({ gender: aiDef.gender, age: aiDef.age, job: aiDef.job });
+      }
+    }
+
     for (const m of this.data.members) {
+      if (m.isAi) continue;
       if (!m.gender) { m.gender = m.appearance?.hairStyle === 1 || m.appearance?.hairStyle === 2 ? 'female' : 'male'; changed = true; }
       if (!m.age) { m.age = 25; changed = true; }
       if (!m.job) { m.job = 'other'; changed = true; }
@@ -164,6 +235,7 @@ class Store extends EventEmitter {
     const now = Date.now();
     let changed = false;
     for (const m of this.data.members) {
+      if (m.isAi) continue;
       const limit = AUTO_REVERT_MS[m.status];
       if (!limit || !m.statusAt) continue;
       if (now - new Date(m.statusAt).getTime() >= limit) {

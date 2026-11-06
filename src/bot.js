@@ -4,6 +4,7 @@
 const { Bot, Keyboard, InlineKeyboard } = require('grammy');
 const store = require('./store');
 const { JOBS } = store;
+const { handleRobotCommand, handlePetCommand, AI_IDS } = require('./ai');
 
 const ALLOWED_GROUP = 'oila_3d_room';
 
@@ -351,7 +352,7 @@ async function startBot(token, onStatus, options = {}) {
   store.on('moved', async ({ id, name, event }) => {
     const text = event === 'arrived' ? `🏠 ${name} uyga keldi` : `👋 ${name} uydan chiqdi`;
     for (const other of store.all()) {
-      if (other.id === id) continue;
+      if (other.id === id || other.isAi) continue;
       bot.api.sendMessage(other.id, text).catch(() => {});
     }
   });
@@ -534,6 +535,16 @@ async function startBot(token, onStatus, options = {}) {
     store.say(id, msgText, target?.id || null);
 
     if (target) {
+      if (target.job === 'robot') {
+        const dec = await handleRobotCommand(m, msgText, store);
+        await ctx.reply(dec?.reply || `🤖 Buyruq bajarildi!`);
+        return;
+      }
+      if (target.job === 'cat' || target.job === 'dog') {
+        await handlePetCommand(m, target.id, msgText, store);
+        await ctx.reply(`🐾 *${target.name}*ga yetkazildi!`, { parse_mode: 'Markdown' });
+        return;
+      }
       // Suhbatdosh ham javob yozsa avtomatik shu odamga ketishi uchun bog'lab qo'yamiz
       activeChatTarget.set(target.id, id);
       await bot.api.sendMessage(
@@ -593,6 +604,30 @@ async function handleRoomAction(payload) {
     return;
   }
 
+  if (payload.type === 'robot_cmd') {
+    const fromId = payload.fromId ? Number(payload.fromId) : null;
+    const from = fromId ? store.get(fromId) : null;
+    const text = String(payload.text || '').trim().slice(0, 160);
+    if (!text) return;
+    if (from) {
+      store.say(from.id, `🤖 Robotga: ${text}`, AI_IDS.ROBOT);
+    }
+    await handleRobotCommand(from, text, store);
+    return;
+  }
+
+  if (payload.type === 'pet_cmd') {
+    const fromId = payload.fromId ? Number(payload.fromId) : null;
+    const from = fromId ? store.get(fromId) : null;
+    const petId = Number(payload.petId);
+    const text = String(payload.text || '').trim().slice(0, 160);
+    if (from && text) {
+      store.say(from.id, text, petId);
+    }
+    await handlePetCommand(from, petId, text, store);
+    return;
+  }
+
   if (payload.type === 'say') {
     const fromId = Number(payload.fromId);
     const toId = payload.toId ? Number(payload.toId) : null;
@@ -605,8 +640,17 @@ async function handleRoomAction(payload) {
 
     store.say(from.id, text, to?.id || null);
 
+    if (to?.job === 'robot') {
+      await handleRobotCommand(from, text, store);
+      return;
+    }
+    if (to?.job === 'cat' || to?.job === 'dog') {
+      await handlePetCommand(from, to.id, text, store);
+      return;
+    }
+
     // Faqat qabul qiluvchining o'z lichkasiga yuboriladi (guruhga chiqarilmaydi!)
-    if (to && to.id !== from.id && bot) {
+    if (to && !to.isAi && to.id !== from.id && bot) {
       bot.api.sendMessage(
         to.id,
         `💬 *${from.name} (3D Uydan) sizga yozdi:*\n${text}`,

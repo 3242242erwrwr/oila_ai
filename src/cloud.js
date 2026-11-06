@@ -5,6 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const store = require('./store');
 const { startBot, stopBot, handleRoomAction } = require('./bot');
 const { startWebServer } = require('./server');
+const { startAiLoop } = require('./ai');
 
 let botStatus = { ok: false, connecting: true };
 let webServer = null;
@@ -15,6 +16,7 @@ function setBotStatus(s) {
 }
 
 store.load();
+startAiLoop(store);
 
 webServer = startWebServer({
   getBotStatus: () => botStatus,
