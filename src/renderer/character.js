@@ -348,76 +348,104 @@ export class Character {
 
   buildCatRig(m) {
     const orange = m('#f4a261');
+    const stripe = m('#e76f51');
     const cream = m('#fff8eb');
     const pink = m('#ff8fab');
+    const greenEye = m('#2ec4b6');
     const dark = m('#1e1b2e');
 
-    this.body.scale.setScalar(1.0);
-    this.label.position.y = 0.95;
+    this.body.scale.setScalar(1.1);
+    this.label.position.y = 0.88;
 
-    // 4 ta panja (oldingi: armL/armR, orqa: legL/legR)
+    // 4 ta mushuk panjasi (uzunchoq gorizontal tana ostida)
     const makePaw = (x, z) => {
       const p = new THREE.Group();
-      p.position.set(x, 0.18, z);
-      const leg = mesh(new THREE.CapsuleGeometry(0.048, 0.1, 4, 8), orange);
-      leg.position.y = -0.07;
-      const paw = mesh(new THREE.SphereGeometry(0.052, 10, 8), cream);
-      paw.position.set(0, -0.15, 0.02);
+      p.position.set(x, 0.19, z);
+      const leg = mesh(new THREE.CylinderGeometry(0.042, 0.036, 0.16, 10), orange);
+      leg.position.y = -0.08;
+      const paw = mesh(new THREE.SphereGeometry(0.048, 10, 8), cream);
+      paw.scale.set(1.0, 0.65, 1.35);
+      paw.position.set(0, -0.16, 0.02);
       p.add(leg, paw);
       this.body.add(p);
       return p;
     };
-    this.armL = makePaw(-0.1, 0.16);
-    this.armR = makePaw(0.1, 0.16);
-    this.legL = makePaw(-0.1, -0.16);
-    this.legR = makePaw(0.1, -0.16);
+    this.armL = makePaw(-0.09, 0.22);
+    this.armR = makePaw(0.09, 0.22);
+    this.legL = makePaw(-0.09, -0.22);
+    this.legR = makePaw(0.09, -0.22);
 
-    // Mushuk tanasi
-    const torso = mesh(new THREE.CapsuleGeometry(0.15, 0.28, 6, 12), orange);
+    // Gorizontal mushuk tanasi + yo'l-yo'l chiziqlari
+    const torso = mesh(new THREE.CapsuleGeometry(0.135, 0.38, 8, 14), orange);
     torso.rotation.x = Math.PI / 2;
-    torso.position.set(0, 0.25, 0);
-    const chest = mesh(new THREE.SphereGeometry(0.13, 12, 10), cream);
-    chest.position.set(0, 0.24, 0.16);
+    torso.position.set(0, 0.24, 0);
+    const chest = mesh(new THREE.SphereGeometry(0.125, 12, 10), cream);
+    chest.position.set(0, 0.22, 0.22);
+    for (const zOff of [-0.12, 0, 0.12]) {
+      const st = mesh(new THREE.TorusGeometry(0.132, 0.015, 6, 16, Math.PI * 1.2), stripe);
+      st.position.set(0, 0.25, zOff);
+      st.rotation.z = -Math.PI * 0.1;
+      this.body.add(st);
+    }
     this.body.add(torso, chest);
 
-    // Mushuk boshi
+    // Mushuk boshi, tumshug'i va mo'ylovlari (whiskers)
     this.head = new THREE.Group();
-    this.head.position.set(0, 0.42, 0.24);
-    const skull = mesh(new THREE.SphereGeometry(0.19, 18, 14), orange);
-    skull.scale.set(1.08, 0.95, 0.95);
-    const muzzle = mesh(new THREE.SphereGeometry(0.09, 12, 10), cream);
-    muzzle.position.set(0, -0.04, 0.15);
-    const nose = mesh(new THREE.SphereGeometry(0.03, 8, 8), pink);
-    nose.position.set(0, -0.01, 0.22);
-    this.head.add(skull, muzzle, nose);
+    this.head.position.set(0, 0.36, 0.34);
+    const skull = mesh(new THREE.SphereGeometry(0.165, 18, 14), orange);
+    skull.scale.set(1.12, 0.92, 0.95);
+    const cheekL = mesh(new THREE.SphereGeometry(0.065, 10, 8), cream);
+    cheekL.position.set(-0.042, -0.04, 0.13);
+    const cheekR = mesh(new THREE.SphereGeometry(0.065, 10, 8), cream);
+    cheekR.position.set(0.042, -0.04, 0.13);
+    const nose = mesh(new THREE.ConeGeometry(0.032, 0.03, 3), pink);
+    nose.rotation.x = Math.PI / 2;
+    nose.rotation.z = Math.PI;
+    nose.position.set(0, -0.01, 0.19);
+    this.head.add(skull, cheekL, cheekR, nose);
 
-    // Uchburchak mushuk quloqlari
-    for (const x of [-0.12, 0.12]) {
-      const ear = mesh(new THREE.ConeGeometry(0.075, 0.15, 4), orange);
-      ear.position.set(x, 0.19, 0.02);
-      ear.rotation.z = x > 0 ? -0.22 : 0.22;
-      const inner = mesh(new THREE.ConeGeometry(0.045, 0.1, 4), pink);
-      inner.position.set(x, 0.18, 0.04);
+    // Mushuk mo'ylovlari (har ikki tomonda 2 tadan)
+    for (const side of [-1, 1]) {
+      for (const wy of [-0.03, -0.055]) {
+        const w = mesh(new THREE.BoxGeometry(0.14, 0.008, 0.008), cream);
+        w.position.set(side * 0.11, wy, 0.15);
+        w.rotation.z = side * (wy === -0.03 ? 0.12 : -0.1);
+        this.head.add(w);
+      }
+    }
+
+    // Katta uchburchak mushuk quloqlari
+    for (const x of [-0.11, 0.11]) {
+      const ear = mesh(new THREE.ConeGeometry(0.072, 0.16, 4), orange);
+      ear.position.set(x, 0.17, 0.01);
+      ear.rotation.z = x > 0 ? -0.25 : 0.25;
+      const inner = mesh(new THREE.ConeGeometry(0.042, 0.11, 4), pink);
+      inner.position.set(x, 0.16, 0.03);
       inner.rotation.z = ear.rotation.z;
       this.head.add(ear, inner);
     }
 
     this.eyes = [];
-    for (const x of [-0.075, 0.075]) {
-      const e = mesh(new THREE.SphereGeometry(0.032, 10, 8), dark);
-      e.position.set(x, 0.03, 0.17);
-      e.scale.y = 1.25;
-      this.head.add(e);
-      this.eyes.push(e);
+    for (const x of [-0.07, 0.07]) {
+      const eyeOuter = mesh(new THREE.SphereGeometry(0.038, 10, 8), greenEye);
+      eyeOuter.position.set(x, 0.025, 0.145);
+      this.head.add(eyeOuter);
+      const pupil = mesh(new THREE.SphereGeometry(0.024, 8, 8), dark);
+      pupil.position.set(x, 0.025, 0.168);
+      pupil.scale.set(0.6, 1.3, 0.6);
+      this.head.add(pupil);
+      this.eyes.push(pupil);
     }
 
-    // Dumi
+    // Yuqoriga qayrilgan uzun mushuk dumi
     this.tail = new THREE.Group();
-    this.tail.position.set(0, 0.3, -0.24);
-    const tailMesh = mesh(new THREE.CapsuleGeometry(0.035, 0.26, 4, 8), orange);
-    tailMesh.position.set(0, 0.14, -0.06);
-    tailMesh.rotation.x = -0.5;
-    this.tail.add(tailMesh);
+    this.tail.position.set(0, 0.28, -0.32);
+    const tailBase = mesh(new THREE.CapsuleGeometry(0.032, 0.28, 4, 8), orange);
+    tailBase.position.set(0, 0.15, -0.06);
+    tailBase.rotation.x = -0.45;
+    const tailTip = mesh(new THREE.SphereGeometry(0.038, 8, 8), cream);
+    tailTip.position.set(0, 0.29, -0.13);
+    this.tail.add(tailBase, tailTip);
     this.body.add(this.tail);
 
     this.phoneMesh = new THREE.Group();
@@ -426,77 +454,88 @@ export class Character {
   }
 
   buildDogRig(m) {
-    const brown = m('#d4a373');
-    const darkBrown = m('#7f4f24');
+    const brown = m('#c68b59');
+    const darkBrown = m('#6f3818');
     const cream = m('#faedcd');
     const redCollar = m('#e63946');
     const goldTag = m('#ffd166');
+    const pinkTongue = m('#ff758f');
     const dark = m('#1e1b2e');
 
-    this.body.scale.setScalar(1.0);
-    this.label.position.y = 1.08;
+    this.body.scale.setScalar(1.12);
+    this.label.position.y = 1.02;
 
-    // 4 ta oyoq
+    // 4 ta kuchuk oyog'i (uzunchoq gorizontal tana ostida)
     const makeLeg = (x, z) => {
       const p = new THREE.Group();
-      p.position.set(x, 0.22, z);
-      const leg = mesh(new THREE.CapsuleGeometry(0.058, 0.14, 4, 8), brown);
-      leg.position.y = -0.09;
-      const paw = mesh(new THREE.SphereGeometry(0.062, 10, 8), cream);
-      paw.position.set(0, -0.18, 0.02);
+      p.position.set(x, 0.24, z);
+      const leg = mesh(new THREE.CylinderGeometry(0.052, 0.044, 0.2, 10), brown);
+      leg.position.y = -0.1;
+      const paw = mesh(new THREE.SphereGeometry(0.058, 10, 8), cream);
+      paw.scale.set(1.0, 0.65, 1.35);
+      paw.position.set(0, -0.2, 0.025);
       p.add(leg, paw);
       this.body.add(p);
       return p;
     };
-    this.armL = makeLeg(-0.12, 0.2);
-    this.armR = makeLeg(0.12, 0.2);
-    this.legL = makeLeg(-0.12, -0.2);
-    this.legR = makeLeg(0.12, -0.2);
+    this.armL = makeLeg(-0.11, 0.25);
+    this.armR = makeLeg(0.11, 0.25);
+    this.legL = makeLeg(-0.11, -0.25);
+    this.legR = makeLeg(0.11, -0.25);
 
-    // Kuchuk tanasi va qizil bo'yinbog'i
-    const torso = mesh(new THREE.CapsuleGeometry(0.18, 0.34, 6, 12), brown);
+    // Gorizontal kuchuk tanasi + bo'yinbog'i
+    const torso = mesh(new THREE.CapsuleGeometry(0.165, 0.44, 8, 14), brown);
     torso.rotation.x = Math.PI / 2;
-    torso.position.set(0, 0.31, 0);
-    const chest = mesh(new THREE.SphereGeometry(0.16, 12, 10), cream);
-    chest.position.set(0, 0.3, 0.2);
-    const collar = mesh(new THREE.TorusGeometry(0.155, 0.028, 8, 18), redCollar);
-    collar.position.set(0, 0.38, 0.23);
+    torso.position.set(0, 0.3, 0);
+    const chest = mesh(new THREE.SphereGeometry(0.155, 12, 10), cream);
+    chest.position.set(0, 0.28, 0.25);
+    const spotPatch = mesh(new THREE.SphereGeometry(0.12, 10, 8), darkBrown);
+    spotPatch.scale.set(1.1, 0.5, 1.3);
+    spotPatch.position.set(0.06, 0.41, -0.05);
+    const collar = mesh(new THREE.TorusGeometry(0.15, 0.028, 8, 18), redCollar);
+    collar.position.set(0, 0.35, 0.28);
     collar.rotation.x = Math.PI / 3;
-    const medal = mesh(new THREE.SphereGeometry(0.038, 10, 8), goldTag);
-    medal.position.set(0, 0.28, 0.36);
-    this.body.add(torso, chest, collar, medal);
+    const medal = mesh(new THREE.SphereGeometry(0.04, 10, 8), goldTag);
+    medal.position.set(0, 0.25, 0.41);
+    this.body.add(torso, chest, spotPatch, collar, medal);
 
-    // Kuchuk boshi va tumshug'i
+    // Kuchuk boshi, oldinga chiqqan tumshug'i va tili
     this.head = new THREE.Group();
-    this.head.position.set(0, 0.5, 0.28);
-    const skull = mesh(new THREE.SphereGeometry(0.21, 18, 14), brown);
-    const snout = mesh(new THREE.BoxGeometry(0.16, 0.12, 0.18), cream);
+    this.head.position.set(0, 0.45, 0.36);
+    const skull = mesh(new THREE.SphereGeometry(0.19, 18, 14), brown);
+    const snout = mesh(new THREE.BoxGeometry(0.15, 0.11, 0.22), cream);
     snout.position.set(0, -0.04, 0.18);
     const nose = mesh(new THREE.SphereGeometry(0.042, 10, 8), dark);
-    nose.position.set(0, 0.0, 0.27);
-    this.head.add(skull, snout, nose);
+    nose.position.set(0, 0.01, 0.29);
+    const tongue = mesh(new THREE.BoxGeometry(0.055, 0.02, 0.09), pinkTongue);
+    tongue.position.set(0, -0.1, 0.24);
+    tongue.rotation.x = 0.35;
+    this.head.add(skull, snout, nose, tongue);
 
-    // Osilib turgan kuchuk quloqlari
-    for (const x of [-0.19, 0.19]) {
-      const ear = mesh(new THREE.CapsuleGeometry(0.055, 0.16, 4, 8), darkBrown);
-      ear.position.set(x, 0.02, 0.02);
-      ear.rotation.z = x > 0 ? -0.25 : 0.25;
+    // Ikki yonda osilib turgan uzun kuchuk quloqlari
+    for (const x of [-0.18, 0.18]) {
+      const ear = mesh(new THREE.CapsuleGeometry(0.055, 0.18, 4, 8), darkBrown);
+      ear.scale.z = 1.3;
+      ear.position.set(x, -0.01, 0.02);
+      ear.rotation.z = x > 0 ? -0.28 : 0.28;
       this.head.add(ear);
     }
 
     this.eyes = [];
-    for (const x of [-0.08, 0.08]) {
-      const e = mesh(new THREE.SphereGeometry(0.035, 10, 8), dark);
-      e.position.set(x, 0.05, 0.19);
+    for (const x of [-0.075, 0.075]) {
+      const e = mesh(new THREE.SphereGeometry(0.034, 10, 8), dark);
+      e.position.set(x, 0.045, 0.17);
       e.scale.y = 1.2;
-      this.head.add(e);
+      const brow = mesh(new THREE.BoxGeometry(0.06, 0.02, 0.02), darkBrown);
+      brow.position.set(x, 0.1, 0.16);
+      this.head.add(e, brow);
       this.eyes.push(e);
     }
 
-    // Likillab turuvchi dumi
+    // Likillab turuvchi kuchuk dumi
     this.tail = new THREE.Group();
-    this.tail.position.set(0, 0.38, -0.28);
-    const tailMesh = mesh(new THREE.CapsuleGeometry(0.042, 0.22, 4, 8), darkBrown);
+    this.tail.position.set(0, 0.36, -0.35);
+    const tailMesh = mesh(new THREE.CapsuleGeometry(0.04, 0.22, 4, 8), darkBrown);
     tailMesh.position.set(0, 0.11, -0.05);
     tailMesh.rotation.x = -0.6;
     this.tail.add(tailMesh);
