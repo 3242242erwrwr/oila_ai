@@ -888,6 +888,7 @@ export class Room {
       ],
       wc: [
         { pos: new THREE.Vector3(5.8, 0, 3.6), approach: new THREE.Vector3(5.3, 0, 3.1), node: 'wc_door', rotY: Math.PI / 2, pose: 'stand' },
+        { pos: new THREE.Vector3(6.6, 0, 3.1), approach: new THREE.Vector3(6.0, 0, 3.0), node: 'wc_mid', rotY: Math.PI, pose: 'stand' },
       ],
     };
 
@@ -897,7 +898,8 @@ export class Room {
 
       if (m.isAi) {
         const list = aiRoomSpots[st] || aiRoomSpots.home;
-        const idx = (aiUsed[st] = (aiUsed[st] || 0) + 1) - 1;
+        const baseIdx = (aiUsed[st] = (aiUsed[st] || 0) + 1) - 1;
+        const idx = baseIdx + (m.taskSeq || 0);
         const chosen = list[idx % list.length];
         const pose = m.job === 'robot' && st === 'sleep' ? 'stand' : chosen.pose;
         spot = { ...chosen, pose };

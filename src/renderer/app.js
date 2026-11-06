@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=5';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=5';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=5';
+import { Room, DOOR } from './room.js?v=6';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=6';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=6';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -305,6 +305,13 @@ function createWebApi() {
 
   const applyState = (s, isInitial = false) => {
     if (!s) return;
+    if (s.members) {
+      const mj = JSON.stringify(s.members);
+      if (mj !== lastMembersJson) {
+        lastMembersJson = mj;
+        if (!isInitial) listeners.members.forEach((fn) => fn(s.members));
+      }
+    }
     if (Array.isArray(s.events) && s.events.length) {
       if (isInitial || lastEventSeq === -1) {
         lastEventSeq = s.events[s.events.length - 1].seq;
@@ -312,13 +319,6 @@ function createWebApi() {
         for (const ev of s.events) {
           dispatchTransient(ev.ch, ev.data, ev.seq);
         }
-      }
-    }
-    if (s.members) {
-      const mj = JSON.stringify(s.members);
-      if (mj !== lastMembersJson) {
-        lastMembersJson = mj;
-        if (!isInitial) listeners.members.forEach((fn) => fn(s.members));
       }
     }
     if (s.home !== undefined) {

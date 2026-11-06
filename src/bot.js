@@ -143,7 +143,7 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=5`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=6`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
@@ -609,9 +609,6 @@ async function handleRoomAction(payload) {
     const from = fromId ? store.get(fromId) : null;
     const text = String(payload.text || '').trim().slice(0, 160);
     if (!text) return;
-    if (from) {
-      store.say(from.id, `🤖 Robotga: ${text}`, AI_IDS.ROBOT);
-    }
     await handleRobotCommand(from, text, store);
     return;
   }
@@ -621,9 +618,6 @@ async function handleRoomAction(payload) {
     const from = fromId ? store.get(fromId) : null;
     const petId = Number(payload.petId);
     const text = String(payload.text || '').trim().slice(0, 160);
-    if (from && text) {
-      store.say(from.id, text, petId);
-    }
     await handlePetCommand(from, petId, text, store);
     return;
   }
@@ -638,8 +632,6 @@ async function handleRoomAction(payload) {
     const to = toId ? store.get(toId) : null;
     if (!from) return;
 
-    store.say(from.id, text, to?.id || null);
-
     if (to?.job === 'robot') {
       await handleRobotCommand(from, text, store);
       return;
@@ -648,6 +640,8 @@ async function handleRoomAction(payload) {
       await handlePetCommand(from, to.id, text, store);
       return;
     }
+
+    store.say(from.id, text, to?.id || null);
 
     // Faqat qabul qiluvchining o'z lichkasiga yuboriladi (guruhga chiqarilmaydi!)
     if (to && !to.isAi && to.id !== from.id && bot) {
