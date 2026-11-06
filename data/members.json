@@ -1,0 +1,69 @@
+{
+  "members": [
+    {
+      "id": 6280077746,
+      "name": "Jamshid",
+      "status": "home",
+      "seat": 0,
+      "appearance": {
+        "skin": "#e0a878",
+        "hair": "#a0522d",
+        "hairStyle": 0,
+        "shirt": "#118ab2",
+        "pants": "#2d3142",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "joinedAt": "2026-11-06T14:42:17.376Z",
+      "updatedAt": "2026-11-06T17:38:30.573Z",
+      "location": {
+        "lat": 40.641202,
+        "lon": 72.252158,
+        "accuracy": null,
+        "live": false,
+        "liveUntil": null,
+        "at": "2026-11-06T15:01:18.656Z"
+      },
+      "gender": "male",
+      "age": 39,
+      "job": "taxi",
+      "statusAt": "2026-11-06T17:38:30.573Z"
+    },
+    {
+      "id": 1512600413,
+      "name": "Dilrabo",
+      "status": "sleep",
+      "seat": 1,
+      "appearance": {
+        "skin": "#9c6644",
+        "hair": "#1c1c2e",
+        "hairStyle": 2,
+        "shirt": "#e63946",
+        "pants": "#264653",
+        "scale": 1,
+        "glasses": false,
+        "mustache": false,
+        "beard": false,
+        "hat": "romol",
+        "outfit": "apron"
+      },
+      "joinedAt": "2026-11-06T14:46:57.328Z",
+      "updatedAt": "2026-11-06T17:50:19.897Z",
+      "gender": "female",
+      "age": 34,
+      "job": "housewife",
+      "statusAt": "2026-11-06T17:50:19.897Z"
+    }
+  ],
+  "home": {
+    "lat": 40.641095,
+    "lon": 72.252109,
+    "setBy": "Jamshid",
+    "at": "2026-11-06T16:10:24.691Z"
+  },
+  "groupChatId": -1004438231107
+}

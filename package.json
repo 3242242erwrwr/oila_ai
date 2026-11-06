@@ -1,0 +1,23 @@
+{
+  "name": "family-home",
+  "version": "0.1.0",
+  "description": "Oilaviy uy: Telegram bot + 3D cartoon xona",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/start.js",
+    "desktop": "electron .",
+    "server": "node src/cloud.js"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cloudflared": "^0.7.3",
+    "dotenv": "^18.0.9",
+    "grammy": "^1.46.0",
+    "leaflet": "^1.9.4",
+    "localtunnel": "^2.0.2",
+    "three": "^0.187.0"
+  },
+  "devDependencies": {
+    "electron": "^45.2.3"
+  }
+}
