@@ -22,32 +22,52 @@ const STATUSES = {
 };
 
 const BTN_STATUS = "🎭 Holatni o'zgartirish";
+const BTN_CHAT = '💬 Suhbat';
 const BTN_ROOM = '🏠 3D Uyni ochish';
 const BTN_BACK = '🔙 Orqaga';
 const LOCATION_BUTTON = '📍 Joylashuvni yuborish';
 
-// Guruhda ham, lichkada ham chiqadigan asosiy tugmalar
+// Lichkada chiqadigan asosiy tugmalar
 function mainKeyboard() {
   return new Keyboard()
-    .text(BTN_STATUS).text(BTN_ROOM)
+    .text(BTN_STATUS).text(BTN_CHAT).row()
+    .text(BTN_ROOM)
     .resized()
     .persistent();
 }
 
-// "🎭 Holatni o'zgartirish" bosilganda chiqadigan holatlar ro'yxati (guruhda va lichkada)
-function statusKeyboard(isPrivate = false) {
-  const kb = new Keyboard()
+// Guruhda FAQAT "🏠 3D Uyni ochish" tugmasi chiqadi
+function groupKeyboard() {
+  return new Keyboard()
+    .text(BTN_ROOM)
+    .resized()
+    .persistent();
+}
+
+// Lichkada "💬 Suhbat" bosilganda a'zolar ro'yxati
+function chatMembersKeyboard(myId) {
+  const kb = new Keyboard();
+  const others = store.all().filter((m) => m.id !== myId);
+  for (let i = 0; i < others.length; i += 2) {
+    kb.text(`💬 ${others[i].name}`);
+    if (others[i + 1]) kb.text(`💬 ${others[i + 1].name}`);
+    kb.row();
+  }
+  kb.text(BTN_BACK);
+  return kb.resized().persistent();
+}
+
+// "🎭 Holatni o'zgartirish" bosilganda chiqadigan holatlar ro'yxati (faqat lichkada)
+function statusKeyboard() {
+  return new Keyboard()
     .text(STATUSES.home.label).text(STATUSES.pc.label).row()
     .text(STATUSES.tv.label).text(STATUSES.insta.label).row()
     .text(STATUSES.eat.label).text(STATUSES.cook.label).row()
     .text(STATUSES.sleep.label).text(STATUSES.wc.label).row()
-    .text(STATUSES.work.label).text(STATUSES.school.label).text(STATUSES.out.label).row();
-  if (isPrivate) {
-    kb.requestLocation(LOCATION_BUTTON).text(BTN_BACK);
-  } else {
-    kb.text(BTN_ROOM).text(BTN_BACK);
-  }
-  return kb.resized().persistent();
+    .text(STATUSES.work.label).text(STATUSES.school.label).text(STATUSES.out.label).row()
+    .requestLocation(LOCATION_BUTTON).text(BTN_BACK)
+    .resized()
+    .persistent();
 }
 
 function genderKeyboard() {
@@ -140,13 +160,13 @@ async function sendRoomLink(ctx) {
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
-      // 2) Guruhga esa har kimni O'Z profilidan kiritadigan bot havolasini chiqaramiz
+      // 2) Guruhga esa har kimni O'Z profilidan kiritadigan bot havolasini va faqat "🏠 3D Uyni ochish" tugmasini chiqaramiz
       const botUsername = bot?.botInfo?.username || 'Temur_Biznes_bot';
       const groupIkb = new InlineKeyboard()
         .url("🏠 3D Uyni o'z nomingizdan ochish", `https://t.me/${botUsername}?start=xona`);
       await ctx.reply(
         "🏠 *Oilaviy 3D Uy*\n\n" +
-        "Har kim faqat o'z nomidan yozishi uchun pastdagi tugmani bosing (shaxsiy havola lichkangizga ham yuborildi):",
+        "3D uyni ochish uchun pastdagi tugmani bosing:",
         { parse_mode: 'Markdown', reply_markup: groupIkb }
       );
     }
@@ -155,7 +175,7 @@ async function sendRoomLink(ctx) {
       "⏳ *Telefon uchun internet-havola tayyorlanmoqda (5-10 soniya)...*\n" +
       `Kompyuterda ko'rish: ${personalUrl}\n` +
       "Birozdan keyin yana *🏠 3D Uyni ochish* tugmasini bosing!",
-      { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+      { parse_mode: 'Markdown', reply_markup: isPrivate ? mainKeyboard() : groupKeyboard() }
     );
   }
 }
@@ -169,8 +189,9 @@ async function startBot(token, onStatus, options = {}) {
   bot = new Bot(token);
   const wizard = new Map();
   const awaitingHome = new Set();
+  const activeChatTarget = new Map();
 
-  // Guruh tekshiruvi: faqat "Oila_3d_room" guruhida qoladi va uning ID sini eslab qoladi
+  // Guruh tekshiruvi: faqat "Oila_3d_room" guruhida qoladi
   bot.use(async (ctx, next) => {
     const type = ctx.chat?.type;
     if (ctx.message?.text) {
@@ -209,6 +230,16 @@ async function startBot(token, onStatus, options = {}) {
   };
 
   bot.command('start', async (ctx) => {
+    // Guruhda /start bosilsa faqat 3D Uyni ochish tugmasi chiqadi
+    if (ctx.chat?.type !== 'private') {
+      await ctx.reply('🏠 *3D Uyni ochish uchun pastdagi tugmani bosing:*', {
+        parse_mode: 'Markdown',
+        reply_markup: groupKeyboard(),
+      });
+      await sendRoomLink(ctx);
+      return;
+    }
+
     const m = store.get(ctx.from.id);
     if (m) {
       if (ctx.match === 'xona') {
@@ -218,7 +249,7 @@ async function startBot(token, onStatus, options = {}) {
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
         `👤 Yosh: ${m.age} • Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
-        `Pastdagi *🎭 Holatni o'zgartirish* yoki *🏠 3D Uyni ochish* tugmasini bosing:`,
+        `Pastdagi tugmalardan foydalaning:`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
       );
       return;
@@ -229,14 +260,17 @@ async function startBot(token, onStatus, options = {}) {
   bot.command('xona', sendRoomLink);
 
   bot.command('profil', async (ctx) => {
+    if (ctx.chat?.type !== 'private') return;
     await beginWizard(ctx, Boolean(store.get(ctx.from.id)));
   });
 
   bot.command('ism', async (ctx) => {
+    if (ctx.chat?.type !== 'private') return;
     await beginWizard(ctx, Boolean(store.get(ctx.from.id)));
   });
 
   bot.command('holat', async (ctx) => {
+    if (ctx.chat?.type !== 'private') return;
     const m = store.get(ctx.from.id);
     if (!m) return ctx.reply('Avval /start bosing.', { reply_markup: mainKeyboard() });
     const lines = store.all().map((x) => {
@@ -256,19 +290,22 @@ async function startBot(token, onStatus, options = {}) {
   });
 
   bot.command('uy', async (ctx) => {
+    if (ctx.chat?.type !== 'private') return;
     if (!store.get(ctx.from.id)) return ctx.reply('Avval /start bosing.');
     awaitingHome.add(ctx.from.id);
     await ctx.reply(
       "🏠 *Uy manzilini belgilaymiz.*\n\n📎 (skrepka) → Joylashuv orqali uyingizni tanlab yuboring.",
-      { parse_mode: 'Markdown', reply_markup: statusKeyboard(ctx.chat?.type === 'private') }
+      { parse_mode: 'Markdown', reply_markup: statusKeyboard() }
     );
   });
 
   bot.command('joylashuv', async (ctx) => {
+    if (ctx.chat?.type !== 'private') return;
     await ctx.reply(LIVE_HELP, { parse_mode: 'Markdown', reply_markup: mainKeyboard() });
   });
 
   const handleLocation = async (ctx, msg, edited) => {
+    if (ctx.chat?.type !== 'private') return;
     const id = ctx.from?.id;
     const m = id && store.get(id);
     if (!m) {
@@ -302,14 +339,9 @@ async function startBot(token, onStatus, options = {}) {
 
   store.on('moved', async ({ id, name, event }) => {
     const text = event === 'arrived' ? `🏠 ${name} uyga keldi` : `👋 ${name} uydan chiqdi`;
-    const gId = store.getGroupChatId();
-    if (gId) {
-      bot.api.sendMessage(gId, text).catch(() => {});
-    } else {
-      for (const other of store.all()) {
-        if (other.id === id) continue;
-        bot.api.sendMessage(other.id, text).catch(() => {});
-      }
+    for (const other of store.all()) {
+      if (other.id === id) continue;
+      bot.api.sendMessage(other.id, text).catch(() => {});
     }
   });
 
@@ -319,13 +351,16 @@ async function startBot(token, onStatus, options = {}) {
     const id = ctx.from.id;
     const isPrivate = ctx.chat?.type === 'private';
 
-    // "🏠 3D Uyni ochish" tugmasi har doim ishlaydi
+    // "🏠 3D Uyni ochish" tugmasi guruhda ham, lichkada ham ishlaydi
     if (text === BTN_ROOM) {
       await sendRoomLink(ctx);
       return;
     }
 
-    // 1. Ro'yxatdan o'tish / Profil savol-javobi (guruhda ham, lichkada ham ishlaydi!)
+    // Guruhda boshqa hech qanday bot funksiyasi ishlamaydi (faqat 3D Uyni ochish!)
+    if (!isPrivate) return;
+
+    // 1. Ro'yxatdan o'tish / Profil savol-javobi (faqat lichkada)
     if (wizard.has(id)) {
       const state = wizard.get(id);
       if (state.step === 'name') {
@@ -394,7 +429,7 @@ async function startBot(token, onStatus, options = {}) {
           await ctx.reply(
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaviy uyga qo'shildingiz.\n` +
             `👤 Yosh: *${state.age}* • Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `Pastdagi *🎭 Holatni o'zgartirish* yoki *🏠 3D Uyni ochish* tugmasidan foydalaning!`,
+            `Pastdagi tugmalardan foydalaning!`,
             { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
           );
         }
@@ -402,34 +437,56 @@ async function startBot(token, onStatus, options = {}) {
       }
     }
 
-    // 2. Tugmalar: "🏠 3D Uyni ochish", "🎭 Holatni o'zgartirish", "🔙 Orqaga"
-    if (text === BTN_ROOM) {
-      await sendRoomLink(ctx);
-      return;
-    }
-
     const m = store.get(id);
     if (!m) {
-      if (isPrivate || text === BTN_STATUS) {
-        await ctx.reply("Siz hali a'zo emassiz. /start bosib ro'yxatdan o'ting!", { reply_markup: mainKeyboard() });
-      }
+      await ctx.reply("Siz hali a'zo emassiz. /start bosib ro'yxatdan o'ting!", { reply_markup: mainKeyboard() });
       return;
     }
 
     if (text === BTN_STATUS) {
+      activeChatTarget.delete(id);
       await ctx.reply(`🎭 *${m.name}*, hozir nima qilyapsiz? Tanlang:`, {
         parse_mode: 'Markdown',
-        reply_markup: statusKeyboard(isPrivate),
+        reply_markup: statusKeyboard(),
+      });
+      return;
+    }
+
+    if (text === BTN_CHAT) {
+      const others = store.all().filter((x) => x.id !== id);
+      if (!others.length) {
+        await ctx.reply("Hozircha uyda sizdan boshqa a'zo yo'q.", { reply_markup: mainKeyboard() });
+        return;
+      }
+      await ctx.reply("💬 *Kim bilan lichkada gaplashmoqchisiz?* Tanlang:", {
+        parse_mode: 'Markdown',
+        reply_markup: chatMembersKeyboard(id),
       });
       return;
     }
 
     if (text === BTN_BACK) {
+      activeChatTarget.delete(id);
       await ctx.reply('🏠 Asosiy menyu:', { reply_markup: mainKeyboard() });
       return;
     }
 
-    // 3. Holat tugmalaridan biri bosilganda (guruhda ham, lichkada ham ishlaydi!)
+    // "💬 Ism" tugmasi bosilganda suhbatdoshni tanlash
+    if (text.startsWith('💬 ')) {
+      const targetName = text.slice(2).trim().toLowerCase();
+      const target = store.all().find((x) => x.id !== id && x.name.toLowerCase() === targetName);
+      if (target) {
+        activeChatTarget.set(id, target.id);
+        await ctx.reply(
+          `💬 *${target.name}* bilan suhbat ochildi!\n` +
+          `✍️ Endi shu yerga xabar yozsangiz, *${target.name}*ning lichkasiga boradi va 3D uyda personajingiz uning yoniga borib gapiradi:`,
+          { parse_mode: 'Markdown', reply_markup: chatMembersKeyboard(id) }
+        );
+        return;
+      }
+    }
+
+    // 3. Holat tugmalaridan biri bosilganda
     const statusKey = Object.keys(STATUSES).find((k) => STATUSES[k].label === text);
     if (statusKey) {
       store.update(id, { status: statusKey });
@@ -456,18 +513,32 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    // 4. Oddiy suhbat xabari (guruhda yoki lichkada)
+    // 4. Lichkada suhbat xabari
     const msgText = text.slice(0, 160);
     const others = store.all().filter((x) => x.id !== id);
-
-    // Reply qilingan odam yoki ismi yozilgan odamni topish
-    const replyUserId = ctx.message.reply_to_message?.from?.id;
-    let target = replyUserId && others.find((x) => x.id === replyUserId);
+    let targetId = activeChatTarget.get(id);
+    let target = targetId && others.find((x) => x.id === targetId);
     if (!target) {
       target = others.find((x) => msgText.toLowerCase().includes(x.name.toLowerCase()));
     }
+    if (!target && others.length === 1) {
+      target = others[0];
+    }
 
     store.say(id, msgText, target?.id || null);
+
+    if (target) {
+      // Suhbatdosh ham javob yozsa avtomatik shu odamga ketishi uchun bog'lab qo'yamiz
+      activeChatTarget.set(target.id, id);
+      await bot.api.sendMessage(
+        target.id,
+        `💬 *${m.name} sizga yozdi:*\n${msgText}`,
+        { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+      ).catch(() => {});
+      await ctx.reply(`✅ *${target.name}*ga yuborildi (3D uyda borib aytdi!)`, {
+        parse_mode: 'Markdown',
+      });
+    }
   });
 
   bot.catch((err) => console.error('Bot xatosi:', err.error || err));
@@ -509,14 +580,6 @@ async function handleRoomAction(payload) {
     const m = store.get(id);
     if (m && STATUSES[payload.status]) {
       store.update(id, { status: payload.status });
-      const gId = store.getGroupChatId();
-      if (gId && bot) {
-        bot.api.sendMessage(
-          gId,
-          `${STATUSES[payload.status].label.split(' ')[0]} *${m.name}* holatini o'zgartirdi: *${STATUSES[payload.status].text}*`,
-          { parse_mode: 'Markdown' }
-        ).catch(() => {});
-      }
     }
     return;
   }
@@ -533,15 +596,13 @@ async function handleRoomAction(payload) {
 
     store.say(from.id, text, to?.id || null);
 
-    // Guruhga (yoki qabul qiluvchiga) xabarni chiqarish
-    const msg = to && to.id !== from.id
-      ? `💬 *${from.name} ➡️ ${to.name}:* ${text}`
-      : `💬 *${from.name}:* ${text}`;
-    const gId = store.getGroupChatId();
-    if (gId && bot) {
-      bot.api.sendMessage(gId, msg, { parse_mode: 'Markdown' }).catch(() => {});
-    } else if (to && bot) {
-      bot.api.sendMessage(to.id, msg, { parse_mode: 'Markdown' }).catch(() => {});
+    // Faqat qabul qiluvchining o'z lichkasiga yuboriladi (guruhga chiqarilmaydi!)
+    if (to && to.id !== from.id && bot) {
+      bot.api.sendMessage(
+        to.id,
+        `💬 *${from.name} (3D Uydan) sizga yozdi:*\n${text}`,
+        { parse_mode: 'Markdown' }
+      ).catch(() => {});
     }
   }
 }
