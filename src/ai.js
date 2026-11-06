@@ -384,7 +384,7 @@ function buildFallbackPlan(fromMember, text, humans, robot) {
   };
 }
 
-// ==================== 🐱 MUSHUK VA 🐶 KUCHUK BILAN MULOQOT (GEMINI AI ORQALI) ====================
+// ==================== 🐱 MUSHUK VA 🐶 KUCHUK BILAN MULOQOT (GAPIRMAYDI, FAQAT HARAKATLANADI) ====================
 async function handlePetCommand(fromMember, petId, rawText, store) {
   const pet = store.get(Number(petId));
   if (!pet) return;
@@ -394,18 +394,19 @@ async function handlePetCommand(fromMember, petId, rawText, store) {
   const callerDeliv = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.id : null;
   const isCat = pet.job === 'cat';
 
-  const systemPrompt = `Sen 3D Oilaviy Uydagi ${isCat ? '"Mushuk" (🐱 uy mushugi)' : '"It" (🐶 uy kuchugi)'}san.
-Foydalanuvchi (${fromName}) senga buyruq yoki erkalash yozdi. Buyruq ma'nosiga qarab qayerga borishingni ("status": "home|tv|pc|cook|eat|sleep|wc|garage|out") va qisqa javobingni ("reply") JSON formatda qaytar:
+  const systemPrompt = `Sen 3D Oilaviy Uydagi ${isCat ? '"Mushuk"' : '"It"'}san. Hayvonlar gapirmaydi, faqat harakatlanadi.
+Foydalanuvchi (${fromName}) senga buyruq berdi yoki erkalamoqda.
+Buyruq ma'nosiga qarab qayerga borishingni ("status": "home|tv|pc|cook|eat|sleep|wc|garage|out") JSON formatda qaytar:
 {
   "steps": [
     {
       "status": "home|tv|pc|cook|eat|sleep|wc|garage|out",
-      "reply": "${isCat ? '🐱 Miyov~ ...' : '🐶 Vov-vov! ...'}",
       "deliverToId": ${callerDeliv || 'null'}
     }
   ]
 }
-Agar "ko'chaga chiq" deyilsa status: "out", deliverToId: null bo'lsin. Agar ma'lum bir xonaga borish aytilsa deliverToId: null bo'lsin. Agar chaqirilsa yoki erkalansa status: "${callerRoom}", deliverToId: ${callerDeliv || 'null'} bo'lsin.`;
+Agar "ko'chaga chiq" deyilsa status: "out", deliverToId: null bo'lsin.
+Agar chaqirilsa yoki erkalansa status: "${callerRoom}", deliverToId: ${callerDeliv || 'null'} bo'lsin.`;
 
   const plan = await askAiPlan(systemPrompt, `Foydalanuvchi (${fromName}, joyi: "${callerRoom}") yozdi: "${text}"`);
   if (plan && Array.isArray(plan.steps) && plan.steps[0]) {
@@ -413,7 +414,6 @@ Agar "ko'chaga chiq" deyilsa status: "out", deliverToId: null bo'lsin. Agar ma'l
     const targetStatus = VALID_STATUSES.has(st.status) ? st.status : callerRoom;
     const deliv = targetStatus === 'out' ? null : (st.deliverToId ? Number(st.deliverToId) : null);
     moveAi(store, pet.id, targetStatus, { deliverToId: deliv });
-    if (st.reply) store.say(pet.id, st.reply, null);
     if (deliv) setTimeout(() => moveAi(store, pet.id, targetStatus, { deliverToId: null }), 7000);
     return;
   }
@@ -421,11 +421,9 @@ Agar "ko'chaga chiq" deyilsa status: "out", deliverToId: null bo'lsin. Agar ma'l
   const lower = text.toLowerCase();
   if (lower.includes("ko'cha") || lower.includes('kocha') || lower.includes('tashqari')) {
     moveAi(store, pet.id, 'out', { deliverToId: null });
-    store.say(pet.id, isCat ? "🐱 Miyov~ Ko'chaga aylanishga chiqdim! 🐾" : '🐶 Vov-vov! Hovliga chiqyapman! 🐾', null);
     return;
   }
   moveAi(store, pet.id, callerRoom, { deliverToId: callerDeliv });
-  store.say(pet.id, isCat ? `🐱 Miyov~ Mrrr! (${fromName}ning yoniga kelib erkalandi) 🐾❤️` : `🐶 Vov-vov! (${fromName}ning oldiga yugurib kelib dumini likillatdi!) 🐾❤️`, null);
   setTimeout(() => moveAi(store, pet.id, callerRoom, { deliverToId: null }), 7000);
 }
 
@@ -436,8 +434,8 @@ function startAiLoop(store) {
   store.on('moved', ({ id, name, event }) => {
     if (event === 'arrived') {
       setTimeout(() => {
+        // Uyga yangi a'zo kelganda it uning oldiga yugurib boradi (lekin gapirmaydi)
         moveAi(store, AI_IDS.DOG, 'home', { deliverToId: id });
-        store.say(AI_IDS.DOG, `🐶 Vov-vov! ${name} uyga keldi! Xush kelibsiz! 🐾`, null);
         setTimeout(() => moveAi(store, AI_IDS.DOG, 'home', { deliverToId: null }), 6000);
       }, 1200);
       setTimeout(() => {
@@ -462,7 +460,7 @@ function startAiLoop(store) {
         const robot = store.get(AI_IDS.ROBOT);
         if (!robot) return;
 
-        // Agar robot ko'chaga chiqarib yuborilgan bo'lsa, o'z holicha qaytib kirmaydi — faqat chaqirilganda yoki uzoq vaqtdan keyin kiradi
+        // Agar robot ko'chaga chiqarib yuborilgan bo'lsa, o'z holicha qaytib kirmaydi
         if (robot.status === 'out') return;
 
         const cookingHuman = indoorHumans.find((m) => m.status === 'cook');
@@ -532,22 +530,15 @@ function startAiLoop(store) {
         const catRooms = ['home', 'tv', 'eat', 'sleep'];
         let nextStatus = pick(catRooms.filter((r) => r !== cat.status));
         let deliverToId = null;
-        let msg = pick([
-          '🐱 Miyov~ 🐾',
-          '🐱 Mrrr... quyosh nuri juda yoqimli ekan~ ☀️🐾',
-          '🐱 Oshxonada sut bormikan? Miyov! 🥛',
-          '🐱 Yumshoq gilam ustida aylanib yuribman~ 🐾',
-        ]);
 
         if (indoorHumans.length > 0 && Math.random() < 0.45) {
           const person = pick(indoorHumans);
           nextStatus = person.status;
           deliverToId = person.id;
-          msg = `🐱 Miyov~ Mrrr! (${person.name}ning oyog'iga suykalyapti) 🐾`;
         }
 
+        // Mushuk gapirmaydi — faqat xonalar bo'ylab yuradi yoki odam yoniga keladi
         moveAi(store, AI_IDS.CAT, nextStatus, { deliverToId });
-        store.say(AI_IDS.CAT, msg, null);
         if (deliverToId) {
           setTimeout(() => store.update(AI_IDS.CAT, { deliverToId: null }), 6000);
         }
@@ -561,22 +552,15 @@ function startAiLoop(store) {
         const dogRooms = ['home', 'eat', 'cook', 'tv', 'sleep', 'garage'];
         let nextStatus = pick(dogRooms.filter((r) => r !== dog.status));
         let deliverToId = null;
-        let msg = pick([
-          '🐶 Vov-vov! Uyda hammasi tinch! 🐾',
-          '🐶 Dumini likillatib xonalarni tekshiryapti 🦴🐾',
-          '🐶 Vov! Oshxonadan shirin hid kelyapti! 🍖',
-          "🐶 Eshik oldini qo'riqlayapman! Vov! 🛡️🐾",
-        ]);
 
         if (indoorHumans.length > 0 && Math.random() < 0.45) {
           const person = pick(indoorHumans);
           nextStatus = person.status;
           deliverToId = person.id;
-          msg = `🐶 Vov-vov! (${person.name}ning oldiga kelib dumini likillatdi!) 🐾`;
         }
 
+        // It gapirmaydi — faqat xonalarni aylanadi yoki odam yoniga keladi
         moveAi(store, AI_IDS.DOG, nextStatus, { deliverToId });
-        store.say(AI_IDS.DOG, msg, null);
         if (deliverToId) {
           setTimeout(() => store.update(AI_IDS.DOG, { deliverToId: null }), 6000);
         }

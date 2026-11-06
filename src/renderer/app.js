@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=8';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=8';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=8';
+import { Room, DOOR } from './room.js?v=9';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=9';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=9';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -766,7 +766,10 @@ if (api) {
     toast(event === 'arrived' ? `🏠 ${name} uyga keldi!` : `👋 ${name} uydan chiqdi`);
   });
   api.onSay(({ id, name, status, text, toId }) => {
+    // Mushuk va it gapirgani ko'rinmasin
+    if (id === 900002 || id === 900003) return;
     const c = chars.get(id);
+    if (c?.member?.job === 'cat' || c?.member?.job === 'dog') return;
     if (c && (INDOOR.has(status) || c.member?.isAi) && c.group.visible) {
       c.say(text);
       const target = toId && chars.get(toId);

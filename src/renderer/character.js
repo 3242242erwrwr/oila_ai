@@ -107,10 +107,12 @@ export class Character {
       return;
     }
     if (member.job === 'cat') {
+      this.bubbleEl.style.display = 'none';
       this.buildCatRig(m);
       return;
     }
     if (member.job === 'dog') {
+      this.bubbleEl.style.display = 'none';
       this.buildDogRig(m);
       return;
     }
@@ -781,6 +783,7 @@ export class Character {
   }
 
   say(text) {
+    if (this.isQuadruped || this.member?.job === 'cat' || this.member?.job === 'dog') return;
     this.bubbleEl.textContent = text;
     this.bubbleEl.classList.add('show');
     clearTimeout(this.bubbleTimer);
