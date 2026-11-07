@@ -853,12 +853,20 @@ async function handleRoomAction(payload) {
       ).catch(() => {});
     }
 
+    if (payload.type === 'apk_ping' && m.location && Number.isFinite(m.location.lat)) {
+      m.location.live = true;
+      m.location.liveUntil = Date.now() + 86_400_000;
+      m.location.at = new Date().toISOString();
+      store.save();
+      store.emit('change');
+    }
+
     if (payload.type === 'auto_location') {
       const lat = Number(payload.lat);
       const lon = Number(payload.lon);
       const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      if (accuracy != null && accuracy > 120) return;
+      if (accuracy != null && accuracy > 400) return;
 
       if (!store.getHome()) {
         store.setHome(lat, lon, m.name);
@@ -868,7 +876,7 @@ async function handleRoomAction(payload) {
         lon,
         accuracy,
         live: true,
-        liveUntil: Date.now() + 300_000,
+        liveUntil: Date.now() + 86_400_000,
       });
     }
     return;

@@ -250,6 +250,30 @@ public class MainActivity extends Activity {
         });
         contentLayout.addView(btnTg);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            Button bgPermBtn = createStyledButton("⚙️ 24/7 Fon ruxsatini yoqish ('Har doim')", "#d97706");
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            p.setMargins(0, 20, 0, 0);
+            bgPermBtn.setLayoutParams(p);
+            bgPermBtn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    try {
+                        requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);
+                    } catch (Exception e) {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                            intent.setData(Uri.parse("package:" + getPackageName()));
+                            startActivity(intent);
+                        } catch (Exception ignored) {}
+                    }
+                }
+            });
+            contentLayout.addView(bgPermBtn);
+        }
+
         TextView rebindBtn = new TextView(this);
         rebindBtn.setText("🔄 Qurilmani boshqa hisobga qayta ulash");
         rebindBtn.setTextSize(13f);

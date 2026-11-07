@@ -2,6 +2,7 @@ package uz.oilaviy.uy;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -33,6 +34,7 @@ public class LocationService extends Service implements LocationListener {
     private static final String CHANNEL_ID = "family_gps_channel";
     private static final int NOTIF_ID = 777;
     private static final String API_URL = "https://oila-ai.onrender.com/api/action";
+    private static final String ACTION_HEARTBEAT = "uz.oilaviy.uy.HEARTBEAT";
 
     private LocationManager locationManager;
     private PowerManager.WakeLock wakeLock;
@@ -47,7 +49,8 @@ public class LocationService extends Service implements LocationListener {
         @Override
         public void run() {
             pollAndSend();
-            handler.postDelayed(this, 6000);
+            scheduleNextAlarm();
+            handler.postDelayed(this, 10000);
         }
     };
 
@@ -58,6 +61,7 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndSend();
+        scheduleNextAlarm();
         handler.post(periodicTask);
     }
 
@@ -66,7 +70,49 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndSend();
+        scheduleNextAlarm();
         return START_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Foydalanuvchi ilovani oxirgi ilovalar (Recent Apps) ro'yxatidan surib yopganda
+        // Android uni o'ldirmasligi uchun 1 soniyada xizmatni qayta tiriltiramiz
+        try {
+            Intent restartServiceIntent = new Intent(getApplicationContext(), LocationService.class);
+            restartServiceIntent.setPackage(getPackageName());
+            int piFlags = PendingIntent.FLAG_ONE_SHOT;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                piFlags |= PendingIntent.FLAG_IMMUTABLE;
+            }
+            PendingIntent pi = PendingIntent.getService(getApplicationContext(), 1, restartServiceIntent, piFlags);
+            AlarmManager am = (AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
+            if (am != null) {
+                am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1000, pi);
+            }
+        } catch (Exception ignored) {}
+        super.onTaskRemoved(rootIntent);
+    }
+
+    private void scheduleNextAlarm() {
+        try {
+            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            if (am != null) {
+                Intent i = new Intent(this, LocationService.class);
+                i.setAction(ACTION_HEARTBEAT);
+                int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    piFlags |= PendingIntent.FLAG_IMMUTABLE;
+                }
+                PendingIntent pi = PendingIntent.getService(this, 999, i, piFlags);
+                long triggerAt = System.currentTimeMillis() + 25000L;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+                } else {
+                    am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     @SuppressLint("WakelockTimeout")
@@ -90,7 +136,7 @@ public class LocationService extends Service implements LocationListener {
                         "Oilaviy Uy Jonli Joylashuv",
                         NotificationManager.IMPORTANCE_LOW
                 );
-                ch.setDescription("24/7 fon rejimida oilaviy xarita uchun joylashuvni uzatadi");
+                ch.setDescription("24/7 fon rejimida oilaviy xarita uchun jonli joylashuvni uzatadi");
                 ch.setShowBadge(false);
                 nm.createNotificationChannel(ch);
             }
@@ -106,7 +152,7 @@ public class LocationService extends Service implements LocationListener {
                     : new Notification.Builder(this);
 
             nb.setContentTitle("🏠 Oilaviy Uy")
-              .setContentText("📍 24/7 Real-Time joylashuv ishlayapti")
+              .setContentText("🟢 24/7 Real-Time fon datchigi faol")
               .setSmallIcon(R.drawable.ic_launcher)
               .setContentIntent(pi)
               .setOngoing(true);
@@ -170,6 +216,9 @@ public class LocationService extends Service implements LocationListener {
             if (candidate != null) {
                 bestLocation = candidate;
                 considerSending(candidate);
+            } else {
+                // Agar hozircha yangi koordinata olinmagan bo'lsa ham, serverga heartbeat ping yuborib turamiz
+                sendHeartbeatPingOnly();
             }
         } catch (Exception ignored) {}
     }
@@ -192,8 +241,8 @@ public class LocationService extends Service implements LocationListener {
 
     private void considerSending(final Location loc) {
         if (loc == null) return;
-        final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 15f;
-        if (acc > 120f) return;
+        final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
+        if (acc > 400f) return; // Juda xira (400 metrdan ortiq noaniq) signallarnigina o'tkazib yubormaymiz
 
         SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
         final String uid = sp.getString("uid", "");
@@ -205,19 +254,23 @@ public class LocationService extends Service implements LocationListener {
 
         boolean first = Double.isNaN(lastSentLat);
         double distMoved = first ? Double.POSITIVE_INFINITY : distanceMeters(lastSentLat, lastSentLon, lat, lon);
-        double minRealMove = Math.min(18.0, Math.max(5.0, acc * 0.65));
+        double minRealMove = Math.min(15.0, Math.max(3.0, acc * 0.5));
 
         final double sendLat;
         final double sendLon;
-        if (first || (acc <= 65f && distMoved >= minRealMove)) {
+
+        if (first || distMoved >= minRealMove) {
             sendLat = lat;
             sendLon = lon;
             lastSentLat = lat;
             lastSentLon = lon;
             lastSentAt = now;
         } else if (now - lastSentAt >= 20000L) {
-            sendLat = lastSentLat;
-            sendLon = lastSentLon;
+            // Har 20 soniyada hatto joyidan qimirlamagan bo'lsa ham serverga jonli heartbeat uzatiladi
+            sendLat = lat;
+            sendLon = lon;
+            lastSentLat = lat;
+            lastSentLon = lon;
             lastSentAt = now;
         } else {
             return;
@@ -227,6 +280,44 @@ public class LocationService extends Service implements LocationListener {
             @Override
             public void run() {
                 postLocation(uid.trim(), sendLat, sendLon, acc);
+            }
+        });
+    }
+
+    private void sendHeartbeatPingOnly() {
+        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
+        final String uid = sp.getString("uid", "");
+        if (uid == null || uid.trim().isEmpty()) return;
+
+        final long now = System.currentTimeMillis();
+        if (now - lastSentAt < 25000L) return;
+        lastSentAt = now;
+
+        netPool.execute(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection conn = null;
+                try {
+                    URL url = new URL(API_URL);
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(6000);
+                    conn.setReadTimeout(6000);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+
+                    String json = "{\"type\":\"apk_ping\",\"id\":" + uid.trim() + ",\"source\":\"android_apk\"}";
+                    byte[] body = json.getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(body.length);
+                    OutputStream os = conn.getOutputStream();
+                    os.write(body);
+                    os.flush();
+                    os.close();
+                    conn.getResponseCode();
+                } catch (Exception ignored) {
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
             }
         });
     }
