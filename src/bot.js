@@ -148,7 +148,7 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=18`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=19`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
@@ -616,15 +616,14 @@ async function startBot(token, onStatus, options = {}) {
 async function handleRoomAction(payload) {
   if (!payload || typeof payload !== 'object') return;
 
-  // Fon rejimda har 2 minutda (yoki harakatlanganda) SMSsiz keladigan avtomatik ANIQ GPS joylashuv
+  // Fon rejimda har 2 minutda (yoki harakatlanganda) SMSsiz keladigan avtomatik Real-Time GPS joylashuv
   if (payload.type === 'auto_location') {
     const id = Number(payload.id);
     const lat = Number(payload.lat);
     const lon = Number(payload.lon);
     const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
     if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    // Faqat haqiqiy aniq GPS (100 metrdan aniq) koordinatalarni qabul qilamiz, xato antenna/IP koordinatalarni bloklaymiz!
-    if (accuracy == null || accuracy <= 0 || accuracy > 100) return;
+    if (accuracy != null && accuracy > 2500) return;
     const m = store.get(id);
     if (!m || m.isAi) return;
     if (!store.getHome()) {

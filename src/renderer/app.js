@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=18';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=18';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=18';
+import { Room, DOOR } from './room.js?v=19';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=19';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=19';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -518,8 +518,7 @@ const pageOpenedAt = Date.now();
 function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   if (!myUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-  // Faqat haqiqiy aniq GPS (accuracy <= 100 metr) qabul qilinadi!
-  if (accuracy == null || accuracy <= 0 || accuracy > 100) return;
+  if (accuracy != null && accuracy > 2500) return;
 
   const now = Date.now();
   const movedEnough =

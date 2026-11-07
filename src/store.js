@@ -157,14 +157,6 @@ class Store extends EventEmitter {
         m.appearance = buildAppearance({ gender: m.gender, age: m.age, job: m.job, existing: m.appearance });
         changed = true;
       }
-      // Noto'g'ri IP/antenna lokatsiyasi (accuracy >= 100) yoki uyda bo'la turib uzoqda qolib ketgan lokatsiyani tozalash
-      if (m.location && (m.location.accuracy >= 100 || (INDOOR_STATUSES.has(m.status) && m.location.distance > 150))) {
-        if (m.location.accuracy === 120 || m.location.accuracy === 150) {
-          m.status = 'home';
-        }
-        delete m.location;
-        changed = true;
-      }
     }
     if (changed) this.save();
   }
@@ -234,10 +226,6 @@ class Store extends EventEmitter {
       patch.statusAt = now;
       if (!m.isAi && patch.heldItem === undefined) {
         patch.heldItem = null;
-      }
-      // Agar a'zo uy ichidagi holatga o'tsa va lokatsiyasi uydan uzoqda qolgan bo'lsa, uy markaziga qaytaramiz
-      if (!m.isAi && INDOOR_STATUSES.has(patch.status) && m.location && m.location.distance > 150) {
-        delete m.location;
       }
     }
     Object.assign(m, patch, { updatedAt: now });
