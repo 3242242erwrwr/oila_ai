@@ -173,49 +173,20 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const isPrivate = ctx.chat?.type === 'private';
-  const m = uid ? store.get(uid) : null;
-
-  const isInstalled = Boolean(m && (m.apkInstalled || (m.location && m.location.live)));
-  if (m && !m.apkInstalled && isInstalled) {
-    m.apkInstalled = true;
-    store.save();
-  }
-
-  // Qat'iy tekshiruv: ilova o'rnatilmagan bo'lsa 3D uyga mutlaqo kiritilmaydi!
-  if (!m || !isInstalled) {
-    const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
-    const msg =
-      `⛔️ *Avval ilovani o'rnatib oling!*\n\n` +
-      `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
-      `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*\n\n` +
-      `Pastdagi tugma orqali ilovani yuklab oling:`;
-
-    if (isPrivate) {
-      await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: ikb });
-    } else {
-      const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
-      await ctx.reply(
-        `⛔️ *${ctx.from?.first_name || "Foydalanuvchi"}*, 3D Uyga kirishdan oldin ilovani o'rnatishingiz shart!`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: new InlineKeyboard().url("📲 Botga o'tish", `https://t.me/${botUsername}?start=apk`),
-        }
-      );
-    }
-    return;
-  }
-
   const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=38`;
   const isHttps = baseUrl.startsWith('https://');
+  const isPrivate = ctx.chat?.type === 'private';
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish", personalUrl);
+        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .row()
+        .text("📲 Fon GPS datchigi (.apk)", 'install_apk');
       await ctx.reply(
         `🏠 *Oilaviy 3D Uy*\n\n` +
-        `Uyga kirish uchun pastdagi tugmani bosing:`,
+        `• 3D Uyga kirish: *🏠 3D Uyni ochish*\n` +
+        `• 24/7 fon joylashuvi uchun: *📲 Fon GPS datchigi (.apk)*`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await ctx.reply(
@@ -307,10 +278,6 @@ async function startBot(token, onStatus, options = {}) {
     const id = ctx.from.id;
     const m = store.get(id);
     if (m) {
-      if (m.location && m.location.live) {
-        m.apkInstalled = true;
-        store.save();
-      }
       if (ctx.match === 'xona') {
         await sendRoomLink(ctx);
         return;
@@ -320,27 +287,15 @@ async function startBot(token, onStatus, options = {}) {
         return;
       }
 
-      // Agar ilovani o'rnatmagan bo'lsa -> 3D uyga qo'ymaymiz, ilovani yuklashni so'raymiz
-      if (!m.apkInstalled) {
-        const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
-        await ctx.reply(
-          `Assalomu alaykum, *${m.name}*!\n\n` +
-          `⛔️ *Siz hali ilovani o'rnatib, ruxsat bermagansiz!*\n\n` +
-          `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
-          `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*\n\n` +
-          `Pastdagi tugma orqali ilovani yuklab oling:`,
-          { parse_mode: 'Markdown', reply_markup: ikb }
-        );
-        return;
-      }
-
-      // Agar ilova o'rnatilgan bo'lsa -> 3D uyga bemalol kiradi
       const baseUrl = getPublicUrlFn();
       const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=38`;
-      const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
+      const ikb = new InlineKeyboard()
+        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .row()
+        .text("📲 Fon GPS datchigi (.apk)", 'install_apk');
 
       await ctx.reply(
-        `Xush kelibsiz, *${m.name}*! 👋\n` +
+        `Assalomu alaykum, *${m.name}*! 👋\n` +
         `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
         `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
@@ -562,23 +517,6 @@ async function startBot(token, onStatus, options = {}) {
       await ctx.reply(
         "Siz hali oilaga a'zo bo'lmagansiz. /start bosing.",
         { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-
-    if (m.location && m.location.live) {
-      m.apkInstalled = true;
-      store.save();
-    }
-
-    // Gatekeeper: ilova o'rnatilmagan bo'lsa boshqa buyruqlar ham kiritmaydi
-    if (!m.apkInstalled) {
-      const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
-      await ctx.reply(
-        `⛔️ *Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi!*\n\n` +
-        `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
-        `Iltimos, avval ilovani o'rnatib, unga ruxsat bering:`,
-        { parse_mode: 'Markdown', reply_markup: ikb }
       );
       return;
     }

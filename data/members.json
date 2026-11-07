@@ -24,15 +24,39 @@
       "joinedAt": "2026-11-07T20:03:15.698Z",
       "apkInstalled": true,
       "location": {
-        "lat": 40.6410839,
-        "lon": 72.2520891,
+        "lat": 40.641095,
+        "lon": 72.252109,
         "accuracy": 20,
         "live": true,
-        "liveUntil": 1794082360706,
+        "liveUntil": 1794083366105,
         "distance": 0,
         "address": "Asaka, lmom Buxoriy ko'chasi",
-        "at": "2026-11-07T20:07:40.706Z"
+        "at": "2026-11-07T20:24:26.105Z"
       }
+    },
+    {
+      "id": 1512600413,
+      "name": "Dilrabo",
+      "gender": "female",
+      "age": 34,
+      "job": "housewife",
+      "status": "home",
+      "seat": 1,
+      "appearance": {
+        "skin": "#ffd9b8",
+        "hair": "#2b1d16",
+        "hairStyle": 1,
+        "shirt": "#e63946",
+        "pants": "#2d3142",
+        "scale": 1,
+        "glasses": false,
+        "mustache": false,
+        "beard": false,
+        "hat": "romol",
+        "outfit": "apron"
+      },
+      "joinedAt": "2026-11-07T20:14:18.999Z",
+      "apkInstalled": true
     }
   ],
   "home": {
