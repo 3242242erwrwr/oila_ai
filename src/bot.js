@@ -164,7 +164,7 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=28`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=29`;
   const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
@@ -470,11 +470,27 @@ async function startBot(token, onStatus, options = {}) {
           );
         } else {
           store.add(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
+          const baseUrl = getPublicUrlFn();
+          const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=29`;
+          const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
+          const ikb = new InlineKeyboard()
+            .url("📲 1. Ilovani o'rnatish", apkDownloadUrl)
+            .row()
+            .webApp("🏠 2. 3D Uyni ochish", personalUrl);
+
           await ctx.reply(
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
             `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `Endi doimiy tugmalardan foydalanishingiz mumkin:`,
-            { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+            `📋 *Qo'llanma:*\n` +
+            `1️⃣ *Avval ilovani o'rnating*\n` +
+            `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
+            `Shundan so'ng Telegramdan chiqib ketsangiz ham 24/7 Real-Time joylashuv xaritada ko'rinadi!\n\n` +
+            `3D Uyga kirish uchun pastdagi tugmani bosing:`,
+            { parse_mode: 'Markdown', reply_markup: ikb }
+          );
+          await ctx.reply(
+            `Pastdagi doimiy menyudan ham istalgan payt foydalanishingiz mumkin:`,
+            { reply_markup: mainKeyboard() }
           );
         }
         return;
