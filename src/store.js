@@ -210,6 +210,16 @@ class Store extends EventEmitter {
     return member;
   }
 
+  remove(id) {
+    const idx = this.data.members.findIndex((m) => m.id === id);
+    if (idx === -1) return false;
+    const [removed] = this.data.members.splice(idx, 1);
+    this.save();
+    this.emit('left', removed);
+    this.emit('change');
+    return true;
+  }
+
   updateProfile(id, { name, gender, age, job }) {
     const m = this.get(id);
     if (!m) return null;

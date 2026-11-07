@@ -260,6 +260,23 @@ async function startBot(token, onStatus, options = {}) {
     }
   });
 
+  bot.command('chiqish', async (ctx) => {
+    if (ctx.chat?.type !== 'private') return;
+    const id = ctx.from.id;
+    const m = store.get(id);
+    if (!m || m.isAi) {
+      await ctx.reply("Siz oilaviy uyda emassiz.");
+      return;
+    }
+    store.remove(id);
+    await ctx.reply(
+      `🚪 *${m.name}, siz oilaviy uydan butunlay chiqdingiz.*\n\n` +
+      `3D uy va xaritadan personajingiz o'chirildi.\n` +
+      `Qayta qo'shilish uchun /start bosing.`,
+      { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
+    );
+  });
+
   const beginWizard = async (ctx, isEdit) => {
     const existing = store.get(ctx.from.id);
     wizard.set(ctx.from.id, {
@@ -673,6 +690,27 @@ async function startBot(token, onStatus, options = {}) {
   };
   launchPolling();
 
+  // Datchik signali uzilgan (ilovani o'chirib tashlagan) a'zolarni xonadan butunlay o'chirish:
+  setInterval(() => {
+    const now = Date.now();
+    const TIMEOUT_MS = 20 * 60 * 1000; // 20 daqiqa datchikdan signal kelmasa
+    for (const m of store.all()) {
+      if (m.isAi) continue; // AI Robot, Mushuk, It DOIM qoladi
+      if (m.apkInstalled && m.lastApkPing && (now - m.lastApkPing > TIMEOUT_MS)) {
+        console.log(`[Datchik to'xtadi] ${m.name} (${m.id}) ilovani o'chirgan, xonadan o'chirilmoqda...`);
+        store.remove(m.id);
+        if (bot) {
+          bot.api.sendMessage(
+            m.id,
+            `⚠️ *Fon GPS datchigi to'xtadi yoki ilova o'chirildi!*\n\n` +
+            `Siz 3D xonadan va xaritadan chiqarildingiz. Qayta a'zo bo'lish uchun /start bosing.`,
+            { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
+          ).catch(() => {});
+        }
+      }
+    }
+  }, 60_000);
+
   return bot.botInfo.username;
 }
 
@@ -688,6 +726,7 @@ async function handleRoomAction(payload) {
     if (!m || m.isAi) return;
 
     const wasInstalled = Boolean(m.apkInstalled);
+    m.lastApkPing = Date.now();
     m.apkInstalled = true;
     store.save();
 
