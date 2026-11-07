@@ -140,7 +140,7 @@ async function handleRobotCommand(fromMember, rawText, store) {
   if (!robot) return;
 
   clearRobotTimers();
-  robotBusyUntil = Date.now() + 28_000;
+  robotBusyUntil = Date.now() + 65_000;
 
   const humans = store.all().filter((m) => !m.isAi);
   const fromName = fromMember?.name || "Xo'jayin";
@@ -252,12 +252,12 @@ Foydalanuvchi buyrug'i: "${text}"`;
     if (idx === 0) {
       runStep();
     } else {
-      scheduleRobotStep(runStep, idx * 4500);
+      scheduleRobotStep(runStep, idx * 8500);
     }
   });
 
-  // Oxirgi qadamda patnisda narsa bo'lsa, foydalanuvchi ko'rib rohatlanishi uchun 25 soniyadan so'ng patnisni yig'ishtiradi
-  const totalDuration = (steps.length - 1) * 4500 + 25000;
+  // Oxirgi qadamda patnisda narsa bo'lsa, foydalanuvchi ko'rib rohatlanishi uchun 45 soniyadan so'ng patnisni yig'ishtiradi
+  const totalDuration = (steps.length - 1) * 8500 + 45000;
   scheduleRobotStep(() => {
     const rNow = store.get(AI_IDS.ROBOT);
     if (rNow && (rNow.heldItem || rNow.deliverToId)) {
@@ -386,6 +386,43 @@ function buildFallbackPlan(fromMember, text, humans, robot) {
           reply: `🤖 Xo'p bo'ladi, oshxonaga ketyapman! 🍳`,
           item: null,
           deliverToId: null,
+        },
+      ],
+    };
+  }
+
+  // Biror narsa olib kelish (choy, suv, banan, olma, ovqat, tort, supurgi va h.k.)
+  if (lower.includes('olib kel') || lower.includes('keltir') || lower.includes('ber')) {
+    let item = { type: 'water', emoji: '💧', label: 'Suv' };
+    if (lower.includes('choy') || lower.includes('qahva') || lower.includes('kofe')) {
+      item = { type: 'tea', emoji: '🍵', label: 'Issiq choy' };
+    } else if (lower.includes('banan')) {
+      item = { type: 'banana', emoji: '🍌', label: 'Banan' };
+    } else if (lower.includes('olma') || lower.includes('meva')) {
+      item = { type: 'apple', emoji: '🍎', label: 'Olma' };
+    } else if (lower.includes('tarvuz') || lower.includes('qovun')) {
+      item = { type: 'watermelon', emoji: '🍉', label: 'Tarvuz' };
+    } else if (lower.includes('osh') || lower.includes('ovqat') || lower.includes('non')) {
+      item = { type: 'food', emoji: '🍲', label: 'Issiq ovqat' };
+    } else if (lower.includes('tort') || lower.includes('shirinlik')) {
+      item = { type: 'cake', emoji: '🍰', label: 'Shirinlik' };
+    } else if (lower.includes('supurgi')) {
+      item = { type: 'broom', emoji: '🧹', label: 'Supurgi' };
+    }
+
+    return {
+      steps: [
+        {
+          status: 'cook',
+          reply: `🤖 Xo'p bo'ladi, ${fromName}! Oshxonadan ${item.label.toLowerCase()} olib kelaman! 🍳`,
+          item: null,
+          deliverToId: null,
+        },
+        {
+          status: callerRoom,
+          reply: `🤖 Mana, siz so'ragan ${item.label.toLowerCase()}ni olib keldim! Marhamat! ✨`,
+          item,
+          deliverToId: callerId,
         },
       ],
     };

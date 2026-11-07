@@ -1065,7 +1065,13 @@ export class Room {
     const mid = this.graphShortestPath(startNode, goalNode);
     const raw = [fromPos.clone()];
     if (fromApp.distanceTo(fromPos) > 0.1) raw.push(fromApp.clone());
-    for (const p of mid) {
+
+    let startIndex = 0;
+    if (mid.length > 1 && fromPos.distanceTo(mid[1]) < fromPos.distanceTo(mid[0])) {
+      startIndex = 1;
+    }
+    for (let i = startIndex; i < mid.length; i++) {
+      const p = mid[i];
       if (raw[raw.length - 1].distanceTo(p) > 0.15) raw.push(p);
     }
     if (raw[raw.length - 1].distanceTo(toApp) > 0.15) raw.push(toApp.clone());

@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=10';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=10';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=10';
+import { Room, DOOR } from './room.js?v=11';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=11';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=11';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -168,13 +168,17 @@ function sync(members, animate) {
         }
       } else {
         const prevPos = c.spot?.pos;
-        const moved = !prevPos || prevPos.distanceTo(spot.pos) > 0.15 || c.spot?.pose !== spot.pose;
-        if (moved) {
+        const posChanged = !prevPos || prevPos.distanceTo(spot.pos) > 0.2;
+        const poseChanged = c.spot?.pose !== spot.pose;
+        if (posChanged) {
           if (animate && c.group.visible) {
             c.moveTo(room.pathBetween(fromState(), spot), spot);
           } else {
             c.placeAt(spot);
           }
+        } else if (poseChanged) {
+          c.spot = spot;
+          c.applyPose(spot.pose || 'stand', 1);
         }
       }
     } else if (!indoor && c.wantHome) {
