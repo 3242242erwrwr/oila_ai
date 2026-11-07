@@ -143,44 +143,39 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=21`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=22`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
-        .row()
-        .url("🌐 Brauzerda ochish", personalUrl);
+        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl);
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy tayyor!*\n\nPastdagi tugmani bosib kiring:`,
+        `🏠 *Oilaviy 3D Uy (Ilova)*\n\nKirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
       const personalIkb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
-        .row()
-        .url("🌐 Brauzerda ochish", personalUrl);
+        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl);
       await bot.api.sendMessage(
         uid,
-        `🏠 *Sizning shaxsiy 3D Uy havolangiz:*\n${personalUrl}`,
+        `🏠 *Oilaviy 3D Uy (Ilova)*\n\nKirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
-        .url("🏠 3D Uyni o'z nomingizdan ochish", `https://t.me/${botUsername}?start=xona`);
+        .url("🏠 3D Uyni Ilova orqali ochish", `https://t.me/${botUsername}?start=xona`);
       await ctx.reply(
         "🏠 *Oilaviy 3D Uy*\n\n" +
-        "3D uyni ochish uchun pastdagi tugmani bosing:",
+        "Ilova orqali kirish uchun pastdagi tugmani bosing:",
         { parse_mode: 'Markdown', reply_markup: groupIkb }
       );
     }
   } else {
     await ctx.reply(
-      "⏳ *Telefon uchun internet-havola tayyorlanmoqda (5-10 soniya)...*\n" +
-      `Kompyuterda ko'rish: ${personalUrl}\n` +
+      "⏳ *Ilova tayyorlanmoqda (5-10 soniya)...*\n" +
       "Birozdan keyin yana *🏠 3D Uyni ochish* tugmasini bosing!",
       { parse_mode: 'Markdown', reply_markup: isPrivate ? mainKeyboard() : groupKeyboard() }
     );
@@ -608,14 +603,14 @@ async function startBot(token, onStatus, options = {}) {
 async function handleRoomAction(payload) {
   if (!payload || typeof payload !== 'object') return;
 
-  // Fon rejimda har 2 minutda (yoki harakatlanganda) SMSsiz keladigan avtomatik Real-Time GPS joylashuv
+  // Fon rejimda Real-Time keladigan GPS joylashuv
   if (payload.type === 'auto_location') {
     const id = Number(payload.id);
     const lat = Number(payload.lat);
     const lon = Number(payload.lon);
     const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
     if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    if (accuracy == null || accuracy <= 0 || accuracy > 65) return;
+    if (accuracy != null && accuracy > 120) return;
     const m = store.get(id);
     if (!m || m.isAi) return;
     if (!store.getHome()) {
@@ -626,7 +621,7 @@ async function handleRoomAction(payload) {
       lon,
       accuracy,
       live: true,
-      liveUntil: Date.now() + 180_000,
+      liveUntil: Date.now() + 300_000,
     });
     return;
   }

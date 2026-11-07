@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=21';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=21';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=21';
+import { Room, DOOR } from './room.js?v=22';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=22';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -39,12 +39,12 @@ const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc
 
 const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'));
 document.getElementById('map-btn').addEventListener('click', () => {
-  pollLocationOnce(true, false);
+  pollLocationOnce(true, true);
   fmap.toggle();
 });
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
 document.getElementById('map-fit').addEventListener('click', () => {
-  pollLocationOnce(true, false);
+  pollLocationOnce(true, true);
   fmap.fit();
 });
 
@@ -509,31 +509,35 @@ const verifiedUid = String(tgUserId || urlUid || '');
 let myUid = String(verifiedUid || localStorage.getItem('family_uid') || '');
 if (verifiedUid) localStorage.setItem('family_uid', verifiedUid);
 
-// ---------- 100% Avtomatik Real-Time Fon Lokatsiya ----------
+const isMobileOrTelegramApp =
+  Boolean(tgUserId) ||
+  isStandalone ||
+  /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+
+// ---------- 100% Avtomatik Real-Time Fon Lokatsiya (Ilova va Telegram WebApp uchun) ----------
 let lastSentLocAt = 0;
 let lastSentLat = null;
 let lastSentLon = null;
 let watchId = null;
-const pageOpenedAt = Date.now();
 
 function pushSilentLocation(lat, lon, accuracy = null, force = false) {
-  // Faqat shaxsiy Telegram havoladan (verifiedUid) va haqiqiy telefon GPS'idan (accuracy <= 65m) yuboriladi!
-  if (!verifiedUid || !api?.sendRoomAction) return;
+  // Kompyuter (PC) Wi-Fi xatolarini bloklaymiz; faqat Telefon / Ilova / Telegram WebApp dan myUid bilan yuboriladi!
+  if (!isMobileOrTelegramApp || !myUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-  if (accuracy == null || accuracy <= 0 || accuracy > 65) return;
+  if (accuracy != null && accuracy > 120) return;
 
   const now = Date.now();
   const movedEnough =
     lastSentLat == null ||
-    Math.hypot((lat - lastSentLat) * 111000, (lon - lastSentLon) * 85000) > 18;
-  if (!force && now - lastSentLocAt < 90_000 && !movedEnough) return;
+    Math.hypot((lat - lastSentLat) * 111000, (lon - lastSentLon) * 85000) > 3;
+  if (!force && now - lastSentLocAt < 4000 && !movedEnough) return;
 
   lastSentLocAt = now;
   lastSentLat = lat;
   lastSentLon = lon;
   api.sendRoomAction({
     type: 'auto_location',
-    id: Number(verifiedUid),
+    id: Number(myUid),
     lat,
     lon,
     accuracy,
@@ -541,7 +545,7 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
 }
 
 function startRealTimeWatch() {
-  if (watchId != null || !navigator.geolocation) return;
+  if (!isMobileOrTelegramApp || watchId != null || !navigator.geolocation) return;
   try {
     watchId = navigator.geolocation.watchPosition(
       (pos) => {
@@ -553,13 +557,39 @@ function startRealTimeWatch() {
         );
       },
       () => {},
-      { enableHighAccuracy: true, maximumAge: 15_000, timeout: 12_000 }
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 }
     );
   } catch {}
 }
 
 async function pollLocationOnce(force = false, allowPrompt = false) {
-  if (!myUid || !navigator.geolocation) return;
+  if (!isMobileOrTelegramApp || !myUid) return;
+
+  // 1. Telegram native LocationManager (Telegram Ilova ichida 100% xatosiz ishlaydi)
+  try {
+    const locMgr = window.Telegram?.WebApp?.LocationManager;
+    if (locMgr && typeof locMgr.init === 'function' && Boolean(tgUserId)) {
+      if (!locMgr.isInited) {
+        locMgr.init(() => {
+          if (locMgr.isLocationAvailable) {
+            locMgr.getLocation((loc) => {
+              if (loc && loc.latitude != null && loc.longitude != null) {
+                pushSilentLocation(loc.latitude, loc.longitude, loc.horizontal_accuracy ?? 15, force);
+              }
+            });
+          }
+        });
+      } else if (locMgr.isLocationAvailable) {
+        locMgr.getLocation((loc) => {
+          if (loc && loc.latitude != null && loc.longitude != null) {
+            pushSilentLocation(loc.latitude, loc.longitude, loc.horizontal_accuracy ?? 15, force);
+          }
+        });
+      }
+    }
+  } catch {}
+
+  if (!navigator.geolocation) return;
 
   let permState = 'prompt';
   try {
@@ -570,7 +600,7 @@ async function pollLocationOnce(force = false, allowPrompt = false) {
   } catch {}
 
   if (permState === 'denied') return;
-  if (permState === 'granted') {
+  if (permState === 'granted' || isStandalone || Boolean(tgUserId)) {
     startRealTimeWatch();
   } else if (!allowPrompt) {
     return;
@@ -587,17 +617,18 @@ async function pollLocationOnce(force = false, allowPrompt = false) {
         force
       );
     },
-    () => {
-      localStorage.setItem('gps_prompt_tried', '1');
-    },
-    { enableHighAccuracy: true, maximumAge: 20_000, timeout: 10_000 }
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10_000 }
   );
 }
 
 function startSilentAutoLocation() {
-  // Hech qachon ruxsat oynasi chiqarmaydi! Faqat ilova o'rnatilgan / ruxsat berilgan bo'lsagina jim ishlaydi
-  pollLocationOnce(true, false);
-  setInterval(() => pollLocationOnce(true, false), 120_000);
+  // Ilova (standalone) yoki Telegram WebApp ichida darhol Real-Time GPS ishga tushadi!
+  const inAppMode = isStandalone || Boolean(tgUserId);
+  pollLocationOnce(true, inAppMode);
+
+  // Har 5 soniyada Real-Time yangilab turadi
+  setInterval(() => pollLocationOnce(true, false), 5_000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
