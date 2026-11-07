@@ -316,8 +316,41 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    // /start yoki "Запустить" bosilganda HAR DOIM savol-javob boshlanadi:
-    // 1 ISMIZ -> 2 YOSHIZ -> 3 KASPIZ
+    const m = store.get(id);
+
+    // 1. Agar a'zo bo'lgan va ilovani o'rnatgan bo'lsa: darhol uyga kirish tugmasi chiqadi
+    if (m && m.apkInstalled) {
+      const baseUrl = getPublicUrlFn();
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=45`;
+      const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
+      await ctx.reply(
+        `✅ *Hammasini bajardingiz! Endi uyga kirishingiz mumkin.*\n\n` +
+        `👤 *${m.name}* (${JOBS[m.job]?.label || m.job})\n` +
+        `🟢 Fon GPS datchigi faol ishlamoqda.\n\n` +
+        `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+        { parse_mode: 'Markdown', reply_markup: ikb }
+      );
+      await ctx.reply(
+        `Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`,
+        { reply_markup: mainKeyboard() }
+      );
+      return;
+    }
+
+    // 2. Agar a'zo bo'lgan, lekin hali ilovani o'rnatmagan bo'lsa: ilovani talab qiladi
+    if (m && !m.apkInstalled) {
+      await ctx.reply(
+        `🎉 *Tabriklaymiz, ${m.name}! Oila a'zosi bo'ldingiz.*\n\n` +
+        `📲 *Avval ilovani o'rnatib oling!*\n\n` +
+        `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+        `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
+        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
+      );
+      await sendApkToChat(id);
+      return;
+    }
+
+    // 3. Agar hali a'zo bo'lmagan bo'lsa: 1-Ism, 2-Yosh, 3-Kasb so'raladi
     await beginWizard(ctx, false);
   });
 
@@ -730,9 +763,11 @@ async function handleRoomAction(payload) {
     m.apkInstalled = true;
     store.save();
 
-    if (!wasInstalled && bot) {
+    if ((!wasInstalled || !m.welcomeSent) && bot) {
+      m.welcomeSent = true;
+      store.save();
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=41`;
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=45`;
       const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
 
       bot.api.sendMessage(

