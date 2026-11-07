@@ -22,7 +22,7 @@
         "outfit": "taxi"
       },
       "joinedAt": "2026-11-07T20:03:15.698Z",
-      "apkInstalled": true,
+      "apkInstalled": false,
       "location": {
         "lat": 40.641095,
         "lon": 72.252109,
@@ -56,7 +56,7 @@
         "outfit": "apron"
       },
       "joinedAt": "2026-11-07T20:14:18.999Z",
-      "apkInstalled": true
+      "apkInstalled": false
     }
   ],
   "home": {
