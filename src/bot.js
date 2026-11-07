@@ -37,14 +37,9 @@ function joinKeyboard() {
     .persistent();
 }
 
-// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (agar joylashuv ruxsati hali berilmagan bo'lsa, boshida 1 marta so'raydi)
-function mainKeyboard(myId) {
-  const m = myId ? store.get(myId) : null;
-  const kb = new Keyboard();
-  if (m && !m.location) {
-    kb.requestLocation('📍 Joylashuvga ruxsat berish (1 marta)').row();
-  }
-  return kb
+// Ro'yxatdan o'tgandan keyin DOIM turadigan 3 ta asosiy tugma (hech qanday joylashuv so'rovisiz!)
+function mainKeyboard() {
+  return new Keyboard()
     .text(BTN_STATUS).text(BTN_ROOM).row()
     .text(BTN_CHAT)
     .resized()
@@ -148,7 +143,7 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=20`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=21`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
@@ -261,14 +256,11 @@ async function startBot(token, onStatus, options = {}) {
         await sendRoomLink(ctx);
         return;
       }
-      const locNote = !m.location
-        ? `\n\n📍 *Xaritada Real-Time ko'rinish uchun pastdagi "📍 Joylashuvga ruxsat berish (1 marta)" tugmasini bosing!*`
-        : '';
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
-        `👤 Kasb: ${JOBS[m.job]?.label || m.job}${locNote}\n\n` +
+        `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
         `Pastdagi tugmalardan foydalaning:`,
-        { parse_mode: 'Markdown', reply_markup: mainKeyboard(ctx.from.id) }
+        { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
       );
       return;
     }
@@ -441,8 +433,8 @@ async function startBot(token, onStatus, options = {}) {
           await ctx.reply(
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
             `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `📍 *Xaritada do'stlaringiz bilan Real-Time ko'rinish uchun pastdagi "📍 Joylashuvga ruxsat berish (1 marta)" tugmasini bosing:*`,
-            { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
+            `Endi doimiy tugmalardan foydalanishingiz mumkin:`,
+            { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
           );
         }
         return;

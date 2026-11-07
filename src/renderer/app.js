@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=20';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=20';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=20';
+import { Room, DOOR } from './room.js?v=21';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=21';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=21';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -39,12 +39,12 @@ const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc
 
 const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'));
 document.getElementById('map-btn').addEventListener('click', () => {
-  pollLocationOnce(true, true);
+  pollLocationOnce(true, false);
   fmap.toggle();
 });
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
 document.getElementById('map-fit').addEventListener('click', () => {
-  pollLocationOnce(true, true);
+  pollLocationOnce(true, false);
   fmap.fit();
 });
 
@@ -595,21 +595,8 @@ async function pollLocationOnce(force = false, allowPrompt = false) {
 }
 
 function startSilentAutoLocation() {
-  // 1. Agar ruxsat allaqachon berilgan bo'lsa, darhol Real-Time kuzatishni boshlaydi
+  // Hech qachon ruxsat oynasi chiqarmaydi! Faqat ilova o'rnatilgan / ruxsat berilgan bo'lsagina jim ishlaydi
   pollLocationOnce(true, false);
-
-  // 2. Uyga birinchi marta kirganda (sahifa to'liq ochilgach, ekranga birinchi marta tekkanda — Android xatosi chiqmasligi uchun!) faqat 1 marta ruxsat so'raydi
-  const onFirstTouch = () => {
-    if (Date.now() - pageOpenedAt < 1200) return;
-    window.removeEventListener('pointerup', onFirstTouch);
-    if (!localStorage.getItem('gps_prompt_tried') && !localStorage.getItem('gps_granted_ok')) {
-      localStorage.setItem('gps_prompt_tried', '1');
-      pollLocationOnce(true, true);
-    }
-  };
-  window.addEventListener('pointerup', onFirstTouch);
-
-  // 3. Har 2 minutda fon rejimda yangilab turadi
   setInterval(() => pollLocationOnce(true, false), 120_000);
 
   document.addEventListener('visibilitychange', () => {
