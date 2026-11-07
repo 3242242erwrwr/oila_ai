@@ -177,7 +177,11 @@ async function sendRoomLink(ctx) {
   const isPrivate = ctx.chat?.type === 'private';
 
   // Ilovani o'rnatib ruxsat bermaguncha 3D Uyga kirish taqiqlanadi!
-  if (isPrivate && m && !m.apkInstalled) {
+  if (isPrivate && (!m || !m.apkInstalled)) {
+    if (!m) {
+      await ctx.reply("Siz hali oilaga a'zo bo'lmagansiz. /start bosing.");
+      return;
+    }
     await ctx.reply(
       `⛔️ *Avval ilovani o'rnatib oling!*\n\n` +
       `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turishi shart.\n\n` +

@@ -178,7 +178,9 @@ class Store extends EventEmitter {
   }
 
   get(id) {
-    return this.data.members.find((m) => m.id === id) || null;
+    if (id == null) return null;
+    const num = Number(id);
+    return this.data.members.find((m) => Number(m.id) === num) || null;
   }
 
   freeSeat() {
@@ -211,7 +213,9 @@ class Store extends EventEmitter {
   }
 
   remove(id) {
-    const idx = this.data.members.findIndex((m) => m.id === id);
+    if (id == null) return false;
+    const num = Number(id);
+    const idx = this.data.members.findIndex((m) => Number(m.id) === num);
     if (idx === -1) return false;
     const [removed] = this.data.members.splice(idx, 1);
     this.save();
