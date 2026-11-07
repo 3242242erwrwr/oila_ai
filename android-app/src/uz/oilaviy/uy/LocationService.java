@@ -195,12 +195,8 @@ public class LocationService extends Service implements LocationListener {
         if (acc > 120f) return;
 
         SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
-        String rawUid = sp.getString("uid", "");
-        if (rawUid == null || rawUid.trim().isEmpty()) {
-            rawUid = "6280077746";
-            sp.edit().putString("uid", rawUid).apply();
-        }
-        final String uid = rawUid;
+        final String uid = sp.getString("uid", "");
+        if (uid == null || uid.trim().isEmpty()) return;
 
         final double lat = loc.getLatitude();
         final double lon = loc.getLongitude();

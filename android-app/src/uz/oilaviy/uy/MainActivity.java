@@ -172,17 +172,14 @@ public class MainActivity extends Activity {
         setContentView(scrollView);
 
         String curUid = getSavedUid();
-        if (curUid.isEmpty()) {
-            curUid = "6280077746";
-            saveUid(curUid);
-        } else {
+        if (!curUid.isEmpty()) {
             sendApkPing(curUid);
+            startGpsService();
         }
         updateUserText();
         fetchAdditionalMembers(buttonsLayout);
 
         requestNeededPermissions();
-        startGpsService();
     }
 
     private void fetchAdditionalMembers(final LinearLayout container) {

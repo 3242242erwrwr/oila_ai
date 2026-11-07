@@ -206,7 +206,7 @@ async function sendRoomLink(ctx) {
     return;
   }
 
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=36`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=38`;
   const isHttps = baseUrl.startsWith('https://');
 
   if (isHttps) {
@@ -336,7 +336,7 @@ async function startBot(token, onStatus, options = {}) {
 
       // Agar ilova o'rnatilgan bo'lsa -> 3D uyga bemalol kiradi
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=36`;
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=38`;
       const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
 
       await ctx.reply(
@@ -754,7 +754,7 @@ async function handleRoomAction(payload) {
 
     if (!wasInstalled && bot) {
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=37`;
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=38`;
       const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
 
       bot.api.sendMessage(

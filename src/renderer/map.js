@@ -110,10 +110,26 @@ export class FamilyMap {
     if (this.map) this.render();
   }
 
-  // Faqat haqiqiy GPS joylashuvni ko'rsatadi (eski Uy nuqtasiga majburan bog'lamaydi va yolg'on nuqta chizmaydi!)
-  resolveLoc(m) {
+  // Har bir oila a'zosining joylashuvini aniqlaymiz:
+  // 1. Agar GPS lokatsiyasi bo'lsa -> GPS nuqtasida
+  // 2. Agar alohida GPS bo'lmasa, lekin uyda yoki bino ichida bo'lsa -> Uy nuqtasida (bir-birini to'sib qo'ymasligi uchun biroz suriladi)
+  resolveLoc(m, index = 0, total = 1) {
     if (m.location && Number.isFinite(m.location.lat) && Number.isFinite(m.location.lon)) {
       return m.location;
+    }
+    if (this.home && Number.isFinite(this.home.lat) && Number.isFinite(this.home.lon)) {
+      if (INDOOR_SET.has(m.status) || m.status === 'home' || !m.status) {
+        const angle = (index * 2 * Math.PI) / Math.max(total, 1);
+        const offsetLat = total > 1 ? Math.cos(angle) * 0.00015 : 0;
+        const offsetLon = total > 1 ? Math.sin(angle) * 0.00020 : 0;
+        return {
+          lat: this.home.lat + offsetLat,
+          lon: this.home.lon + offsetLon,
+          distance: 0,
+          at: m.statusAt || m.joinedAt || new Date().toISOString(),
+          isHomeFallback: true,
+        };
+      }
     }
     return null;
   }
@@ -163,24 +179,29 @@ export class FamilyMap {
     const box = el('div', 'pop');
     box.append(el('div', 'pop-name', m.name));
     box.append(el('div', null, STATUS_TEXT[m.status] || ''));
-    const addr = this.getAddress(loc);
-    if (addr) {
-      box.append(el('div', 'pop-sub', `📍 ${addr}`));
+    if (loc.isHomeFallback) {
+      box.append(el('div', 'pop-sub', '🏠 Uyda'));
+    } else {
+      const addr = this.getAddress(loc);
+      if (addr) {
+        box.append(el('div', 'pop-sub', `📍 ${addr}`));
+      }
+      box.append(el('div', 'pop-sub', `${isLive(loc) ? '🔴 Jonli • ' : '🕒 '}${timeAgo(loc.at)}`));
+      if (loc.distance != null) {
+        const distLabel = loc.distance <= 5 ? '🏠 Uyda (0 m)' : `🏠 Uydan ${formatDistance(loc.distance)}`;
+        box.append(el('div', 'pop-sub', distLabel));
+      }
+      if (loc.accuracy) box.append(el('div', 'pop-sub', `🎯 Aniqlik: ±${Math.round(loc.accuracy)} m`));
     }
-    box.append(el('div', 'pop-sub', `${isLive(loc) ? '🔴 Jonli • ' : '🕒 '}${timeAgo(loc.at)}`));
-    if (loc.distance != null) {
-      const distLabel = loc.distance <= 5 ? '🏠 Uyda (0 m)' : `🏠 Uydan ${formatDistance(loc.distance)}`;
-      box.append(el('div', 'pop-sub', distLabel));
-    }
-    if (loc.accuracy) box.append(el('div', 'pop-sub', `🎯 Aniqlik: ±${Math.round(loc.accuracy)} m`));
     return box;
   }
 
   render() {
     const seen = new Set();
     const humans = this.members.filter((m) => !m.isAi);
-    humans.forEach((m) => {
-      const loc = this.resolveLoc(m);
+    const total = humans.length;
+    humans.forEach((m, idx) => {
+      const loc = this.resolveLoc(m, idx, total);
       if (!loc) return;
       seen.add(m.id);
       const ll = [loc.lat, loc.lon];
@@ -217,11 +238,12 @@ export class FamilyMap {
 
   fit() {
     const humans = this.members.filter((m) => !m.isAi);
+    const total = humans.length;
     const pts = [];
-    for (const m of humans) {
-      const loc = this.resolveLoc(m);
+    humans.forEach((m, idx) => {
+      const loc = this.resolveLoc(m, idx, total);
       if (loc) pts.push([loc.lat, loc.lon]);
-    }
+    });
     if (pts.length === 0 && this.home) pts.push([this.home.lat, this.home.lon]);
     if (pts.length === 0) this.map.setView(DEFAULT_VIEW, 12);
     else if (pts.length === 1) this.map.setView(pts[0], 16);
