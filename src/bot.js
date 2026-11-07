@@ -164,7 +164,7 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=25`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=26`;
   const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
@@ -172,32 +172,30 @@ async function sendRoomLink(ctx) {
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .url("📲 Ha, Haqiqiy ilovani o'rnatish", apkDownloadUrl)
-        .row()
-        .webApp("🏠 Yo'q, Telegramda ochish", personalUrl);
+        .url("📲 Ilovani o'rnatish", apkDownloadUrl);
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy*\n\n` +
-        `Telefon qulflanib cho'ntakda turganda ham **24/7 Real-Time manzil** ko'rsatib turishi uchun telefoningizga **Haqiqiy ilovani** o'rnatasizmi?`,
+        `⛔️ *Avval ilovani o'rnating!*\n\n` +
+        `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
+        `Pastdagi tugmani bosib ilovani telefoningizga o'rnating. O'rnatilgach, telefoningizdagi *"Oilaviy Uy"* ilovasi orqali avtomatik uyga kirasiz!`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
       const personalIkb = new InlineKeyboard()
-        .url("📲 Ha, Haqiqiy ilovani o'rnatish", apkDownloadUrl)
-        .row()
-        .webApp("🏠 Yo'q, Telegramda ochish", personalUrl);
+        .url("📲 Ilovani o'rnatish", apkDownloadUrl);
       await bot.api.sendMessage(
         uid,
-        `🏠 *Oilaviy 3D Uy*\n\n` +
-        `Telefon qulflanib cho'ntakda turganda ham **24/7 Real-Time manzil** ko'rsatib turishi uchun telefoningizga **Haqiqiy ilovani** o'rnatasizmi?`,
+        `⛔️ *Avval ilovani o'rnating!*\n\n` +
+        `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
+        `Pastdagi tugmani bosib ilovani telefoningizga o'rnating. O'rnatilgach, telefoningizdagi *"Oilaviy Uy"* ilovasi orqali avtomatik uyga kirasiz!`,
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
-        .url("🏠 3D Uyni ochish", `https://t.me/${botUsername}?start=xona`);
+        .url("📲 Ilovani o'rnatish", `https://t.me/${botUsername}?start=xona`);
       await ctx.reply(
-        "🏠 *Oilaviy 3D Uy*\n\n" +
-        "Kirish yoki ilovani o'rnatish uchun pastdagi tugmani bosing:",
+        "⛔️ *Avval ilovani o'rnating!*\n\n" +
+        "Ilovani o'rnatish uchun pastdagi tugmani bosing:",
         { parse_mode: 'Markdown', reply_markup: groupIkb }
       );
     }
