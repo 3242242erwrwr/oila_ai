@@ -37,9 +37,14 @@ function joinKeyboard() {
     .persistent();
 }
 
-// Ro'yxatdan o'tgandan keyin DOIM turadigan 3 ta asosiy tugma
-function mainKeyboard() {
-  return new Keyboard()
+// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (agar joylashuv ruxsati hali berilmagan bo'lsa, boshida 1 marta so'raydi)
+function mainKeyboard(myId) {
+  const m = myId ? store.get(myId) : null;
+  const kb = new Keyboard();
+  if (m && !m.location) {
+    kb.requestLocation('📍 Joylashuvga ruxsat berish (1 marta)').row();
+  }
+  return kb
     .text(BTN_STATUS).text(BTN_ROOM).row()
     .text(BTN_CHAT)
     .resized()
@@ -143,21 +148,25 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=16`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=17`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .url("🌐 3D Uyni ochish (Tezkor havola)", personalUrl);
+        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
+        .row()
+        .url("🌐 Brauzerda ochish", personalUrl);
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy tayyor!*\n\n🔗 Tezkor kirish: ${personalUrl}`,
+        `🏠 *Oilaviy 3D Uy tayyor!*\n\nPastdagi tugmani bosib kiring:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
       const personalIkb = new InlineKeyboard()
-        .url("🌐 3D Uyni ochish (Tezkor havola)", personalUrl);
+        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
+        .row()
+        .url("🌐 Brauzerda ochish", personalUrl);
       await bot.api.sendMessage(
         uid,
         `🏠 *Sizning shaxsiy 3D Uy havolangiz:*\n${personalUrl}`,
@@ -252,9 +261,12 @@ async function startBot(token, onStatus, options = {}) {
         await sendRoomLink(ctx);
         return;
       }
+      const locNote = !m.location
+        ? `\n\n📍 *Xaritada Real-Time ko'rinish uchun pastdagi "📍 Joylashuvga ruxsat berish (1 marta)" tugmasini bosing!*`
+        : '';
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
-        `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
+        `👤 Kasb: ${JOBS[m.job]?.label || m.job}${locNote}\n\n` +
         `Pastdagi tugmalardan foydalaning:`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard(ctx.from.id) }
       );
@@ -335,13 +347,15 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    const live = Boolean(livePeriod);
-    const liveUntil = live ? Math.min(msg.date * 1000 + livePeriod * 1000, 8.64e15) : null;
+    const live = true;
+    const liveUntil = livePeriod ? Math.min(msg.date * 1000 + livePeriod * 1000, 8.64e15) : Date.now() + 86_400_000;
     store.updateLocation(id, { lat, lon, accuracy: accuracy ?? null, live, liveUntil });
 
     if (!edited) {
-      let text = live ? '🔴 Jonli joylashuv ulandi! Xaritada kuzatib boriladi.' : '📍 Joylashuvingiz saqlandi.';
-      if (!store.getHome()) text += "\n\nℹ️ Hali uy manzili belgilanmagan. /uy buyrug'i bilan belgilang.";
+      let text = '✅ Joylashuv ruxsati olindi! Endi xaritada Real-Time ko\'rinib turasiz.';
+      if (!store.getHome()) {
+        store.setHome(lat, lon, m.name);
+      }
       await ctx.reply(text, { reply_markup: mainKeyboard(id) });
     }
   };
@@ -427,7 +441,7 @@ async function startBot(token, onStatus, options = {}) {
           await ctx.reply(
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
             `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `Endi doimiy tugmalardan foydalanishingiz mumkin:`,
+            `📍 *Xaritada do'stlaringiz bilan Real-Time ko'rinish uchun pastdagi "📍 Joylashuvga ruxsat berish (1 marta)" tugmasini bosing:*`,
             { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
           );
         }

@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=16';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=16';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=16';
+import { Room, DOOR } from './room.js?v=17';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=17';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=17';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -457,10 +457,12 @@ const urlUid = new URLSearchParams(window.location.search).get('uid');
 let myUid = String(tgUserId || urlUid || localStorage.getItem('family_uid') || '');
 if (myUid) localStorage.setItem('family_uid', myUid);
 
-// ---------- 100% Avtomatik Aniq Fon Lokatsiya (Xato IP/antenna koordinatalarsiz!) ----------
+// ---------- 100% Avtomatik Real-Time Fon Lokatsiya ----------
 let lastSentLocAt = 0;
 let lastSentLat = null;
 let lastSentLon = null;
+let watchId = null;
+const pageOpenedAt = Date.now();
 
 function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   if (!myUid || !api?.sendRoomAction) return;
@@ -471,8 +473,8 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   const now = Date.now();
   const movedEnough =
     lastSentLat == null ||
-    Math.hypot((lat - lastSentLat) * 111000, (lon - lastSentLon) * 85000) > 25;
-  if (!force && now - lastSentLocAt < 115_000 && !movedEnough) return;
+    Math.hypot((lat - lastSentLat) * 111000, (lon - lastSentLon) * 85000) > 18;
+  if (!force && now - lastSentLocAt < 90_000 && !movedEnough) return;
 
   lastSentLocAt = now;
   lastSentLat = lat;
@@ -486,22 +488,46 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   }).catch(() => {});
 }
 
+function startRealTimeWatch() {
+  if (watchId != null || !navigator.geolocation) return;
+  try {
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        pushSilentLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy ?? null,
+          false
+        );
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 15_000, timeout: 12_000 }
+    );
+  } catch {}
+}
+
 async function pollLocationOnce(force = false, allowPrompt = false) {
   if (!myUid || !navigator.geolocation) return;
 
-  let canQuery = allowPrompt;
+  let permState = 'prompt';
   try {
     if (navigator.permissions?.query) {
       const status = await navigator.permissions.query({ name: 'geolocation' });
-      if (status?.state === 'granted') canQuery = true;
-      else if (status?.state === 'denied') canQuery = false;
+      permState = status?.state || 'prompt';
     }
   } catch {}
 
-  if (!canQuery) return;
+  if (permState === 'denied') return;
+  if (permState === 'granted') {
+    startRealTimeWatch();
+  } else if (!allowPrompt) {
+    return;
+  }
 
   navigator.geolocation.getCurrentPosition(
     (pos) => {
+      localStorage.setItem('gps_granted_ok', '1');
+      startRealTimeWatch();
       pushSilentLocation(
         pos.coords.latitude,
         pos.coords.longitude,
@@ -509,16 +535,29 @@ async function pollLocationOnce(force = false, allowPrompt = false) {
         force
       );
     },
-    () => {},
-    { enableHighAccuracy: true, maximumAge: 30_000, timeout: 10_000 }
+    () => {
+      localStorage.setItem('gps_prompt_tried', '1');
+    },
+    { enableHighAccuracy: true, maximumAge: 20_000, timeout: 10_000 }
   );
 }
 
 function startSilentAutoLocation() {
-  // Sahifa ochilganda faqat ruxsat allaqachon berilgan bo'lsagina jim oladi (xato oyna chiqmaydi)
+  // 1. Agar ruxsat allaqachon berilgan bo'lsa, darhol Real-Time kuzatishni boshlaydi
   pollLocationOnce(true, false);
 
-  // Har 2 minutda (120 000 ms) fon rejimda yangilaydi
+  // 2. Uyga birinchi marta kirganda (sahifa to'liq ochilgach, ekranga birinchi marta tekkanda — Android xatosi chiqmasligi uchun!) faqat 1 marta ruxsat so'raydi
+  const onFirstTouch = () => {
+    if (Date.now() - pageOpenedAt < 1200) return;
+    window.removeEventListener('pointerup', onFirstTouch);
+    if (!localStorage.getItem('gps_prompt_tried') && !localStorage.getItem('gps_granted_ok')) {
+      localStorage.setItem('gps_prompt_tried', '1');
+      pollLocationOnce(true, true);
+    }
+  };
+  window.addEventListener('pointerup', onFirstTouch);
+
+  // 3. Har 2 minutda fon rejimda yangilab turadi
   setInterval(() => pollLocationOnce(true, false), 120_000);
 
   document.addEventListener('visibilitychange', () => {
