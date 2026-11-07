@@ -55,7 +55,7 @@ export class FamilyMap {
     this.homeLayer = null;
     this.members = [];
     this.home = null;
-    setInterval(() => this.isOpen && this.render(), 30000);
+    setInterval(() => this.isOpen && this.render(), 10000);
   }
 
   get isOpen() {
@@ -213,7 +213,11 @@ export class FamilyMap {
         marker.setLatLng(ll);
         marker.setIcon(this.makeIcon(m, loc));
       }
-      marker.bindPopup(this.makePopup(m, loc));
+      const popupContent = this.makePopup(m, loc);
+      marker.bindPopup(popupContent);
+      if (marker.isPopupOpen()) {
+        marker.setPopupContent(popupContent);
+      }
     });
     for (const [id, marker] of this.markers) {
       if (!seen.has(id)) {
