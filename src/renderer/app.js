@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=15';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=15';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=15';
+import { Room, DOOR } from './room.js?v=16';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=16';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=16';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -257,11 +257,13 @@ function renderPanel(members, spots = lastSpots) {
     if (!m.isAi) {
       const loc = document.createElement('div');
       loc.className = 'loc';
-      if (m.location) {
+      if (indoor) {
+        loc.textContent = '🔴 Jonli • 🏠 Uyda (0 m)';
+      } else if (m.location) {
         const dist = m.location.distance != null ? ` • ${formatDistance(m.location.distance)}` : '';
         loc.textContent = `${isLive(m.location) ? '🔴' : '📍'} ${timeAgo(m.location.at)}${dist}`;
       } else {
-        loc.textContent = indoor ? '🔴 Jonli • 🏠 Uyda (Xaritada ko\'rish)' : '🔴 Jonli • 📍 Xaritada ko\'rish';
+        loc.textContent = '🔴 Jonli • 📍 Xaritada ko\'rish';
       }
       loc.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -455,7 +457,7 @@ const urlUid = new URLSearchParams(window.location.search).get('uid');
 let myUid = String(tgUserId || urlUid || localStorage.getItem('family_uid') || '');
 if (myUid) localStorage.setItem('family_uid', myUid);
 
-// ---------- 100% Avtomatik Fon Lokatsiya (HECH QANDAY RUXSAT OYNASI CHIQARMASDAN!) ----------
+// ---------- 100% Avtomatik Aniq Fon Lokatsiya (Xato IP/antenna koordinatalarsiz!) ----------
 let lastSentLocAt = 0;
 let lastSentLat = null;
 let lastSentLon = null;
@@ -463,6 +465,9 @@ let lastSentLon = null;
 function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   if (!myUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  // Faqat haqiqiy aniq GPS (accuracy <= 100 metr) qabul qilinadi!
+  if (accuracy == null || accuracy <= 0 || accuracy > 100) return;
+
   const now = Date.now();
   const movedEnough =
     lastSentLat == null ||
@@ -481,68 +486,44 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   }).catch(() => {});
 }
 
-async function fetchSilentIpLocation(force = false) {
-  try {
-    const r1 = await fetch('https://ipwho.is/', { cache: 'no-store' });
-    if (r1.ok) {
-      const d = await r1.json();
-      if (d && Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))) {
-        pushSilentLocation(Number(d.latitude), Number(d.longitude), 120, force);
-        return;
-      }
-    }
-  } catch {}
-  try {
-    const r2 = await fetch('https://get.geojs.io/v1/ip/geo.json', { cache: 'no-store' });
-    if (r2.ok) {
-      const d = await r2.json();
-      if (d && Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))) {
-        pushSilentLocation(Number(d.latitude), Number(d.longitude), 150, force);
-      }
-    }
-  } catch {}
-}
+async function pollLocationOnce(force = false, allowPrompt = false) {
+  if (!myUid || !navigator.geolocation) return;
 
-async function pollLocationOnce(force = false) {
-  if (!myUid) return;
-
-  // MUHIM: Hech qachon "Этот сайт не может запросить разрешение" oynasi chiqmasligi uchun
-  // faqat ruxsat ALLAQACHON berilgan ('granted') bo'lsagina GPS chaqiriladi!
-  let gpsGranted = false;
+  let canQuery = allowPrompt;
   try {
     if (navigator.permissions?.query) {
       const status = await navigator.permissions.query({ name: 'geolocation' });
-      gpsGranted = status?.state === 'granted';
+      if (status?.state === 'granted') canQuery = true;
+      else if (status?.state === 'denied') canQuery = false;
     }
   } catch {}
 
-  if (gpsGranted && navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        pushSilentLocation(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          pos.coords.accuracy ?? null,
-          force
-        );
-      },
-      () => fetchSilentIpLocation(force),
-      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 8_000 }
-    );
-  } else {
-    // Ruxsat oynasi chiqarmasdan jim IP-geolokatsiya orqali aniqlaydi
-    fetchSilentIpLocation(force);
-  }
+  if (!canQuery) return;
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      pushSilentLocation(
+        pos.coords.latitude,
+        pos.coords.longitude,
+        pos.coords.accuracy ?? null,
+        force
+      );
+    },
+    () => {},
+    { enableHighAccuracy: true, maximumAge: 30_000, timeout: 10_000 }
+  );
 }
 
 function startSilentAutoLocation() {
-  pollLocationOnce(true);
-  // Har 2 minutda (120 000 ms) hech qanday popup chiqarmasdan fon rejimda yangilaydi
-  setInterval(() => pollLocationOnce(true), 120_000);
+  // Sahifa ochilganda faqat ruxsat allaqachon berilgan bo'lsagina jim oladi (xato oyna chiqmaydi)
+  pollLocationOnce(true, false);
+
+  // Har 2 minutda (120 000 ms) fon rejimda yangilaydi
+  setInterval(() => pollLocationOnce(true, false), 120_000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      pollLocationOnce(true);
+      pollLocationOnce(true, false);
     }
   });
 }

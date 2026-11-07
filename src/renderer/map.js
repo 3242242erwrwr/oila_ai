@@ -113,6 +113,21 @@ export class FamilyMap {
     const baseLat = this.home?.lat ?? DEFAULT_VIEW[0];
     const baseLon = this.home?.lon ?? DEFAULT_VIEW[1];
     const angle = ((idx * 137.5) % 360) * (Math.PI / 180);
+    const indoor = INDOOR_SET.has(m.status);
+
+    // Agar a'zo Uyda bo'lsa, xaritada ham har doim 100% 🏠 Uyning ichida ko'rinadi!
+    if (indoor) {
+      const rHome = idx === 0 ? 0 : 0.00018;
+      return {
+        lat: baseLat + Math.cos(angle) * rHome,
+        lon: baseLon + Math.sin(angle) * rHome,
+        at: m.location?.at || m.updatedAt || m.statusAt || new Date().toISOString(),
+        distance: 0,
+        accuracy: m.location?.accuracy && m.location.accuracy <= 100 ? m.location.accuracy : null,
+        live: true,
+        liveUntil: Date.now() + 300_000,
+      };
+    }
 
     if (m.location && Number.isFinite(m.location.lat) && Number.isFinite(m.location.lon)) {
       return {
@@ -122,13 +137,12 @@ export class FamilyMap {
       };
     }
 
-    const indoor = INDOOR_SET.has(m.status);
-    const radiusDeg = indoor ? 0.00032 : 0.011;
+    const radiusDeg = 0.011;
     return {
       lat: baseLat + Math.cos(angle) * radiusDeg,
       lon: baseLon + Math.sin(angle) * radiusDeg,
       at: m.updatedAt || m.statusAt || new Date().toISOString(),
-      distance: indoor ? 15 : 1200,
+      distance: 1200,
       live: true,
       liveUntil: Date.now() + 300_000,
     };
