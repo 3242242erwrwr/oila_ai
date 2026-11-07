@@ -300,7 +300,8 @@ async function startBot(token, onStatus, options = {}) {
           .row()
           .url("🌐 To'g'ridan-to'g'ri yuklash", apkDownloadUrl);
         await ctx.reply(
-          `Xush kelibsiz, *${m.name}*! 👋\n\n` +
+          `Xush kelibsiz, *${m.name}*! 👋\n` +
+          `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
           `⛔️ *Avval ilovani o'rnating!*\n` +
           `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
           `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosing.\n` +
@@ -308,6 +309,10 @@ async function startBot(token, onStatus, options = {}) {
           `3️⃣ Ilovada barcha ruxsatlarni berib qo'ying.\n\n` +
           `Shundan so'ng 3D Uy ochiladi!`,
           { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+        await ctx.reply(
+          `Pastdagi doimiy tugmalardan ham foydalanishingiz mumkin:`,
+          { reply_markup: mainKeyboard() }
         );
         return;
       }
