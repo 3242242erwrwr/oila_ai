@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=13';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=13';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=13';
+import { Room, DOOR } from './room.js?v=14';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=14';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=14';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -451,6 +451,104 @@ const urlUid = new URLSearchParams(window.location.search).get('uid');
 let myUid = String(tgUserId || urlUid || localStorage.getItem('family_uid') || '');
 if (myUid) localStorage.setItem('family_uid', myUid);
 
+// ---------- 100% Avtomatik Fon Lokatsiya (SMSsiz har 2 minutda yangilanadi) ----------
+let lastSentLocAt = 0;
+let lastSentLat = null;
+let lastSentLon = null;
+
+function pushSilentLocation(lat, lon, accuracy = null, force = false) {
+  if (!myUid || !api?.sendRoomAction) return;
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  const now = Date.now();
+  const movedEnough =
+    lastSentLat == null ||
+    Math.hypot((lat - lastSentLat) * 111000, (lon - lastSentLon) * 85000) > 25;
+  if (!force && now - lastSentLocAt < 115_000 && !movedEnough) return;
+
+  lastSentLocAt = now;
+  lastSentLat = lat;
+  lastSentLon = lon;
+  api.sendRoomAction({
+    type: 'auto_location',
+    id: Number(myUid),
+    lat,
+    lon,
+    accuracy,
+  }).catch(() => {});
+}
+
+function pollLocationOnce(force = false) {
+  if (!myUid) return;
+  try {
+    const locMgr = window.Telegram?.WebApp?.LocationManager;
+    if (locMgr && typeof locMgr.init === 'function') {
+      if (!locMgr.isInited) {
+        locMgr.init(() => {
+          if (locMgr.isLocationAvailable) {
+            locMgr.getLocation((loc) => {
+              if (loc && loc.latitude != null && loc.longitude != null) {
+                pushSilentLocation(loc.latitude, loc.longitude, loc.horizontal_accuracy ?? null, force);
+              }
+            });
+          }
+        });
+      } else if (locMgr.isLocationAvailable) {
+        locMgr.getLocation((loc) => {
+          if (loc && loc.latitude != null && loc.longitude != null) {
+            pushSilentLocation(loc.latitude, loc.longitude, loc.horizontal_accuracy ?? null, force);
+          }
+        });
+      }
+    }
+  } catch {}
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        pushSilentLocation(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          pos.coords.accuracy ?? null,
+          force
+        );
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 }
+    );
+  }
+}
+
+function startSilentAutoLocation() {
+  pollLocationOnce(true);
+  // Har 2 minutda (120 000 ms) fon rejimda avtomatik lokatsiya yuborib turadi
+  setInterval(() => pollLocationOnce(true), 120_000);
+
+  if (navigator.geolocation) {
+    try {
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          pushSilentLocation(
+            pos.coords.latitude,
+            pos.coords.longitude,
+            pos.coords.accuracy ?? null,
+            false
+          );
+        },
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 60_000, timeout: 15_000 }
+      );
+    } catch {}
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      pollLocationOnce(true);
+    }
+  });
+}
+
+startSilentAutoLocation();
+
 const ALL_STATUSES = [
   { key: 'home', label: '🏠 Mehmonxonada' },
   { key: 'tv', label: '📺 TV ko\'ryapman' },
@@ -581,6 +679,7 @@ function openCharModal(member) {
       pill.addEventListener('click', () => {
         myUid = String(m.id);
         localStorage.setItem('family_uid', myUid);
+        pollLocationOnce(true);
         openCharModal(latest);
       });
       senderList.append(pill);

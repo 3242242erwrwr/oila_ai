@@ -143,7 +143,7 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=13`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=14`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
@@ -349,13 +349,7 @@ async function startBot(token, onStatus, options = {}) {
   bot.on('message:location', (ctx) => handleLocation(ctx, ctx.message, false));
   bot.on('edited_message:location', (ctx) => handleLocation(ctx, ctx.editedMessage, true));
 
-  store.on('moved', async ({ id, name, event }) => {
-    const text = event === 'arrived' ? `🏠 ${name} uyga keldi` : `👋 ${name} uydan chiqdi`;
-    for (const other of store.all()) {
-      if (other.id === id || other.isAi) continue;
-      bot.api.sendMessage(other.id, text).catch(() => {});
-    }
-  });
+  // Fon rejimda joylashuv yangilanganda chatga ortiqcha SMS yuborilmaydi (faqat 3D uy va xaritada Live ko'rinadi)
 
   bot.on('message:text', async (ctx) => {
     const text = ctx.message.text.trim();
@@ -607,6 +601,28 @@ async function startBot(token, onStatus, options = {}) {
 // 3D Xona ichidan personaj ustiga bosib xabar yozilganda yoki holat o'zgartirilganda
 async function handleRoomAction(payload) {
   if (!payload || typeof payload !== 'object') return;
+
+  // Fon rejimda har 2 minutda (yoki harakatlanganda) SMSsiz keladigan avtomatik GPS joylashuv
+  if (payload.type === 'auto_location') {
+    const id = Number(payload.id);
+    const lat = Number(payload.lat);
+    const lon = Number(payload.lon);
+    const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
+    if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const m = store.get(id);
+    if (!m || m.isAi) return;
+    if (!store.getHome()) {
+      store.setHome(lat, lon, m.name);
+    }
+    store.updateLocation(id, {
+      lat,
+      lon,
+      accuracy,
+      live: true,
+      liveUntil: Date.now() + 180_000,
+    });
+    return;
+  }
 
   if (payload.type === 'status') {
     const id = Number(payload.id);
