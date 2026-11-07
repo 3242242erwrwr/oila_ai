@@ -3,7 +3,9 @@ package uz.oilaviy.uy;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -23,6 +25,11 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -34,9 +41,6 @@ public class MainActivity extends Activity {
     private static final int REQ_PERMS = 1001;
     private static final int REQ_BG_LOC = 1002;
 
-    private static final String JAMSHID_ID = "6280077746";
-    private static final String DILRABO_ID = "1512600413";
-
     private TextView statusBadge;
     private TextView userSelectedText;
 
@@ -45,11 +49,6 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         handleIncomingIntent(getIntent());
-
-        String savedUid = getSavedUid();
-        if (savedUid.isEmpty()) {
-            saveUid(JAMSHID_ID, "Jamshid");
-        }
 
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.parseColor("#0f0c24"));
@@ -98,7 +97,7 @@ public class MainActivity extends Activity {
         userSelectedText.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                toggleUser();
+                promptMemberChoice();
             }
         });
         updateUserText();
@@ -129,8 +128,10 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 String uid = getSavedUid();
-                sendApkPing(uid);
-                sendImmediateRealLocation(uid);
+                if (!uid.isEmpty()) {
+                    sendApkPing(uid);
+                    sendImmediateRealLocation(uid);
+                }
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot?start=xona")));
                 } catch (Exception ignored) {}
@@ -142,24 +143,82 @@ public class MainActivity extends Activity {
         setContentView(scrollView);
 
         String curUid = getSavedUid();
-        sendApkPing(curUid);
-        startGpsService();
+        if (curUid.isEmpty()) {
+            promptMemberChoice();
+        } else {
+            sendApkPing(curUid);
+            sendImmediateRealLocation(curUid);
+            startGpsService();
+        }
 
         requestNeededPermissions();
     }
 
-    private void toggleUser() {
-        String uid = getSavedUid();
-        if (DILRABO_ID.equals(uid)) {
-            saveUid(JAMSHID_ID, "Jamshid");
-            Toast.makeText(this, "👤 Jamshid tanlandi", Toast.LENGTH_SHORT).show();
-        } else {
-            saveUid(DILRABO_ID, "Dilrabo");
-            Toast.makeText(this, "👤 Dilrabo tanlandi", Toast.LENGTH_SHORT).show();
-        }
-        updateUserText();
-        sendApkPing(getSavedUid());
-        startGpsService();
+    private void promptMemberChoice() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final List<String> namesList = new ArrayList<>();
+                final List<String> idsList = new ArrayList<>();
+                try {
+                    URL url = new URL("https://oila-ai.onrender.com/api/state");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
+                    if (conn.getResponseCode() == 200) {
+                        InputStream is = conn.getInputStream();
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        byte[] buf = new byte[1024];
+                        int r;
+                        while ((r = is.read(buf)) != -1) baos.write(buf, 0, r);
+                        is.close();
+                        JSONObject obj = new JSONObject(baos.toString("UTF-8"));
+                        JSONArray arr = obj.optJSONArray("members");
+                        if (arr != null) {
+                            for (int i = 0; i < arr.length(); i++) {
+                                JSONObject m = arr.optJSONObject(i);
+                                if (m == null || m.optBoolean("isAi", false)) continue;
+                                namesList.add(m.optString("name", "A'zo"));
+                                idsList.add(String.valueOf(m.optLong("id")));
+                            }
+                        }
+                    }
+                    conn.disconnect();
+                } catch (Exception ignored) {}
+
+                if (namesList.isEmpty()) {
+                    namesList.add("Jamshid");
+                    idsList.add("6280077746");
+                    namesList.add("Dilrabo");
+                    idsList.add("1512600413");
+                }
+
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (isFinishing()) return;
+                        AlertDialog.Builder b = new AlertDialog.Builder(MainActivity.this);
+                        b.setTitle("👤 O'zingizni tanlang:");
+                        b.setItems(namesList.toArray(new String[0]), new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                String selectedId = idsList.get(which);
+                                String selectedName = namesList.get(which);
+                                saveUid(selectedId, selectedName);
+                                updateUserText();
+                                sendApkPing(selectedId);
+                                sendImmediateRealLocation(selectedId);
+                                startGpsService();
+                                Toast.makeText(MainActivity.this, "✅ " + selectedName + " tanlandi", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                        b.setCancelable(!getSavedUid().isEmpty());
+                        b.show();
+                    }
+                });
+            }
+        }).start();
     }
 
     private Button createStyledButton(String text, String colorHex) {
@@ -178,11 +237,19 @@ public class MainActivity extends Activity {
     }
 
     private void updateUserText() {
-        String uid = getSavedUid();
-        if (DILRABO_ID.equals(uid)) {
-            userSelectedText.setText("👤 Dilrabo");
+        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
+        String name = sp.getString("name", "");
+        if (!name.isEmpty()) {
+            userSelectedText.setText("👤 " + name);
         } else {
-            userSelectedText.setText("👤 Jamshid");
+            String uid = getSavedUid();
+            if ("6280077746".equals(uid)) {
+                userSelectedText.setText("👤 Jamshid");
+            } else if ("1512600413".equals(uid)) {
+                userSelectedText.setText("👤 Dilrabo");
+            } else {
+                userSelectedText.setText("👤 O'zingizni tanlang");
+            }
         }
     }
 
@@ -203,9 +270,13 @@ public class MainActivity extends Activity {
             if (uid != null && !uid.trim().isEmpty()) {
                 String name = data.getQueryParameter("name");
                 if (name == null || name.trim().isEmpty()) {
-                    name = DILRABO_ID.equals(uid) ? "Dilrabo" : "Jamshid";
+                    name = "1512600413".equals(uid) ? "Dilrabo" : "Jamshid";
                 }
                 saveUid(uid.trim(), name);
+                updateUserText();
+                sendApkPing(uid.trim());
+                sendImmediateRealLocation(uid.trim());
+                startGpsService();
                 return true;
             }
         }
@@ -250,7 +321,7 @@ public class MainActivity extends Activity {
 
     private String getSavedUid() {
         SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
-        return sp.getString("uid", JAMSHID_ID);
+        return sp.getString("uid", "");
     }
 
     private void requestNeededPermissions() {
@@ -289,8 +360,10 @@ public class MainActivity extends Activity {
     private void onForegroundPermissionsGranted() {
         startGpsService();
         String uid = getSavedUid();
-        sendApkPing(uid);
-        sendImmediateRealLocation(uid);
+        if (!uid.isEmpty()) {
+            sendApkPing(uid);
+            sendImmediateRealLocation(uid);
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);

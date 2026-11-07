@@ -106,6 +106,60 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
+    // 2.5 Ilovani yuklab olish va Telegram hisobiga bog'lash sahifasi
+    if (pathname === '/app') {
+      const uid = u.searchParams.get('uid') || '';
+      const name = u.searchParams.get('name') || '';
+      const m = store.get(uid);
+      const displayName = name || m?.name || 'Oila a\'zosi';
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      });
+      res.end(`<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Oilaviy Uy - Datchikni ulash</title>
+  <style>
+    body { margin: 0; padding: 24px 16px; background: #0f0c24; color: white; font-family: system-ui, -apple-system, sans-serif; text-align: center; }
+    .card { background: #181432; border-radius: 24px; padding: 24px; max-width: 420px; margin: 0 auto; box-shadow: 0 12px 40px rgba(0,0,0,0.5); }
+    h1 { font-size: 26px; margin: 12px 0 6px; }
+    .badge { display: inline-block; background: #1e1b4b; border: 1px solid #10b981; color: #10b981; font-weight: bold; border-radius: 20px; padding: 8px 16px; margin-bottom: 16px; font-size: 14px; }
+    .user { font-size: 22px; font-weight: bold; color: #38bdf8; margin-bottom: 20px; }
+    .step-box { text-align: left; background: #110e26; border-radius: 16px; padding: 14px 16px; margin-bottom: 14px; border: 1px solid #231c44; }
+    .step-num { font-weight: bold; color: #38bdf8; font-size: 15px; margin-bottom: 4px; }
+    .step-desc { font-size: 14px; color: #cbd5e1; line-height: 1.4; margin-bottom: 10px; }
+    .btn { display: block; width: 100%; box-sizing: border-box; padding: 16px; border-radius: 14px; font-size: 16px; font-weight: bold; text-decoration: none; border: none; cursor: pointer; text-align: center; }
+    .btn-download { background: #3b82f6; color: white; }
+    .btn-connect { background: #10b981; color: white; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div style="font-size: 56px;">🏠</div>
+    <h1>Oilaviy Uy</h1>
+    <div class="badge">🟢 24/7 Fon GPS Datchigi</div>
+    <div class="user">👤 ${displayName}</div>
+
+    <div class="step-box">
+      <div class="step-num">1-qadam:</div>
+      <div class="step-desc">Ilovani yuklab oling va telefonga o'rnating.</div>
+      <a href="/Oilaviy_Uy.apk" class="btn btn-download">📥 1. Ilovani yuklab olish (.apk)</a>
+    </div>
+
+    <div class="step-box">
+      <div class="step-num">2-qadam:</div>
+      <div class="step-desc">O'rnatgach, pastdagi tugmani bosing — ilova to'g'ridan-to'g'ri sizning Telegram hisobingizga ulanadi!</div>
+      <a href="oilaviyuy://connect?uid=${uid}&name=${encodeURIComponent(displayName)}" class="btn btn-connect">🔗 2. Ilovani hisobimga bog'lash</a>
+    </div>
+  </div>
+</body>
+</html>`);
+      return;
+    }
+
     // 3. 3D Xonadan personaj ustiga bosib xabar yozish yoki holat o'zgartirish
     if (pathname === '/api/action' && req.method === 'POST') {
       let body = '';

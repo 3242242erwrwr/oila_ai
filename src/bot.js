@@ -343,12 +343,17 @@ async function startBot(token, onStatus, options = {}) {
 
     // 2. Agar a'zo bo'lgan, lekin hali ilovani o'rnatmagan bo'lsa: ilovani talab qiladi
     if (m && !m.apkInstalled) {
+      const baseUrl = getPublicUrlFn();
+      const serverAppUrl = `${baseUrl}/app?uid=${id}&name=${encodeURIComponent(m.name)}`;
+      const ikb = new InlineKeyboard().url("📲 Server orqali o'rnatish va ulash", serverAppUrl);
       await ctx.reply(
         `🎉 *Tabriklaymiz, ${m.name}! Oila a'zosi bo'ldingiz.*\n\n` +
-        `📲 *Avval ilovani o'rnatib oling!*\n\n` +
+        `📲 *Ilovani o'rnatib, hisobingizga bog'lang!*\n\n` +
         `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+        `1️⃣ Pastdagi *\"📲 Server orqali o'rnatish va ulash\"* tugmasini bosing.\n` +
+        `2️⃣ Sahifada ilovani yuklab oling va hisobingizga ulang.\n\n` +
         `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
-        { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
+        { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await sendApkToChat(id);
       return;
@@ -543,12 +548,18 @@ async function startBot(token, onStatus, options = {}) {
           store.save();
         }
 
+        const baseUrl = getPublicUrlFn();
+        const serverAppUrl = `${baseUrl}/app?uid=${id}&name=${encodeURIComponent(state.name)}`;
+        const ikb = new InlineKeyboard().url("📲 Server orqali o'rnatish va ulash", serverAppUrl);
+
         await ctx.reply(
           `🎉 *Tabriklaymiz, ${state.name}! Oila a'zosi bo'ldingiz.*\n\n` +
-          `📲 *Avval ilovani o'rnatib oling!*\n\n` +
+          `📲 *Ilovani o'rnatib, hisobingizga bog'lang!*\n\n` +
           `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+          `1️⃣ Pastdagi *\"📲 Server orqali o'rnatish va ulash\"* tugmasini bosing.\n` +
+          `2️⃣ Sahifada ilovani yuklab oling va hisobingizga ulang.\n\n` +
           `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
-          { parse_mode: 'Markdown' }
+          { parse_mode: 'Markdown', reply_markup: ikb }
         );
         await sendApkToChat(id);
         return;
