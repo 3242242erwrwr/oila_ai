@@ -155,10 +155,11 @@ async function sendApkToChat(chatId) {
       new InputFile(APK_PATH, 'Oilaviy_Uy.apk'),
       {
         caption:
-          "📲 *Oilaviy Uy — Rasmiy Android Ilova (.apk)*\n\n" +
-          "1️⃣ Shu fayl ustiga bosib *\"Установить\" (O'rnatish)* ni tanlang.\n" +
-          "2️⃣ Ilovani ochib, barcha so'ralgan ruxsatlarni berib qo'ying.\n\n" +
-          "✅ Shundan so'ng botdagi *\"🏠 3D Uyni ochish\"* tugmasi orqali uyga kirasiz!",
+          "📲 *Oilaviy Uy — Fon GPS Datchigi (.apk)*\n\n" +
+          "Bu dastur faqat Telegram yopiq paytda ham joylashuv uzatilib turishi uchun xizmat qiladi.\n\n" +
+          "1️⃣ Fayl ustiga bosib *\"Установить\"* va *\"Открыть\"* qiling.\n" +
+          "2️⃣ So'ralgan ruxsatlarni berib qo'ying.\n\n" +
+          "✅ Bo'ldi! Shundan so'ng dasturni yopib qo'ysangiz ham bo'ladi — 3D Uy va harakatlarni Telegram orqali ko'raverasiz!",
         parse_mode: 'Markdown',
       }
     );
@@ -172,41 +173,38 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=32`;
-  const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=35`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
-  const m = uid ? store.get(uid) : null;
-  const isAppInstalled = Boolean(m && m.apkInstalled);
 
   if (isHttps) {
     if (isPrivate) {
-      if (!isAppInstalled) {
-        const ikb = new InlineKeyboard()
-          .text("📲 Ilovani o'rnatish", 'install_apk')
-          .row()
-          .url("🌐 To'g'ridan-to'g'ri yuklash", apkDownloadUrl);
-        await ctx.reply(
-          `⛔️ *Avval ilovani o'rnating!*\n\n` +
-          `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
-          `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosing.\n` +
-          `2️⃣ Chatga kelgan fayl ustiga bosib *\"Установить\"* va *\"Открыть\"* qiling.\n` +
-          `3️⃣ Ilovada barcha ruxsatlarni berib qo'ying.\n` +
-          `4️⃣ Shundan so'ng 3D Uyga kirishingiz mumkin bo'ladi!`,
-          { parse_mode: 'Markdown', reply_markup: ikb }
-        );
-      } else {
-        const ikb = new InlineKeyboard()
-          .webApp("🏠 3D Uyni ochish", personalUrl);
-        await ctx.reply(
-          `🏠 *Oilaviy 3D Uy*\n\n` +
-          `✅ Fon datchigi faol! 3D Uyga kirish uchun pastdagi tugmani bosing:`,
-          { parse_mode: 'Markdown', reply_markup: ikb }
-        );
-      }
+      const ikb = new InlineKeyboard()
+        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .row()
+        .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
+      await ctx.reply(
+        `🏠 *Oilaviy 3D Uy*\n\n` +
+        `• 3D Uyga kirish uchun: *🏠 3D Uyni ochish*\n` +
+        `• Telegram yopiq paytda ham joylashuv ishlashi uchun: *📲 Fon GPS ruxsatini berish (.apk)*`,
+        { parse_mode: 'Markdown', reply_markup: ikb }
+      );
     } else {
+      const personalIkb = new InlineKeyboard()
+        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .row()
+        .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
+      await bot.api.sendMessage(
+        uid,
+        `🏠 *Oilaviy 3D Uy*\n\n` +
+        `• 3D Uyga kirish uchun: *🏠 3D Uyni ochish*\n` +
+        `• Telegram yopiq paytda ham joylashuv ishlashi uchun: *📲 Fon GPS ruxsatini berish (.apk)*`,
+        { parse_mode: 'Markdown', reply_markup: personalIkb }
+      ).catch(() => {});
+
+      const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
-        .url("🏠 3D Uyni ochish", `https://t.me/${bot?.botInfo?.username || 'HomeChat_3d_bot'}?start=xona`);
+        .url("🏠 3D Uyni ochish", `https://t.me/${botUsername}?start=xona`);
       await ctx.reply(
         "🏠 *Oilaviy 3D Uy*\n\n" +
         "3D Uyga kirish uchun pastdagi tugmani bosing:",
@@ -291,36 +289,22 @@ async function startBot(token, onStatus, options = {}) {
         await sendRoomLink(ctx);
         return;
       }
-      const isAppInstalled = Boolean(m.apkInstalled);
-      if (!isAppInstalled) {
-        const baseUrl = getPublicUrlFn();
-        const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
-        const ikb = new InlineKeyboard()
-          .text("📲 Ilovani o'rnatish", 'install_apk')
-          .row()
-          .url("🌐 To'g'ridan-to'g'ri yuklash", apkDownloadUrl);
-        await ctx.reply(
-          `Xush kelibsiz, *${m.name}*! 👋\n` +
-          `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
-          `⛔️ *Avval ilovani o'rnating!*\n` +
-          `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
-          `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosing.\n` +
-          `2️⃣ Chatga kelgan fayl ustiga bosib *\"Установить\"* va *\"Открыть\"* qiling.\n` +
-          `3️⃣ Ilovada barcha ruxsatlarni berib qo'ying.\n\n` +
-          `Shundan so'ng 3D Uy ochiladi!`,
-          { parse_mode: 'Markdown', reply_markup: ikb }
-        );
-        await ctx.reply(
-          `Pastdagi doimiy tugmalardan ham foydalanishingiz mumkin:`,
-          { reply_markup: mainKeyboard() }
-        );
-        return;
-      }
+      const baseUrl = getPublicUrlFn();
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=35`;
+      const ikb = new InlineKeyboard()
+        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .row()
+        .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
+
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
         `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
-        `Pastdagi tugmalardan foydalaning:`,
-        { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+        `3D Uyga kirish uchun pastdagi tugmani bosing:`,
+        { parse_mode: 'Markdown', reply_markup: ikb }
+      );
+      await ctx.reply(
+        `Pastdagi doimiy tugmalardan ham foydalanishingiz mumkin:`,
+        { reply_markup: mainKeyboard() }
       );
       return;
     }
@@ -511,17 +495,16 @@ async function startBot(token, onStatus, options = {}) {
         } else {
           store.add(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
           const baseUrl = getPublicUrlFn();
-          const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
+          const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=35`;
           const ikb = new InlineKeyboard()
-            .url("📲 Ilovani o'rnatish", apkDownloadUrl);
+            .webApp("🏠 3D Uyni ochish", personalUrl)
+            .row()
+            .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
 
           await ctx.reply(
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
             `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `📋 *Qo'llanma:*\n` +
-            `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosib ilovani o'rnating.\n` +
-            `2️⃣ O'rnatib bo'lgach, ilovani oching va barcha ruxsatlarni bering.\n` +
-            `3️⃣ Shundan so'ng botdagi *\"🏠 3D Uyni ochish\"* tugmasi orqali uyga kirasiz!`,
+            `3D Uyga kirish uchun pastdagi tugmani bosing:`,
             { parse_mode: 'Markdown', reply_markup: ikb }
           );
           await ctx.reply(
