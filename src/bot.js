@@ -173,9 +173,23 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=38`;
-  const isHttps = baseUrl.startsWith('https://');
+  const m = store.get(uid);
   const isPrivate = ctx.chat?.type === 'private';
+
+  // Ilovani o'rnatib ruxsat bermaguncha 3D Uyga kirish taqiqlanadi!
+  if (isPrivate && m && !m.apkInstalled) {
+    const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+    await ctx.reply(
+      `⛔️ *Avval ilovani o'rnatib oling!*\n\n` +
+      `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turishi shart.\n\n` +
+      `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
+      { parse_mode: 'Markdown', reply_markup: ikb }
+    );
+    return;
+  }
+
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=41`;
+  const isHttps = baseUrl.startsWith('https://');
 
   if (isHttps) {
     if (isPrivate) {
@@ -287,8 +301,21 @@ async function startBot(token, onStatus, options = {}) {
         return;
       }
 
+      // Ilovani o'rnatib ruxsat bermaguncha 3D Uyga kirish taqiqlanadi!
+      if (!m.apkInstalled) {
+        const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+        await ctx.reply(
+          `🎉 *Tabriklaymiz, ${m.name}! Oila a'zosi bo'ldingiz.*\n\n` +
+          `📲 *Avval ilovani o'rnatib oling!*\n\n` +
+          `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+          `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+        return;
+      }
+
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=38`;
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=41`;
       const ikb = new InlineKeyboard()
         .webApp("🏠 3D Uyni ochish", personalUrl)
         .row()
@@ -521,6 +548,18 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
+    // Ilovani o'rnatib ruxsat bermaguncha 3D Uyga kirish va menyulardan foydalanish taqiqlanadi!
+    if (!m.apkInstalled) {
+      const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+      await ctx.reply(
+        `⛔️ *Avval ilovani o'rnatib oling!*\n\n` +
+        `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turishi shart.\n\n` +
+        `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
+        { parse_mode: 'Markdown', reply_markup: ikb }
+      );
+      return;
+    }
+
     if (text === BTN_STATUS) {
       activeChatTarget.delete(id);
       await ctx.reply(`🎭 *${m.name}*, hozir nima qilyapsiz? Tanlang:`, {
@@ -692,8 +731,8 @@ async function handleRoomAction(payload) {
 
     if (!wasInstalled && bot) {
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=38`;
-      const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=41`;
+      const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
 
       bot.api.sendMessage(
         id,
