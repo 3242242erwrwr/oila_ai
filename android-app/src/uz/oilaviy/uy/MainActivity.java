@@ -67,19 +67,11 @@ public class MainActivity extends Activity {
         titleView.setTypeface(null, Typeface.BOLD);
         titleView.setTextColor(Color.WHITE);
         titleView.setGravity(Gravity.CENTER);
-        titleView.setPadding(0, 16, 0, 8);
+        titleView.setPadding(0, 16, 0, 24);
         layout.addView(titleView);
 
-        TextView subTitleView = new TextView(this);
-        subTitleView.setText("📍 24/7 Fon GPS Datchigi");
-        subTitleView.setTextSize(16f);
-        subTitleView.setTextColor(Color.parseColor("#94a3b8"));
-        subTitleView.setGravity(Gravity.CENTER);
-        subTitleView.setPadding(0, 0, 0, 32);
-        layout.addView(subTitleView);
-
         statusBadge = new TextView(this);
-        statusBadge.setText("🟢 Datchik ishga tushdi va faol");
+        statusBadge.setText("🟢 24/7 Fon GPS Datchigi Faol");
         statusBadge.setTextSize(15f);
         statusBadge.setTypeface(null, Typeface.BOLD);
         statusBadge.setTextColor(Color.parseColor("#10b981"));
@@ -94,24 +86,18 @@ public class MainActivity extends Activity {
         layout.addView(statusBadge);
 
         userSelectedText = new TextView(this);
-        userSelectedText.setTextSize(16f);
-        userSelectedText.setTextColor(Color.parseColor("#e2e8f0"));
+        userSelectedText.setTextSize(18f);
+        userSelectedText.setTypeface(null, Typeface.BOLD);
+        userSelectedText.setTextColor(Color.parseColor("#38bdf8"));
         userSelectedText.setGravity(Gravity.CENTER);
-        userSelectedText.setPadding(0, 36, 0, 16);
+        userSelectedText.setPadding(0, 32, 0, 16);
         updateUserText();
         layout.addView(userSelectedText);
 
-        TextView selectLabel = new TextView(this);
-        selectLabel.setText("O'zingizni tanlang:");
-        selectLabel.setTextSize(14f);
-        selectLabel.setTextColor(Color.parseColor("#94a3b8"));
-        selectLabel.setGravity(Gravity.CENTER);
-        selectLabel.setPadding(0, 0, 0, 16);
-        layout.addView(selectLabel);
-
-        LinearLayout buttonsLayout = new LinearLayout(this);
+        final LinearLayout buttonsLayout = new LinearLayout(this);
         buttonsLayout.setOrientation(LinearLayout.HORIZONTAL);
         buttonsLayout.setGravity(Gravity.CENTER);
+        buttonsLayout.setPadding(0, 0, 0, 16);
 
         Button btnJamshid = createStyledButton("🙋‍♂️ Jamshid", "#3b82f6");
         btnJamshid.setOnClickListener(new View.OnClickListener() {
@@ -138,7 +124,7 @@ public class MainActivity extends Activity {
         layout.addView(buttonsLayout);
 
         TextView descBox = new TextView(this);
-        descBox.setText("⚠️ DIQQAT:\n\nBu ilova 3D uyga kirish uchun EMAS!\n\nBu dastur faqat Telegram yopiq paytda ham cho'ntagingizda 24/7 fon rejimida GPS datchigi bo'lib xizmat qiladi.\n\n🏠 3D Uyga esa TELEGRAM bot orqali kiriladi!");
+        descBox.setText("⚠️ DIQQAT: Bu ilova 3D uyga kirish uchun EMAS!\nU faqat Telegramdan chiqib ketganingizda ham fonda GPS joylashuvni uzatib turuvchi datchik.\n\n🏠 3D Uyga esa TELEGRAM bot orqali kiriladi!");
         descBox.setTextSize(15f);
         descBox.setTextColor(Color.parseColor("#cbd5e1"));
         descBox.setGravity(Gravity.CENTER);
@@ -153,7 +139,7 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        descParams.setMargins(0, 40, 0, 32);
+        descParams.setMargins(0, 32, 0, 32);
         descBox.setLayoutParams(descParams);
         layout.addView(descBox);
 
@@ -254,13 +240,13 @@ public class MainActivity extends Activity {
     private void updateUserText() {
         String uid = getSavedUid();
         if ("6280077746".equals(uid)) {
-            userSelectedText.setText("👤 A'zo: Jamshid");
+            userSelectedText.setText("👤 Jamshid");
         } else if ("1512600413".equals(uid)) {
-            userSelectedText.setText("👤 A'zo: Dilrabo");
+            userSelectedText.setText("👤 Dilrabo");
         } else if (!uid.isEmpty()) {
             userSelectedText.setText("👤 ID: " + uid);
         } else {
-            userSelectedText.setText("⚠️ Iltimos, pastdan o'zingizni tanlang:");
+            userSelectedText.setText("👤 Jamshid");
         }
     }
 
