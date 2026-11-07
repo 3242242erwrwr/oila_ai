@@ -173,35 +173,50 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=35`;
-  const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
+  const m = uid ? store.get(uid) : null;
+
+  // Qat'iy tekshiruv: ilova o'rnatilmagan bo'lsa 3D uyga mutlaqo kiritilmaydi!
+  if (!m || !m.apkInstalled) {
+    const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+    const msg =
+      `⛔️ *Avval ilovani o'rnatib oling!*\n\n` +
+      `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+      `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*\n\n` +
+      `Pastdagi tugma orqali ilovani yuklab oling:`;
+
+    if (isPrivate) {
+      await ctx.reply(msg, { parse_mode: 'Markdown', reply_markup: ikb });
+    } else {
+      const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
+      await ctx.reply(
+        `⛔️ *${ctx.from?.first_name || "Foydalanuvchi"}*, 3D Uyga kirishdan oldin ilovani o'rnatishingiz shart!`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: new InlineKeyboard().url("📲 Botga o'tish", `https://t.me/${botUsername}?start=apk`),
+        }
+      );
+    }
+    return;
+  }
+
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=36`;
+  const isHttps = baseUrl.startsWith('https://');
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish", personalUrl)
-        .row()
-        .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
+        .webApp("🏠 3D Uyni ochish", personalUrl);
       await ctx.reply(
         `🏠 *Oilaviy 3D Uy*\n\n` +
-        `• 3D Uyga kirish uchun: *🏠 3D Uyni ochish*\n` +
-        `• Telegram yopiq paytda ham joylashuv ishlashi uchun: *📲 Fon GPS ruxsatini berish (.apk)*`,
+        `Uyga kirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
+      await ctx.reply(
+        `Pastdagi doimiy menyudan ham foydalanishingiz mumkin:`,
+        { reply_markup: mainKeyboard() }
+      );
     } else {
-      const personalIkb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish", personalUrl)
-        .row()
-        .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
-      await bot.api.sendMessage(
-        uid,
-        `🏠 *Oilaviy 3D Uy*\n\n` +
-        `• 3D Uyga kirish uchun: *🏠 3D Uyni ochish*\n` +
-        `• Telegram yopiq paytda ham joylashuv ishlashi uchun: *📲 Fon GPS ruxsatini berish (.apk)*`,
-        { parse_mode: 'Markdown', reply_markup: personalIkb }
-      ).catch(() => {});
-
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
         .url("🏠 3D Uyni ochish", `https://t.me/${botUsername}?start=xona`);
@@ -264,8 +279,8 @@ async function startBot(token, onStatus, options = {}) {
       age: existing?.age || 25,
     });
     const intro = isEdit
-      ? `✏️ *${ctx.from.first_name || ''}, profilingizni yangilaymiz!*\n\n1️⃣ Ismingizni yozing:`
-      : "1️⃣ *Ismingizni yozing:*";
+      ? `✏️ *${ctx.from.first_name || ''}, profilingizni yangilaymiz!*\n\n1️⃣ *Ismingiz nima?* (Ismingizni yozing):`
+      : "Assalomu alaykum! 🏠 *Oilaviy uyga xush kelibsiz.*\n\n1️⃣ *Ismingiz nima?* (Ismingizni yozing):";
     await ctx.reply(intro, {
       parse_mode: 'Markdown',
       reply_markup: { remove_keyboard: true },
@@ -283,38 +298,53 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    const m = store.get(ctx.from.id);
+    const id = ctx.from.id;
+    const m = store.get(id);
     if (m) {
       if (ctx.match === 'xona') {
         await sendRoomLink(ctx);
         return;
       }
+      if (ctx.match === 'apk') {
+        await sendApkToChat(id);
+        return;
+      }
+
+      // Agar ilovani o'rnatmagan bo'lsa -> 3D uyga qo'ymaymiz, ilovani yuklashni so'raymiz
+      if (!m.apkInstalled) {
+        const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+        await ctx.reply(
+          `Assalomu alaykum, *${m.name}*!\n\n` +
+          `⛔️ *Siz hali ilovani o'rnatib, ruxsat bermagansiz!*\n\n` +
+          `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+          `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*\n\n` +
+          `Pastdagi tugma orqali ilovani yuklab oling:`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+        return;
+      }
+
+      // Agar ilova o'rnatilgan bo'lsa -> 3D uyga bemalol kiradi
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=35`;
-      const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish", personalUrl)
-        .row()
-        .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=36`;
+      const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
 
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
         `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
-        `3D Uyga kirish uchun pastdagi tugmani bosing:`,
+        `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await ctx.reply(
-        `Pastdagi doimiy tugmalardan ham foydalanishingiz mumkin:`,
+        `Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`,
         { reply_markup: mainKeyboard() }
       );
       return;
     }
 
-    wizard.delete(ctx.from.id);
-    await ctx.reply(
-      "Assalomu alaykum! 🏠 *Oilaviy uyga xush kelibsiz.*\n\n" +
-      "Oilaga qo'shilish uchun pastdagi *👨‍👩‍👧‍👦 Oilaga a'zo bo'lish* tugmasini bosing:",
-      { parse_mode: 'Markdown', reply_markup: joinKeyboard() }
-    );
+    // YANGI FOYDALANUVCHI /start (Запустить) bosganda darhol savollar boshlanadi:
+    // 1 ISMIZ -> 2 YOSHIZ -> 3 KASPIZ
+    await beginWizard(ctx, false);
   });
 
   bot.command('xona', sendRoomLink);
@@ -442,9 +472,11 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    // 1. Ro'yxatdan o'tish / Profil savol-javobi: Ism -> Jins -> Kasb
+    // 1. Ro'yxatdan o'tish / Profil savol-javobi: 1. Ism -> 2. Yosh -> 3. Kasb
     if (wizard.has(id)) {
       const state = wizard.get(id);
+
+      // 1-SAVOL: Ism
       if (state.step === 'name') {
         const name = cleanName(text);
         if (!name) {
@@ -452,66 +484,65 @@ async function startBot(token, onStatus, options = {}) {
           return;
         }
         state.name = name;
-        state.step = 'gender';
-        await ctx.reply(`2️⃣ *${name}*, jinsingizni tanlang:`, {
+        state.step = 'age';
+        await ctx.reply(`2️⃣ *${name}*, yoshingiz nechada? (Raqamda yozing, masalan: 28):`, {
           parse_mode: 'Markdown',
-          reply_markup: genderKeyboard(),
         });
         return;
       }
 
-      if (state.step === 'gender') {
-        const lower = text.toLowerCase();
-        if (lower.includes('ayol') || lower.includes('qiz') || text.includes('👩')) {
-          state.gender = 'female';
-        } else if (lower.includes('erkak') || lower.includes("o'g'il") || text.includes('👨')) {
-          state.gender = 'male';
-        } else {
-          await ctx.reply('Iltimos, pastdagi tugmalardan birini bosing: 👨 Erkak yoki 👩 Ayol', {
-            reply_markup: genderKeyboard(),
-          });
+      // 2-SAVOL: Yosh
+      if (state.step === 'age') {
+        const num = parseInt(text.replace(/[^\d]/g, ''), 10);
+        if (isNaN(num) || num < 3 || num > 120) {
+          await ctx.reply("Iltimos, yoshingizni faqat raqamda to'g'ri yozing (masalan: 28):");
           return;
         }
+        state.age = num;
         state.step = 'job';
-        await ctx.reply('3️⃣ *Kasbingizni tanlang:*', {
+        await ctx.reply('3️⃣ *Kasbingiz nima?* (Tanlang):', {
           parse_mode: 'Markdown',
           reply_markup: jobKeyboard(),
         });
         return;
       }
 
+      // 3-SAVOL: Kasb
       if (state.step === 'job') {
         const jobKey = Object.keys(JOBS).find(
           (k) => JOBS[k].label === text || text.toLowerCase().includes(JOBS[k].title.toLowerCase())
         ) || 'other';
         wizard.delete(id);
 
-        if (store.get(id)) {
-          store.updateProfile(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
-          await ctx.reply(
-            `✅ *${state.name}* profili yangilandi! (${JOBS[jobKey].label})`,
-            { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
-          );
-        } else {
-          store.add(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
-          const baseUrl = getPublicUrlFn();
-          const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=35`;
-          const ikb = new InlineKeyboard()
-            .webApp("🏠 3D Uyni ochish", personalUrl)
-            .row()
-            .text("📲 Fon GPS ruxsatini berish (.apk)", 'install_apk');
-
-          await ctx.reply(
-            `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
-            `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
-            `3D Uyga kirish uchun pastdagi tugmani bosing:`,
-            { parse_mode: 'Markdown', reply_markup: ikb }
-          );
-          await ctx.reply(
-            `Pastdagi doimiy menyudan ham foydalanishingiz mumkin:`,
-            { reply_markup: mainKeyboard() }
-          );
+        let gender = 'male';
+        const lowerName = state.name.toLowerCase();
+        if (jobKey === 'housewife' || lowerName.endsWith('a') || (lowerName.endsWith('o') && lowerName.includes('dil'))) {
+          gender = 'female';
         }
+
+        if (store.get(id)) {
+          store.updateProfile(id, { name: state.name, gender, age: state.age || 25, job: jobKey });
+        } else {
+          store.add(id, { name: state.name, gender, age: state.age || 25, job: jobKey });
+        }
+
+        const m = store.get(id);
+        if (m) {
+          m.apkInstalled = false;
+          store.save();
+        }
+
+        const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+
+        await ctx.reply(
+          `🎉 *Tabriklaymiz, ${state.name}! Oila a'zosi bo'ldingiz.*\n\n` +
+          `📲 *Avval ilovani o'rnatib oling!*\n\n` +
+          `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+          `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosing.\n` +
+          `2️⃣ Chatga kelgan ilovani o'rnatib, ruxsatlarni bering va ismingizni tanlang.\n\n` +
+          `⚠️ *Ilovani o'rnatib, ruxsat bermaguningizcha 3D Uyga kirib bo'lmaydi!*`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
         return;
       }
     }
@@ -519,8 +550,20 @@ async function startBot(token, onStatus, options = {}) {
     const m = store.get(id);
     if (!m) {
       await ctx.reply(
-        "Siz hali oilaga a'zo bo'lmagansiz. Pastdagi *👨‍👩‍👧‍👦 Oilaga a'zo bo'lish* tugmasini bosing:",
-        { parse_mode: 'Markdown', reply_markup: joinKeyboard() }
+        "Siz hali oilaga a'zo bo'lmagansiz. /start bosing.",
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // Gatekeeper: ilova o'rnatilmagan bo'lsa boshqa buyruqlar ham kiritmaydi
+    if (!m.apkInstalled) {
+      const ikb = new InlineKeyboard().text("📲 Ilovani o'rnatish", 'install_apk');
+      await ctx.reply(
+        `⛔️ *Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi!*\n\n` +
+        `Ushbu ilova Telegramdan chiqib ketsangiz ham 24/7 Live (jonli) rejimda joylashuvingizni xaritada to'g'ri ko'rsatib turish uchun kerak.\n\n` +
+        `Iltimos, avval ilovani o'rnatib, unga ruxsat bering:`,
+        { parse_mode: 'Markdown', reply_markup: ikb }
       );
       return;
     }
@@ -683,38 +726,57 @@ async function startBot(token, onStatus, options = {}) {
 async function handleRoomAction(payload) {
   if (!payload || typeof payload !== 'object') return;
 
-  // Fon rejimda Real-Time keladigan GPS joylashuv
-  if (payload.type === 'auto_location') {
+  // APK ulanishi yoki fon rejimda Real-Time keladigan GPS joylashuv
+  if (payload.type === 'apk_ping' || payload.type === 'auto_location') {
     const id = Number(payload.id);
-    const lat = Number(payload.lat);
-    const lon = Number(payload.lon);
-    const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
-    if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    if (accuracy != null && accuracy > 120) return;
+    if (!id) return;
     const m = store.get(id);
     if (!m || m.isAi) return;
+
     if (payload.source === 'android_apk') {
-      const wasInstalled = m.apkInstalled;
+      const wasInstalled = Boolean(m.apkInstalled);
       m.apkInstalled = true;
+      store.save();
+
       if (!wasInstalled && bot) {
+        const baseUrl = getPublicUrlFn();
+        const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=36`;
+        const ikb = new InlineKeyboard().webApp("🏠 3D Uyni ochish", personalUrl);
+
         bot.api.sendMessage(
           id,
-          `🎉 *Ilova muvaffaqiyatli o'rnatildi va fon datchigi faollashdi!*\n\n` +
-          `Endi bemalol pastdagi *\"🏠 3D Uyni ochish\"* tugmasi orqali uyga kirishingiz mumkin!`,
-          { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
+          `✅ *Hammasini bajardingiz! Endi uyga kirishingiz mumkin.*\n\n` +
+          `Fon GPS datchigi 24/7 jonli rejimda muvaffaqiyatli ishga tushdi.\n\n` +
+          `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        ).catch(() => {});
+
+        bot.api.sendMessage(
+          id,
+          `Pastdagi doimiy menyu tugmalari ham faollashdi:`,
+          { reply_markup: mainKeyboard() }
         ).catch(() => {});
       }
     }
-    if (!store.getHome()) {
-      store.setHome(lat, lon, m.name);
+
+    if (payload.type === 'auto_location') {
+      const lat = Number(payload.lat);
+      const lon = Number(payload.lon);
+      const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+      if (accuracy != null && accuracy > 120) return;
+
+      if (!store.getHome()) {
+        store.setHome(lat, lon, m.name);
+      }
+      store.updateLocation(id, {
+        lat,
+        lon,
+        accuracy,
+        live: true,
+        liveUntil: Date.now() + 300_000,
+      });
     }
-    store.updateLocation(id, {
-      lat,
-      lon,
-      accuracy,
-      live: true,
-      liveUntil: Date.now() + 300_000,
-    });
     return;
   }
 

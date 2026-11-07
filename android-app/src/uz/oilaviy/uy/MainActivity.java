@@ -22,6 +22,15 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -162,8 +171,68 @@ public class MainActivity extends Activity {
         scrollView.addView(layout);
         setContentView(scrollView);
 
+        String curUid = getSavedUid();
+        if (!curUid.isEmpty()) {
+            sendApkPing(curUid);
+        }
+        fetchAdditionalMembers(buttonsLayout);
+
         requestNeededPermissions();
         startGpsService();
+    }
+
+    private void fetchAdditionalMembers(final LinearLayout container) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    URL url = new URL("https://oila-ai.onrender.com/api/state");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(6000);
+                    conn.setReadTimeout(6000);
+                    if (conn.getResponseCode() == 200) {
+                        InputStream is = conn.getInputStream();
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        byte[] buf = new byte[1024];
+                        int r;
+                        while ((r = is.read(buf)) != -1) baos.write(buf, 0, r);
+                        is.close();
+                        String resp = baos.toString("UTF-8");
+                        JSONObject obj = new JSONObject(resp);
+                        final JSONArray members = obj.optJSONArray("members");
+                        if (members != null) {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    for (int i = 0; i < members.length(); i++) {
+                                        JSONObject m = members.optJSONObject(i);
+                                        if (m == null || m.optBoolean("isAi", false)) continue;
+                                        final String mid = String.valueOf(m.optLong("id"));
+                                        if ("6280077746".equals(mid) || "1512600413".equals(mid)) continue;
+                                        final String mname = m.optString("name", "A'zo");
+
+                                        View spacer = new View(MainActivity.this);
+                                        container.addView(spacer, new LinearLayout.LayoutParams(24, 1));
+
+                                        Button btn = createStyledButton("🙋 " + mname, "#06b6d4");
+                                        btn.setOnClickListener(new View.OnClickListener() {
+                                            @Override
+                                            public void onClick(View v) {
+                                                saveUid(mid);
+                                                updateUserText();
+                                            }
+                                        });
+                                        container.addView(btn);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    conn.disconnect();
+                } catch (Exception ignored) {}
+            }
+        }).start();
     }
 
     private Button createStyledButton(String text, String colorHex) {
@@ -219,7 +288,39 @@ public class MainActivity extends Activity {
     private void saveUid(String uid) {
         SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
         sp.edit().putString("uid", uid).apply();
+        sendApkPing(uid);
         startGpsService();
+    }
+
+    private void sendApkPing(final String uid) {
+        if (uid == null || uid.trim().isEmpty()) return;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                HttpURLConnection conn = null;
+                try {
+                    URL url = new URL("https://oila-ai.onrender.com/api/action");
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(6000);
+                    conn.setReadTimeout(6000);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+
+                    String json = "{\"type\":\"apk_ping\",\"id\":" + uid.trim() + ",\"source\":\"android_apk\"}";
+                    byte[] body = json.getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(body.length);
+                    OutputStream os = conn.getOutputStream();
+                    os.write(body);
+                    os.flush();
+                    os.close();
+                    conn.getResponseCode();
+                } catch (Exception ignored) {
+                } finally {
+                    if (conn != null) conn.disconnect();
+                }
+            }
+        }).start();
     }
 
     private String getSavedUid() {

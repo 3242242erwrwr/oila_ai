@@ -153,6 +153,7 @@ class Store extends EventEmitter {
       if (!m.gender) { m.gender = m.appearance?.hairStyle === 1 || m.appearance?.hairStyle === 2 ? 'female' : 'male'; changed = true; }
       if (!m.age) { m.age = 25; changed = true; }
       if (!m.job) { m.job = 'other'; changed = true; }
+      if (m.apkInstalled === undefined) { m.apkInstalled = false; changed = true; }
       if (!m.appearance?.outfit || !m.appearance?.hat || m.appearance.hat === 'none' || m.appearance.hat === 'cap') {
         m.appearance = buildAppearance({ gender: m.gender, age: m.age, job: m.job, existing: m.appearance });
         changed = true;
@@ -200,6 +201,7 @@ class Store extends EventEmitter {
       seat: this.freeSeat(),
       appearance: buildAppearance({ gender, age, job }),
       joinedAt: now,
+      apkInstalled: false,
     };
     this.data.members.push(member);
     this.save();
