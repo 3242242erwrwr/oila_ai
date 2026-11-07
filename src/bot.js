@@ -164,41 +164,38 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=29`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=30`;
   const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
+  const m = uid ? store.get(uid) : null;
+  const isAppInstalled = Boolean(m && m.location && m.location.live);
 
   if (isHttps) {
     if (isPrivate) {
-      const ikb = new InlineKeyboard()
-        .url("📲 1. Ilovani o'rnatish", apkDownloadUrl)
-        .row()
-        .webApp("🏠 2. 3D Uyni ochish", personalUrl);
-      await ctx.reply(
-        `📋 *Qo'llanma:*\n\n` +
-        `1️⃣ *Avval ilovani o'rnating*\n` +
-        `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
-        `3D Uyga kirish uchun pastdagi tugmani bosing:`,
-        { parse_mode: 'Markdown', reply_markup: ikb }
-      );
+      if (!isAppInstalled) {
+        const ikb = new InlineKeyboard()
+          .url("📲 Ilovani o'rnatish", apkDownloadUrl);
+        await ctx.reply(
+          `⛔️ *Avval ilovani o'rnating!*\n\n` +
+          `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
+          `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosing.\n` +
+          `2️⃣ O'rnatib bo'lgach, ilovani oching va barcha ruxsatlarni berib qo'ying.\n` +
+          `3️⃣ Shundan so'ng botdagi *\"🏠 3D Uyni ochish\"* tugmasi orqali uyga kirasiz!`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+      } else {
+        const ikb = new InlineKeyboard()
+          .webApp("🏠 3D Uyni ochish", personalUrl);
+        await ctx.reply(
+          `🏠 *Oilaviy 3D Uy*\n\n` +
+          `✅ Fon datchigi faol! 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+      }
     } else {
-      const personalIkb = new InlineKeyboard()
-        .url("📲 1. Ilovani o'rnatish", apkDownloadUrl)
-        .row()
-        .webApp("🏠 2. 3D Uyni ochish", personalUrl);
-      await bot.api.sendMessage(
-        uid,
-        `📋 *Qo'llanma:*\n\n` +
-        `1️⃣ *Avval ilovani o'rnating*\n` +
-        `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
-        `3D Uyga kirish uchun pastdagi tugmani bosing:`,
-        { parse_mode: 'Markdown', reply_markup: personalIkb }
-      ).catch(() => {});
-
-      const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
-        .url("🏠 3D Uyni ochish", `https://t.me/${botUsername}?start=xona`);
+        .url("🏠 3D Uyni ochish", `https://t.me/${bot?.botInfo?.username || 'HomeChat_3d_bot'}?start=xona`);
       await ctx.reply(
         "🏠 *Oilaviy 3D Uy*\n\n" +
         "3D Uyga kirish uchun pastdagi tugmani bosing:",
@@ -471,25 +468,21 @@ async function startBot(token, onStatus, options = {}) {
         } else {
           store.add(id, { name: state.name, gender: state.gender, age: state.age || 25, job: jobKey });
           const baseUrl = getPublicUrlFn();
-          const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=29`;
           const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
           const ikb = new InlineKeyboard()
-            .url("📲 1. Ilovani o'rnatish", apkDownloadUrl)
-            .row()
-            .webApp("🏠 2. 3D Uyni ochish", personalUrl);
+            .url("📲 Ilovani o'rnatish", apkDownloadUrl);
 
           await ctx.reply(
             `🎉 *Tabriklaymiz, ${state.name}!* Siz oilaga a'zo bo'ldingiz.\n` +
             `👤 Kasb: *${JOBS[jobKey].label}*\n\n` +
             `📋 *Qo'llanma:*\n` +
-            `1️⃣ *Avval ilovani o'rnating*\n` +
-            `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
-            `Shundan so'ng Telegramdan chiqib ketsangiz ham 24/7 Real-Time joylashuv xaritada ko'rinadi!\n\n` +
-            `3D Uyga kirish uchun pastdagi tugmani bosing:`,
+            `1️⃣ Pastdagi *\"📲 Ilovani o'rnatish\"* tugmasini bosib ilovani o'rnating.\n` +
+            `2️⃣ O'rnatib bo'lgach, ilovani oching va barcha ruxsatlarni bering.\n` +
+            `3️⃣ Shundan so'ng botdagi *\"🏠 3D Uyni ochish\"* tugmasi orqali uyga kirasiz!`,
             { parse_mode: 'Markdown', reply_markup: ikb }
           );
           await ctx.reply(
-            `Pastdagi doimiy menyudan ham istalgan payt foydalanishingiz mumkin:`,
+            `Pastdagi doimiy menyudan ham foydalanishingiz mumkin:`,
             { reply_markup: mainKeyboard() }
           );
         }
