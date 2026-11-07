@@ -113,6 +113,7 @@ class Store extends EventEmitter {
     super();
     this.file = file;
     this.data = { members: [] };
+    this.pairingCodes = new Map();
     setInterval(() => this.checkAutoRevert(), 20_000);
   }
 
@@ -415,6 +416,64 @@ class Store extends EventEmitter {
         this.emit('change');
       }
     } catch {}
+  }
+
+  createPairCode(deviceId) {
+    const now = Date.now();
+    for (const [c, info] of this.pairingCodes.entries()) {
+      if (now - info.createdAt > 15 * 60 * 1000) {
+        this.pairingCodes.delete(c);
+      }
+    }
+    let code = '';
+    for (let attempts = 0; attempts < 50; attempts++) {
+      code = String(Math.floor(100000 + Math.random() * 900000));
+      if (!this.pairingCodes.has(code)) break;
+    }
+    this.pairingCodes.set(code, {
+      deviceId: String(deviceId || ''),
+      createdAt: now,
+      paired: false,
+      uid: null,
+      name: null,
+    });
+    return code;
+  }
+
+  getPairStatus(code, deviceId) {
+    const info = this.pairingCodes.get(String(code || '').trim());
+    if (!info) return { paired: false, expired: true };
+    if (deviceId && info.deviceId && info.deviceId !== String(deviceId)) {
+      return { paired: false, invalidDevice: true };
+    }
+    return {
+      paired: Boolean(info.paired),
+      uid: info.uid ? String(info.uid) : null,
+      name: info.name || null,
+    };
+  }
+
+  matchPairCode(code, uid, telegramName) {
+    const cleanCode = String(code || '').replace(/[^\d]/g, '').trim();
+    if (cleanCode.length !== 6) return null;
+    const info = this.pairingCodes.get(cleanCode);
+    if (!info) return null;
+
+    let m = this.get(uid);
+    if (!m) {
+      const name = telegramName || 'Oila a\'zosi';
+      this.add(uid, { name, age: 25, job: 'other' });
+      m = this.get(uid);
+    }
+    info.paired = true;
+    info.uid = String(m.id);
+    info.name = m.name;
+    m.apkInstalled = true;
+    m.lastApkPing = Date.now();
+    m.welcomeSent = true;
+    this.save();
+    this.emit('change');
+    return { uid: String(m.id), name: m.name };
   }
 }
 

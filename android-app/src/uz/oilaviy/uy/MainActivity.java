@@ -3,9 +3,7 @@ package uz.oilaviy.uy;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -25,7 +23,6 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -36,33 +33,62 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class MainActivity extends Activity {
     private static final int REQ_PERMS = 1001;
     private static final int REQ_BG_LOC = 1002;
 
-    private TextView statusBadge;
-    private TextView userSelectedText;
+    private ScrollView scrollView;
+    private LinearLayout contentLayout;
+    private String currentPairCode = null;
+    private boolean isPollingPair = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        handleIncomingIntent(getIntent());
-
-        ScrollView scrollView = new ScrollView(this);
+        scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.parseColor("#0f0c24"));
 
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(48, 64, 48, 64);
-        layout.setGravity(Gravity.CENTER_HORIZONTAL);
+        contentLayout = new LinearLayout(this);
+        contentLayout.setOrientation(LinearLayout.VERTICAL);
+        contentLayout.setPadding(48, 64, 48, 64);
+        contentLayout.setGravity(Gravity.CENTER_HORIZONTAL);
+        scrollView.addView(contentLayout);
+        setContentView(scrollView);
+
+        handleIncomingIntent(getIntent());
+        renderUI();
+        requestNeededPermissions();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (getSavedUid().isEmpty()) {
+            if (currentPairCode == null) {
+                fetchNewPairCode();
+            } else if (!isPollingPair) {
+                startPairPolling();
+            }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        isPollingPair = false;
+    }
+
+    private synchronized void renderUI() {
+        contentLayout.removeAllViews();
 
         TextView iconView = new TextView(this);
         iconView.setText("🏠");
         iconView.setTextSize(64f);
         iconView.setGravity(Gravity.CENTER);
-        layout.addView(iconView);
+        contentLayout.addView(iconView);
 
         TextView titleView = new TextView(this);
         titleView.setText("Oilaviy Uy");
@@ -71,9 +97,100 @@ public class MainActivity extends Activity {
         titleView.setTextColor(Color.WHITE);
         titleView.setGravity(Gravity.CENTER);
         titleView.setPadding(0, 16, 0, 24);
-        layout.addView(titleView);
+        contentLayout.addView(titleView);
 
-        statusBadge = new TextView(this);
+        String uid = getSavedUid();
+        if (uid.isEmpty()) {
+            renderPairingUI();
+        } else {
+            renderActiveSensorUI(uid);
+        }
+    }
+
+    private void renderPairingUI() {
+        TextView badge = new TextView(this);
+        badge.setText("🟡 Telegramga ulanish kutilmoqda");
+        badge.setTextSize(15f);
+        badge.setTypeface(null, Typeface.BOLD);
+        badge.setTextColor(Color.parseColor("#f59e0b"));
+        badge.setGravity(Gravity.CENTER);
+        badge.setPadding(32, 18, 32, 18);
+
+        GradientDrawable badgeBg = new GradientDrawable();
+        badgeBg.setColor(Color.parseColor("#451a03"));
+        badgeBg.setCornerRadius(24f);
+        badgeBg.setStroke(2, Color.parseColor("#f59e0b"));
+        badge.setBackground(badgeBg);
+        contentLayout.addView(badge);
+
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setPadding(36, 36, 36, 36);
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.parseColor("#181432"));
+        cardBg.setCornerRadius(24f);
+        cardBg.setStroke(1, Color.parseColor("#2e2652"));
+        card.setBackground(cardBg);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        cardParams.setMargins(0, 32, 0, 32);
+        card.setLayoutParams(cardParams);
+
+        TextView label = new TextView(this);
+        label.setText("🔑 Sizning ulanish kodingiz:");
+        label.setTextSize(15f);
+        label.setTextColor(Color.parseColor("#94a3b8"));
+        label.setGravity(Gravity.CENTER);
+        card.addView(label);
+
+        final TextView codeView = new TextView(this);
+        String formattedCode = (currentPairCode != null && currentPairCode.length() == 6)
+                ? currentPairCode.substring(0, 3) + " " + currentPairCode.substring(3)
+                : "Yuklanmoqda...";
+        codeView.setText(formattedCode);
+        codeView.setTextSize(36f);
+        codeView.setTypeface(null, Typeface.BOLD);
+        codeView.setTextColor(Color.parseColor("#38bdf8"));
+        codeView.setGravity(Gravity.CENTER);
+        codeView.setPadding(0, 16, 0, 20);
+        card.addView(codeView);
+
+        TextView desc = new TextView(this);
+        desc.setText("Ilovani Telegram hisobingizga ulash uchun ushbu kodni botingizga yuboring.\n\n🔒 Har bir a'zo o'z kodi orqali ulanadi, hech kim birovning nomini tanlay olmaydi.");
+        desc.setTextSize(14f);
+        desc.setTextColor(Color.parseColor("#cbd5e1"));
+        desc.setGravity(Gravity.CENTER);
+        desc.setLineSpacing(4f, 1.15f);
+        card.addView(desc);
+
+        contentLayout.addView(card);
+
+        Button btnSend = createStyledButton("✈️ Kodni Telegram Botga yuborish", "#6366f1");
+        btnSend.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (currentPairCode != null && !currentPairCode.isEmpty()) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot?start=pair_" + currentPairCode)));
+                    } catch (Exception ignored) {}
+                } else {
+                    Toast.makeText(MainActivity.this, "Kod yuklanmoqda...", Toast.LENGTH_SHORT).show();
+                    fetchNewPairCode();
+                }
+            }
+        });
+        contentLayout.addView(btnSend);
+
+        fetchNewPairCode();
+    }
+
+    private void renderActiveSensorUI(final String uid) {
+        TextView statusBadge = new TextView(this);
         statusBadge.setText("🟢 24/7 Fon GPS Datchigi Faol");
         statusBadge.setTextSize(15f);
         statusBadge.setTypeface(null, Typeface.BOLD);
@@ -86,22 +203,19 @@ public class MainActivity extends Activity {
         badgeBg.setCornerRadius(24f);
         badgeBg.setStroke(2, Color.parseColor("#10b981"));
         statusBadge.setBackground(badgeBg);
-        layout.addView(statusBadge);
+        contentLayout.addView(statusBadge);
 
-        userSelectedText = new TextView(this);
-        userSelectedText.setTextSize(18f);
-        userSelectedText.setTypeface(null, Typeface.BOLD);
-        userSelectedText.setTextColor(Color.parseColor("#38bdf8"));
-        userSelectedText.setGravity(Gravity.CENTER);
-        userSelectedText.setPadding(0, 32, 0, 16);
-        userSelectedText.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                promptMemberChoice();
-            }
-        });
-        updateUserText();
-        layout.addView(userSelectedText);
+        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
+        String name = sp.getString("name", "Oila a'zosi");
+
+        TextView userText = new TextView(this);
+        userText.setText("👤 " + name);
+        userText.setTextSize(20f);
+        userText.setTypeface(null, Typeface.BOLD);
+        userText.setTextColor(Color.parseColor("#38bdf8"));
+        userText.setGravity(Gravity.CENTER);
+        userText.setPadding(0, 24, 0, 16);
+        contentLayout.addView(userText);
 
         TextView descBox = new TextView(this);
         descBox.setText("⚠️ DIQQAT: Bu ilova 3D uyga kirish uchun EMAS!\nU faqat Telegramdan chiqib ketganingizda ham fonda GPS joylashuvni uzatib turuvchi datchik.\n\n🏠 3D Uyga esa TELEGRAM bot orqali kiriladi!");
@@ -119,53 +233,66 @@ public class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        descParams.setMargins(0, 32, 0, 32);
+        descParams.setMargins(0, 24, 0, 28);
         descBox.setLayoutParams(descParams);
-        layout.addView(descBox);
+        contentLayout.addView(descBox);
 
         Button btnTg = createStyledButton("✈️ Telegram Botni ochish", "#6366f1");
         btnTg.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                String uid = getSavedUid();
-                if (!uid.isEmpty()) {
-                    sendApkPing(uid);
-                    sendImmediateRealLocation(uid);
-                }
+                sendApkPing(uid);
+                sendImmediateRealLocation(uid);
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot?start=xona")));
                 } catch (Exception ignored) {}
             }
         });
-        layout.addView(btnTg);
+        contentLayout.addView(btnTg);
 
-        scrollView.addView(layout);
-        setContentView(scrollView);
+        TextView rebindBtn = new TextView(this);
+        rebindBtn.setText("🔄 Qurilmani boshqa hisobga qayta ulash");
+        rebindBtn.setTextSize(13f);
+        rebindBtn.setTextColor(Color.parseColor("#64748b"));
+        rebindBtn.setGravity(Gravity.CENTER);
+        rebindBtn.setPadding(0, 36, 0, 16);
+        rebindBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                saveUid("", "");
+                currentPairCode = null;
+                renderUI();
+            }
+        });
+        contentLayout.addView(rebindBtn);
 
-        String curUid = getSavedUid();
-        if (curUid.isEmpty()) {
-            promptMemberChoice();
-        } else {
-            sendApkPing(curUid);
-            sendImmediateRealLocation(curUid);
-            startGpsService();
-        }
-
-        requestNeededPermissions();
+        sendApkPing(uid);
+        sendImmediateRealLocation(uid);
+        startGpsService();
     }
 
-    private void promptMemberChoice() {
+    private void fetchNewPairCode() {
+        if (!getSavedUid().isEmpty()) return;
         new Thread(new Runnable() {
             @Override
             public void run() {
-                final List<String> namesList = new ArrayList<>();
-                final List<String> idsList = new ArrayList<>();
                 try {
-                    URL url = new URL("https://oila-ai.onrender.com/api/state");
+                    URL url = new URL("https://oila-ai.onrender.com/api/pair/request");
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                    conn.setRequestMethod("GET");
-                    conn.setConnectTimeout(5000);
-                    conn.setReadTimeout(5000);
+                    conn.setRequestMethod("POST");
+                    conn.setConnectTimeout(6000);
+                    conn.setReadTimeout(6000);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+
+                    String reqJson = "{\"deviceId\":\"" + getOrCreateDeviceId() + "\"}";
+                    byte[] b = reqJson.getBytes(StandardCharsets.UTF_8);
+                    conn.setFixedLengthStreamingMode(b.length);
+                    OutputStream os = conn.getOutputStream();
+                    os.write(b);
+                    os.flush();
+                    os.close();
+
                     if (conn.getResponseCode() == 200) {
                         InputStream is = conn.getInputStream();
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -173,52 +300,84 @@ public class MainActivity extends Activity {
                         int r;
                         while ((r = is.read(buf)) != -1) baos.write(buf, 0, r);
                         is.close();
-                        JSONObject obj = new JSONObject(baos.toString("UTF-8"));
-                        JSONArray arr = obj.optJSONArray("members");
-                        if (arr != null) {
-                            for (int i = 0; i < arr.length(); i++) {
-                                JSONObject m = arr.optJSONObject(i);
-                                if (m == null || m.optBoolean("isAi", false)) continue;
-                                namesList.add(m.optString("name", "A'zo"));
-                                idsList.add(String.valueOf(m.optLong("id")));
-                            }
+                        JSONObject res = new JSONObject(baos.toString("UTF-8"));
+                        if (res.optBoolean("ok", false)) {
+                            currentPairCode = res.optString("code", "");
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    if (getSavedUid().isEmpty()) {
+                                        renderUI();
+                                    }
+                                }
+                            });
+                            startPairPolling();
                         }
                     }
-                    conn.disconnect();
                 } catch (Exception ignored) {}
-
-                if (namesList.isEmpty()) {
-                    namesList.add("Jamshid");
-                    idsList.add("6280077746");
-                    namesList.add("Dilrabo");
-                    idsList.add("1512600413");
-                }
-
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (isFinishing()) return;
-                        AlertDialog.Builder b = new AlertDialog.Builder(MainActivity.this);
-                        b.setTitle("👤 O'zingizni tanlang:");
-                        b.setItems(namesList.toArray(new String[0]), new DialogInterface.OnClickListener() {
-                            @Override
-                            public void onClick(DialogInterface dialog, int which) {
-                                String selectedId = idsList.get(which);
-                                String selectedName = namesList.get(which);
-                                saveUid(selectedId, selectedName);
-                                updateUserText();
-                                sendApkPing(selectedId);
-                                sendImmediateRealLocation(selectedId);
-                                startGpsService();
-                                Toast.makeText(MainActivity.this, "✅ " + selectedName + " tanlandi", Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                        b.setCancelable(!getSavedUid().isEmpty());
-                        b.show();
-                    }
-                });
             }
         }).start();
+    }
+
+    private void startPairPolling() {
+        if (isPollingPair) return;
+        isPollingPair = true;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (isPollingPair && !isFinishing() && getSavedUid().isEmpty()) {
+                    if (currentPairCode == null || currentPairCode.isEmpty()) {
+                        try { Thread.sleep(2000); } catch (InterruptedException e) { break; }
+                        continue;
+                    }
+                    try {
+                        String urlStr = "https://oila-ai.onrender.com/api/pair/status?code=" + currentPairCode + "&deviceId=" + getOrCreateDeviceId();
+                        URL url = new URL(urlStr);
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                        conn.setRequestMethod("GET");
+                        conn.setConnectTimeout(5000);
+                        conn.setReadTimeout(5000);
+                        if (conn.getResponseCode() == 200) {
+                            InputStream is = conn.getInputStream();
+                            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                            byte[] buf = new byte[1024];
+                            int r;
+                            while ((r = is.read(buf)) != -1) baos.write(buf, 0, r);
+                            is.close();
+                            JSONObject res = new JSONObject(baos.toString("UTF-8"));
+                            if (res.optBoolean("paired", false)) {
+                                String uid = res.optString("uid", "");
+                                String name = res.optString("name", "Oila a'zosi");
+                                if (!uid.isEmpty()) {
+                                    saveUid(uid, name);
+                                    isPollingPair = false;
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            Toast.makeText(MainActivity.this, "✅ Muvaffaqiyatli ulandi!", Toast.LENGTH_SHORT).show();
+                                            renderUI();
+                                        }
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                    try { Thread.sleep(2000); } catch (InterruptedException e) { break; }
+                }
+                isPollingPair = false;
+            }
+        }).start();
+    }
+
+    private String getOrCreateDeviceId() {
+        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
+        String devId = sp.getString("device_id", "");
+        if (devId.isEmpty()) {
+            devId = UUID.randomUUID().toString();
+            sp.edit().putString("device_id", devId).apply();
+        }
+        return devId;
     }
 
     private Button createStyledButton(String text, String colorHex) {
@@ -236,29 +395,12 @@ public class MainActivity extends Activity {
         return btn;
     }
 
-    private void updateUserText() {
-        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
-        String name = sp.getString("name", "");
-        if (!name.isEmpty()) {
-            userSelectedText.setText("👤 " + name);
-        } else {
-            String uid = getSavedUid();
-            if ("6280077746".equals(uid)) {
-                userSelectedText.setText("👤 Jamshid");
-            } else if ("1512600413".equals(uid)) {
-                userSelectedText.setText("👤 Dilrabo");
-            } else {
-                userSelectedText.setText("👤 O'zingizni tanlang");
-            }
-        }
-    }
-
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         if (handleIncomingIntent(intent)) {
-            updateUserText();
+            renderUI();
         }
     }
 
@@ -273,7 +415,6 @@ public class MainActivity extends Activity {
                     name = "1512600413".equals(uid) ? "Dilrabo" : "Jamshid";
                 }
                 saveUid(uid.trim(), name);
-                updateUserText();
                 sendApkPing(uid.trim());
                 sendImmediateRealLocation(uid.trim());
                 startGpsService();

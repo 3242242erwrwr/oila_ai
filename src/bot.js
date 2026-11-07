@@ -320,6 +320,36 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
+    // 6 xonali kod orqali ulanish: /start pair_123456 yoki /start 123456
+    const pairMatch = (ctx.message?.text || '').match(/(?:pair_|\s+)(\d{6})(?:\b|$)/i);
+    if (pairMatch) {
+      const code = pairMatch[1];
+      const paired = store.matchPairCode(code, id, ctx.from?.first_name || 'Oila a\'zosi');
+      if (paired) {
+        const baseUrl = getPublicUrlFn();
+        const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=45`;
+        const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
+        await ctx.reply(
+          `✅ *Qurilmangiz muvaffaqiyatli ulandi!*\n\n` +
+          `👤 *${paired.name}* — Telefoningiz hisobingizga biriktirildi.\n` +
+          `🟢 24/7 Fon GPS datchigi endi sizning nomingizdan ishlaydi.\n\n` +
+          `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+        await ctx.reply(`Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`, {
+          reply_markup: mainKeyboard(),
+        });
+        return;
+      } else {
+        await ctx.reply(
+          `⚠️ *Kiritilgan ulanish kodi (${code}) topilmadi yoki muddati o'tgan.*\n\n` +
+          `Iltimos, ilovani ochib, ekrandagi 6 xonali yangi kodni yuboring.`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+    }
+
     const m = store.get(id);
 
     // 1. Agar a'zo bo'lgan va ilovani o'rnatgan bo'lsa: darhol uyga kirish tugmasi chiqadi
@@ -486,6 +516,29 @@ async function startBot(token, onStatus, options = {}) {
     if (text === BTN_JOIN) {
       await beginWizard(ctx, Boolean(store.get(id)));
       return;
+    }
+
+    // 6 xonali ulanish kodi yuborilgan bo'lsa:
+    const sixDigitMatch = text.replace(/\s+/g, '').match(/^(\d{6})$/);
+    if (sixDigitMatch) {
+      const code = sixDigitMatch[1];
+      const paired = store.matchPairCode(code, id, ctx.from?.first_name || 'Oila a\'zosi');
+      if (paired) {
+        const baseUrl = getPublicUrlFn();
+        const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${id}&v=45`;
+        const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
+        await ctx.reply(
+          `✅ *Qurilmangiz muvaffaqiyatli ulandi!*\n\n` +
+          `👤 *${paired.name}* — Telefoningiz hisobingizga biriktirildi.\n` +
+          `🟢 24/7 Fon GPS datchigi endi sizning nomingizdan ishlaydi.\n\n` +
+          `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+          { parse_mode: 'Markdown', reply_markup: ikb }
+        );
+        await ctx.reply(`Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`, {
+          reply_markup: mainKeyboard(),
+        });
+        return;
+      }
     }
 
     // 1. Ro'yxatdan o'tish / Profil savol-javobi: 1. Ism -> 2. Yosh -> 3. Kasb

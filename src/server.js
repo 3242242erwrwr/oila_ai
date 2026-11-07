@@ -160,6 +160,33 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
+    // 2.6 Qurilmani 6 xonali kod orqali Telegramga ulash API lari
+    if (pathname === '/api/pair/request' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { if (body.length < 2048) body += chunk; });
+      req.on('end', () => {
+        try {
+          const payload = JSON.parse(body || '{}');
+          const code = store.createPairCode(payload.deviceId || '');
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: true, code, expiresIn: 900 }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+        }
+      });
+      return;
+    }
+
+    if (pathname === '/api/pair/status' && req.method === 'GET') {
+      const code = u.searchParams.get('code') || '';
+      const deviceId = u.searchParams.get('deviceId') || '';
+      const status = store.getPairStatus(code, deviceId);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, ...status }));
+      return;
+    }
+
     // 3. 3D Xonadan personaj ustiga bosib xabar yozish yoki holat o'zgartirish
     if (pathname === '/api/action' && req.method === 'POST') {
       let body = '';
