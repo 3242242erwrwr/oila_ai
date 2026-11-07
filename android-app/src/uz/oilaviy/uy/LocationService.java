@@ -242,6 +242,7 @@ public class LocationService extends Service implements LocationListener {
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
             String json = "{\"type\":\"auto_location\",\"id\":" + uid
+                    + ",\"source\":\"android_apk\""
                     + ",\"lat\":" + lat
                     + ",\"lon\":" + lon
                     + ",\"accuracy\":" + acc + "}";

@@ -20,18 +20,11 @@
       },
       "joinedAt": "2026-11-06T14:42:17.376Z",
       "updatedAt": "2026-11-06T17:38:30.573Z",
-      "location": {
-        "lat": 40.641202,
-        "lon": 72.252158,
-        "accuracy": null,
-        "live": false,
-        "liveUntil": null,
-        "at": "2026-11-06T15:01:18.656Z"
-      },
       "gender": "male",
       "age": 39,
       "job": "taxi",
-      "statusAt": "2026-11-06T17:38:30.573Z"
+      "statusAt": "2026-11-06T17:38:30.573Z",
+      "apkInstalled": false
     },
     {
       "id": 1512600413,
@@ -56,7 +49,8 @@
       "gender": "female",
       "age": 34,
       "job": "housewife",
-      "statusAt": "2026-11-06T17:50:19.897Z"
+      "statusAt": "2026-11-06T17:50:19.897Z",
+      "apkInstalled": false
     }
   ],
   "home": {
