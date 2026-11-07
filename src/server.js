@@ -14,6 +14,7 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.apk': 'application/vnd.android.package-archive',
 };
 
 const ROOT = path.join(__dirname, '..');

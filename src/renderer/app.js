@@ -48,10 +48,12 @@ document.getElementById('map-fit').addEventListener('click', () => {
   fmap.fit();
 });
 
-// ---------- PWA Ilova o'rnatish (1 ta tugma bilan telefonga o'rnatish) ----------
+// ---------- PWA / APK Ilova o'rnatish ----------
 const installBtn = document.getElementById('install-btn');
 let deferredInstallPrompt = null;
+const isAndroidApk = Boolean(window.AndroidBridge);
 const isStandalone =
+  isAndroidApk ||
   window.matchMedia?.('(display-mode: standalone)')?.matches ||
   window.navigator?.standalone === true;
 
@@ -61,6 +63,8 @@ if ('serviceWorker' in navigator) {
 
 if (!isStandalone && installBtn) {
   installBtn.style.display = 'inline-flex';
+} else if (installBtn) {
+  installBtn.style.display = 'none';
 }
 
 window.addEventListener('beforeinstallprompt', (e) => {
@@ -80,6 +84,11 @@ window.addEventListener('appinstalled', () => {
 if (installBtn) {
   installBtn.addEventListener('click', async () => {
     pollLocationOnce(true, true);
+    if (myUid && api?.sendRoomAction) {
+      api.sendRoomAction({ type: 'send_apk', id: Number(myUid) }).catch(() => {});
+      toast('📥 "Oilaviy_Uy.apk" dasturi Telegram botingizga yuborildi! Botga kirib o\'rnatib oling.');
+      return;
+    }
     if (deferredInstallPrompt) {
       deferredInstallPrompt.prompt();
       const { outcome } = await deferredInstallPrompt.userChoice;
@@ -88,7 +97,7 @@ if (installBtn) {
       }
       deferredInstallPrompt = null;
     } else {
-      toast('📲 Yuqori o\'ng burchakdagi "⋮" menyuni bosib "Установить приложение / Добавить на гл. экран" ni tanlang!');
+      window.location.href = '/Oilaviy_Uy.apk';
     }
   });
 }
@@ -259,6 +268,11 @@ function sync(members, animate) {
 
   renderPanel(members, spots);
   fmap.update(members);
+
+  if (isMobileOrTelegramApp && !myUid && !charWrap.classList.contains('open')) {
+    const firstHuman = members.find((m) => !m.isAi);
+    if (firstHuman) openCharModal(firstHuman);
+  }
 }
 
 // ---------- Panel ----------
@@ -507,11 +521,24 @@ let selectedTargetId = '';
 // Foydalanuvchining o'z Telegram ID si (birovning nomidan yozilmasligi uchun!)
 const tgUserId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
 const urlUid = new URLSearchParams(window.location.search).get('uid');
-const verifiedUid = String(tgUserId || urlUid || '');
+const androidSavedUid = (() => {
+  try {
+    return window.AndroidBridge?.getUserId?.() || '';
+  } catch {
+    return '';
+  }
+})();
+const verifiedUid = String(tgUserId || urlUid || androidSavedUid || '');
 let myUid = String(verifiedUid || localStorage.getItem('family_uid') || '');
-if (verifiedUid) localStorage.setItem('family_uid', verifiedUid);
+if (myUid) {
+  localStorage.setItem('family_uid', myUid);
+  try {
+    window.AndroidBridge?.setUserId?.(String(myUid));
+  } catch {}
+}
 
 const isMobileOrTelegramApp =
+  isAndroidApk ||
   Boolean(tgUserId) ||
   isStandalone ||
   /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
@@ -791,7 +818,10 @@ function openCharModal(member) {
       pill.addEventListener('click', () => {
         myUid = String(m.id);
         localStorage.setItem('family_uid', myUid);
-        pollLocationOnce(true);
+        try {
+          window.AndroidBridge?.setUserId?.(myUid);
+        } catch {}
+        pollLocationOnce(true, true);
         openCharModal(latest);
       });
       senderList.append(pill);

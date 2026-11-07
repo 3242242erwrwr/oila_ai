@@ -1,7 +1,9 @@
 // Telegram bot:
 // - Barcha funksiyalar va tugmalar ("🎭 Holatni o'zgartirish" va "🏠 3D Uyni ochish") ham "Oila_3d_room" guruhida, ham lichkada ishlaydi!
 // - Boshqa (eski) guruhlardan bot avtomatik chiqib ketadi.
-const { Bot, Keyboard, InlineKeyboard } = require('grammy');
+const path = require('path');
+const fs = require('fs');
+const { Bot, Keyboard, InlineKeyboard, InputFile } = require('grammy');
 const store = require('./store');
 const { JOBS } = store;
 const { handleRobotCommand, handlePetCommand, AI_IDS } = require('./ai');
@@ -140,27 +142,52 @@ function isAllowedGroup(chat) {
 let bot = null;
 let getPublicUrlFn = () => 'http://localhost:3847';
 
+const APK_PATH = path.join(__dirname, 'renderer', 'Oilaviy_Uy.apk');
+
+async function sendApkToChat(chatId) {
+  if (!bot || !chatId || !fs.existsSync(APK_PATH)) return false;
+  await bot.api.sendDocument(
+    chatId,
+    new InputFile(APK_PATH, 'Oilaviy_Uy.apk'),
+    {
+      caption:
+        "📲 *Oilaviy Uy — Rasmiy Android Ilova (.apk)*\n\n" +
+        "1️⃣ Shu fayl ustiga bosib *\"Установить\" (O'rnatish)* ni tanlang.\n" +
+        "2️⃣ Ilovani ochib, o'zingizni tanlang va joylashuvga *\"Разрешить в любом режиме\" (Har doim ruxsat berish)* ni bering.\n\n" +
+        "✅ Shundan so'ng ilova va Telegram yopiq bo'lsa ham (cho'ntakda ham) **24/7 Real-Time** joylashuvni uzatadi!",
+      parse_mode: 'Markdown',
+    }
+  );
+  return true;
+}
+
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=23`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=24`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl);
+        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
+        .row()
+        .text("📥 Android Ilovani (.apk) o'rnatish", 'download_apk');
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy (Ilova)*\n\nKirish uchun pastdagi tugmani bosing:`,
+        `🏠 *Oilaviy 3D Uy (Ilova)*\n\n` +
+        `• Hoziroq kirish uchun: *🏠 3D Uyni ochish (Ilova)*\n` +
+        `• Telefon yopiq (cho'ntakda) paytda ham 24/7 GPS ishlashi uchun: *📥 Android Ilovani (.apk) o'rnatish*`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
       const personalIkb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl);
+        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
+        .row()
+        .text("📥 Android Ilovani (.apk) o'rnatish", 'download_apk');
       await bot.api.sendMessage(
         uid,
-        `🏠 *Oilaviy 3D Uy (Ilova)*\n\nKirish uchun pastdagi tugmani bosing:`,
+        `🏠 *Oilaviy 3D Uy (Ilova)*\n\nKirish yoki Android (.apk) ilovani o'rnatish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
@@ -269,6 +296,15 @@ async function startBot(token, onStatus, options = {}) {
   });
 
   bot.command('xona', sendRoomLink);
+
+  bot.command('apk', async (ctx) => {
+    await sendApkToChat(ctx.chat?.id);
+  });
+
+  bot.callbackQuery('download_apk', async (ctx) => {
+    await ctx.answerCallbackQuery({ text: '📥 Oilaviy_Uy.apk yuborilmoqda...' }).catch(() => {});
+    await sendApkToChat(ctx.chat?.id || ctx.from?.id);
+  });
 
   bot.command('profil', async (ctx) => {
     if (ctx.chat?.type !== 'private') return;
@@ -623,6 +659,12 @@ async function handleRoomAction(payload) {
       live: true,
       liveUntil: Date.now() + 300_000,
     });
+    return;
+  }
+
+  if (payload.type === 'send_apk') {
+    const id = Number(payload.id);
+    if (id) await sendApkToChat(id).catch(() => {});
     return;
   }
 
