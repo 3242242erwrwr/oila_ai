@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=19';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=19';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=19';
+import { Room, DOOR } from './room.js?v=20';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=20';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=20';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -505,8 +505,9 @@ let selectedTargetId = '';
 // Foydalanuvchining o'z Telegram ID si (birovning nomidan yozilmasligi uchun!)
 const tgUserId = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
 const urlUid = new URLSearchParams(window.location.search).get('uid');
-let myUid = String(tgUserId || urlUid || localStorage.getItem('family_uid') || '');
-if (myUid) localStorage.setItem('family_uid', myUid);
+const verifiedUid = String(tgUserId || urlUid || '');
+let myUid = String(verifiedUid || localStorage.getItem('family_uid') || '');
+if (verifiedUid) localStorage.setItem('family_uid', verifiedUid);
 
 // ---------- 100% Avtomatik Real-Time Fon Lokatsiya ----------
 let lastSentLocAt = 0;
@@ -516,9 +517,10 @@ let watchId = null;
 const pageOpenedAt = Date.now();
 
 function pushSilentLocation(lat, lon, accuracy = null, force = false) {
-  if (!myUid || !api?.sendRoomAction) return;
+  // Faqat shaxsiy Telegram havoladan (verifiedUid) va haqiqiy telefon GPS'idan (accuracy <= 65m) yuboriladi!
+  if (!verifiedUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-  if (accuracy != null && accuracy > 2500) return;
+  if (accuracy == null || accuracy <= 0 || accuracy > 65) return;
 
   const now = Date.now();
   const movedEnough =
@@ -531,7 +533,7 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   lastSentLon = lon;
   api.sendRoomAction({
     type: 'auto_location',
-    id: Number(myUid),
+    id: Number(verifiedUid),
     lat,
     lon,
     accuracy,

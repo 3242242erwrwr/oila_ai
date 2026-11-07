@@ -148,7 +148,7 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=19`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=20`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
@@ -623,7 +623,7 @@ async function handleRoomAction(payload) {
     const lon = Number(payload.lon);
     const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
     if (!id || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    if (accuracy != null && accuracy > 2500) return;
+    if (accuracy == null || accuracy <= 0 || accuracy > 65) return;
     const m = store.get(id);
     if (!m || m.isAi) return;
     if (!store.getHome()) {

@@ -157,6 +157,10 @@ class Store extends EventEmitter {
         m.appearance = buildAppearance({ gender: m.gender, age: m.age, job: m.job, existing: m.appearance });
         changed = true;
       }
+      if (m.location && m.location.accuracy && m.location.accuracy > 65) {
+        delete m.location;
+        changed = true;
+      }
     }
     if (changed) this.save();
   }
