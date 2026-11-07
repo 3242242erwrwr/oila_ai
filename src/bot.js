@@ -145,26 +145,35 @@ let getPublicUrlFn = () => 'http://localhost:3847';
 const APK_PATH = path.join(__dirname, 'renderer', 'Oilaviy_Uy.apk');
 
 async function sendApkToChat(chatId) {
-  if (!bot || !chatId || !fs.existsSync(APK_PATH)) return false;
-  await bot.api.sendDocument(
-    chatId,
-    new InputFile(APK_PATH, 'Oilaviy_Uy.apk'),
-    {
-      caption:
-        "📲 *Oilaviy Uy — Rasmiy Android Ilova (.apk)*\n\n" +
-        "1️⃣ Shu fayl ustiga bosib *\"Установить\" (O'rnatish)* ni tanlang.\n" +
-        "2️⃣ Ilovani ochib, o'zingizni tanlang va joylashuvga *\"Разрешить в любом режиме\" (Har doim ruxsat berish)* ni bering.\n\n" +
-        "✅ Shundan so'ng ilova va Telegram yopiq bo'lsa ham (cho'ntakda ham) **24/7 Real-Time** joylashuvni uzatadi!",
-      parse_mode: 'Markdown',
+  try {
+    if (!bot || !chatId || !fs.existsSync(APK_PATH)) {
+      console.warn('sendApkToChat: bot, chatId, or APK_PATH missing', { exists: fs.existsSync(APK_PATH) });
+      return false;
     }
-  );
-  return true;
+    await bot.api.sendDocument(
+      chatId,
+      new InputFile(APK_PATH, 'Oilaviy_Uy.apk'),
+      {
+        caption:
+          "📲 *Oilaviy Uy — Rasmiy Android Ilova (.apk)*\n\n" +
+          "1️⃣ Shu fayl ustiga bosib *\"Установить\" (O'rnatish)* ni tanlang.\n" +
+          "2️⃣ Ilovani ochib, barcha so'ralgan ruxsatlarni berib qo'ying.\n\n" +
+          "✅ Shundan so'ng botdagi *\"🏠 3D Uyni ochish\"* tugmasi orqali uyga kirasiz!",
+        parse_mode: 'Markdown',
+      }
+    );
+    return true;
+  } catch (err) {
+    console.error('sendApkToChat error:', err.message || err);
+    return false;
+  }
 }
 
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=31`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=32`;
+  const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
   const m = uid ? store.get(uid) : null;
@@ -174,7 +183,9 @@ async function sendRoomLink(ctx) {
     if (isPrivate) {
       if (!isAppInstalled) {
         const ikb = new InlineKeyboard()
-          .text("📲 Ilovani o'rnatish", 'install_apk');
+          .text("📲 Ilovani o'rnatish", 'install_apk')
+          .row()
+          .url("🌐 To'g'ridan-to'g'ri yuklash", apkDownloadUrl);
         await ctx.reply(
           `⛔️ *Avval ilovani o'rnating!*\n\n` +
           `Ilovani o'rnatmaguncha 3D Uyga kirib bo'lmaydi.\n\n` +
@@ -282,8 +293,12 @@ async function startBot(token, onStatus, options = {}) {
       }
       const isAppInstalled = Boolean(m.apkInstalled);
       if (!isAppInstalled) {
+        const baseUrl = getPublicUrlFn();
+        const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
         const ikb = new InlineKeyboard()
-          .text("📲 Ilovani o'rnatish", 'install_apk');
+          .text("📲 Ilovani o'rnatish", 'install_apk')
+          .row()
+          .url("🌐 To'g'ridan-to'g'ri yuklash", apkDownloadUrl);
         await ctx.reply(
           `Xush kelibsiz, *${m.name}*! 👋\n\n` +
           `⛔️ *Avval ilovani o'rnating!*\n` +
@@ -319,9 +334,20 @@ async function startBot(token, onStatus, options = {}) {
     await sendApkToChat(ctx.chat?.id);
   });
 
+  bot.callbackQuery('install_apk', async (ctx) => {
+    await ctx.answerCallbackQuery({ text: '📲 Ilova yuborilmoqda...' }).catch(() => {});
+    const targetChatId = ctx.chat?.id || ctx.from?.id;
+    if (targetChatId) {
+      await sendApkToChat(targetChatId);
+    }
+  });
+
   bot.callbackQuery('download_apk', async (ctx) => {
-    await ctx.answerCallbackQuery({ text: '📥 Oilaviy_Uy.apk yuborilmoqda...' }).catch(() => {});
-    await sendApkToChat(ctx.chat?.id || ctx.from?.id);
+    await ctx.answerCallbackQuery({ text: '📲 Ilova yuborilmoqda...' }).catch(() => {});
+    const targetChatId = ctx.chat?.id || ctx.from?.id;
+    if (targetChatId) {
+      await sendApkToChat(targetChatId);
+    }
   });
 
   bot.command('profil', async (ctx) => {
