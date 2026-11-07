@@ -308,11 +308,13 @@ function renderPanel(members, spots = lastSpots) {
     if (!m.isAi) {
       const loc = document.createElement('div');
       loc.className = 'loc';
-      if (indoor) {
-        loc.textContent = '🔴 Jonli • 🏠 Uyda (0 m)';
+      const addrText = m.location?.address ? ` • 📍 ${m.location.address}` : '';
+      if (indoor && (!m.location || m.location.distance == null || m.location.distance <= 5)) {
+        loc.textContent = `🔴 Jonli • 🏠 Uyda (0 m)${addrText}`;
       } else if (m.location) {
-        const dist = m.location.distance != null ? ` • ${formatDistance(m.location.distance)}` : '';
-        loc.textContent = `${isLive(m.location) ? '🔴' : '📍'} ${timeAgo(m.location.at)}${dist}`;
+        const dVal = m.location.distance;
+        const dist = dVal != null ? (dVal <= 5 ? ' • 🏠 Uyda (0 m)' : ` • ${formatDistance(dVal)}`) : '';
+        loc.textContent = `${isLive(m.location) ? '🔴' : '📍'} ${timeAgo(m.location.at)}${dist}${addrText}`;
       } else {
         loc.textContent = '🔴 Jonli • 📍 Xaritada ko\'rish';
       }
@@ -524,13 +526,33 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   // Kompyuter (PC) Wi-Fi xatolarini bloklaymiz; faqat Telefon / Ilova / Telegram WebApp dan myUid bilan yuboriladi!
   if (!isMobileOrTelegramApp || !myUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  if (accuracy != null && accuracy > 65 && lastSentLat != null) return;
   if (accuracy != null && accuracy > 120) return;
 
   const now = Date.now();
-  const movedEnough =
-    lastSentLat == null ||
-    Math.hypot((lat - lastSentLat) * 111000, (lon - lastSentLon) * 85000) > 3;
-  if (!force && now - lastSentLocAt < 4000 && !movedEnough) return;
+  const distMoved =
+    lastSentLat == null
+      ? Infinity
+      : Math.hypot((lat - lastSentLat) * 111320, (lon - lastSentLon) * 85000);
+
+  // Silliqlash (Filtr): 4-5 metr va GPS aniqligi (accuracy) chegarasidan oshmaguncha nuqtani siljitmaymiz
+  const minRealMove = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+  const movedEnough = distMoved >= minRealMove;
+
+  if (!force && !movedEnough) {
+    // Har 25 soniyada faqat "Jonli" chirog'i o'chmasligi uchun oxirgi qimirlamagan nuqtani tasdiqlab qo'yamiz
+    if (lastSentLat != null && now - lastSentLocAt >= 25_000) {
+      lastSentLocAt = now;
+      api.sendRoomAction({
+        type: 'auto_location',
+        id: Number(myUid),
+        lat: lastSentLat,
+        lon: lastSentLon,
+        accuracy,
+      }).catch(() => {});
+    }
+    return;
+  }
 
   lastSentLocAt = now;
   lastSentLat = lat;
@@ -627,12 +649,12 @@ function startSilentAutoLocation() {
   const inAppMode = isStandalone || Boolean(tgUserId);
   pollLocationOnce(true, inAppMode);
 
-  // Har 5 soniyada Real-Time yangilab turadi
-  setInterval(() => pollLocationOnce(true, false), 5_000);
+  // Har 5 soniyada Real-Time tekshiradi (faqat 4-5 metrdan ortiq haqiqiy yurilganda yangilanadi, joyida tursa sakramaydi!)
+  setInterval(() => pollLocationOnce(false, false), 5_000);
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      pollLocationOnce(true, false);
+      pollLocationOnce(false, false);
     }
   });
 }

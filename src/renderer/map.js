@@ -50,6 +50,8 @@ export class FamilyMap {
     this.mapEl = mapEl;
     this.map = null;
     this.markers = new Map();
+    this.addrCache = new Map();
+    this.addrPending = new Set();
     this.homeLayer = null;
     this.members = [];
     this.home = null;
@@ -125,12 +127,51 @@ export class FamilyMap {
     return L.divIcon({ html: root, className: 'pin-icon', iconSize: [40, 56], iconAnchor: [20, 40], popupAnchor: [0, -38] });
   }
 
+  getAddress(loc) {
+    if (loc.address) return loc.address;
+    const key = `${loc.lat.toFixed(4)},${loc.lon.toFixed(4)}`;
+    if (this.addrCache.has(key)) return this.addrCache.get(key);
+    if (!this.addrPending.has(key)) {
+      this.addrPending.add(key);
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${loc.lat}&lon=${loc.lon}&zoom=18&accept-language=uz`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (!data) return;
+          const a = data.address || {};
+          const city = a.city || a.town || a.county || a.district || a.municipality || a.state || '';
+          const area = a.suburb || a.neighbourhood || a.quarter || a.village || a.hamlet || '';
+          const road = a.road || a.pedestrian || a.residential || '';
+          const house = a.house_number ? `${a.house_number}-uy` : '';
+          const parts = [];
+          if (city) parts.push(city);
+          if (area && area !== city) parts.push(area);
+          if (road && road !== area && road !== city) parts.push(road);
+          if (house) parts.push(house);
+          const formatted = parts.join(', ') || (data.display_name ? data.display_name.split(',').slice(0, 3).join(', ').trim() : '');
+          if (formatted) {
+            this.addrCache.set(key, formatted);
+            if (this.map && this.isOpen) this.render();
+          }
+        })
+        .catch(() => {})
+        .finally(() => this.addrPending.delete(key));
+    }
+    return null;
+  }
+
   makePopup(m, loc) {
     const box = el('div', 'pop');
     box.append(el('div', 'pop-name', m.name));
     box.append(el('div', null, STATUS_TEXT[m.status] || ''));
-    box.append(el('div', 'pop-sub', `${isLive(loc) ? '🔴 Jonli • ' : '📍 '}${timeAgo(loc.at)}`));
-    if (loc.distance != null) box.append(el('div', 'pop-sub', `🏠 Uydan ${formatDistance(loc.distance)}`));
+    const addr = this.getAddress(loc);
+    if (addr) {
+      box.append(el('div', 'pop-sub', `📍 ${addr}`));
+    }
+    box.append(el('div', 'pop-sub', `${isLive(loc) ? '🔴 Jonli • ' : '🕒 '}${timeAgo(loc.at)}`));
+    if (loc.distance != null) {
+      const distLabel = loc.distance <= 5 ? '🏠 Uyda (0 m)' : `🏠 Uydan ${formatDistance(loc.distance)}`;
+      box.append(el('div', 'pop-sub', distLabel));
+    }
     if (loc.accuracy) box.append(el('div', 'pop-sub', `🎯 Aniqlik: ±${Math.round(loc.accuracy)} m`));
     return box;
   }

@@ -289,27 +289,116 @@ class Store extends EventEmitter {
     const m = this.get(id);
     if (!m) return null;
     const now = new Date().toISOString();
-    m.location = { ...loc, at: now };
+    let lat = Number(loc.lat);
+    let lon = Number(loc.lon);
+    const accuracy = loc.accuracy != null ? Number(loc.accuracy) : null;
+
+    // 1. Silliqlash (Filtr): telefon qimirlamay turganda GPS tebranishini (drift) hisobga olmaymiz
+    const prev = m.location;
+    if (prev && Number.isFinite(prev.lat) && Number.isFinite(prev.lon)) {
+      if (accuracy != null && accuracy > 60) {
+        lat = prev.lat;
+        lon = prev.lon;
+      } else {
+        const stepDist = distanceMeters(prev.lat, prev.lon, lat, lon);
+        // 4-5 metr ichida yoki GPS xatoligi (accuracy) doirasidagi o'z-o'zidan sakrashlarni bloklaymiz
+        const minRealMove = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+        if (stepDist <= minRealMove) {
+          lat = prev.lat;
+          lon = prev.lon;
+        }
+      }
+    }
+
     let event = null;
-    const home = this.getHome();
+    let distance = 0;
+    let home = this.getHome();
     if (home) {
-      const dist = distanceMeters(home.lat, home.lon, loc.lat, loc.lon);
-      m.location.distance = Math.round(dist);
+      // Agar uyni belgilagan a'zo uyda bo'lsa va yangi sessiyada birinchi GPS kelsa (25m atrofida), Uy markazini aniq 0m nuqtaga tekislab olamiz
+      if (!prev && INDOOR_STATUSES.has(m.status) && distanceMeters(home.lat, home.lon, lat, lon) <= 25 && (!home.setBy || home.setBy === m.name)) {
+        this.data.home = { lat, lon, setBy: m.name, at: now };
+        home = this.data.home;
+      }
+      const rawDist = distanceMeters(home.lat, home.lon, lat, lon);
+      const minHomeExit = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+      // 2. Uy radiusi (0 m qoidasi): Uydan 4-5 metr ichida (yoki GPS tebranishi ichida) bo'lsa qat'iy 0 m ushlab turiladi
+      if (rawDist <= 5 || ((!prev || prev.distance === 0) && rawDist <= minHomeExit)) {
+        lat = home.lat;
+        lon = home.lon;
+        distance = 0;
+      } else {
+        distance = Math.round(rawDist);
+      }
+
       const indoor = INDOOR_STATUSES.has(m.status);
-      if (dist <= HOME_RADIUS && !indoor) {
+      if (distance <= HOME_RADIUS && !indoor) {
         m.status = 'home';
         m.statusAt = now;
         event = 'arrived';
-      } else if (dist > HOME_RADIUS + 50 && indoor) {
+      } else if (distance > HOME_RADIUS + 50 && indoor) {
         m.status = 'out';
         m.statusAt = now;
         event = 'left';
       }
     }
+
+    const sameSpot =
+      prev &&
+      Number.isFinite(prev.lat) &&
+      Number.isFinite(prev.lon) &&
+      distanceMeters(prev.lat, prev.lon, lat, lon) < 5;
+
+    m.location = {
+      ...loc,
+      lat,
+      lon,
+      accuracy,
+      distance,
+      address: sameSpot && prev?.address ? prev.address : (loc.address || prev?.address || null),
+      at: now,
+    };
+
     this.save();
     if (event) this.emit('moved', { id, name: m.name, event });
     this.emit('change');
+
+    if (!sameSpot || !m.location.address) {
+      this.resolveAddress(id, lat, lon).catch(() => {});
+    }
     return event;
+  }
+
+  async resolveAddress(id, lat, lon) {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&accept-language=uz`;
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'OilaviyUyApp/1.0 (https://oila-ai.onrender.com)',
+          Accept: 'application/json',
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const a = data?.address || {};
+      const city = a.city || a.town || a.county || a.district || a.municipality || a.state || '';
+      const area = a.suburb || a.neighbourhood || a.quarter || a.village || a.hamlet || '';
+      const road = a.road || a.pedestrian || a.residential || '';
+      const house = a.house_number ? `${a.house_number}-uy` : '';
+      const parts = [];
+      if (city) parts.push(city);
+      if (area && area !== city) parts.push(area);
+      if (road && road !== area && road !== city) parts.push(road);
+      if (house) parts.push(house);
+      const formatted = parts.join(', ') || (data?.display_name ? data.display_name.split(',').slice(0, 3).join(', ').trim() : '');
+      if (!formatted) return;
+
+      const m = this.get(id);
+      if (m && m.location) {
+        m.location.address = formatted;
+        this.save();
+        this.emit('change');
+      }
+    } catch {}
   }
 }
 
