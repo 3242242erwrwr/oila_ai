@@ -3,9 +3,7 @@ package uz.oilaviy.uy;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -23,6 +21,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -35,6 +34,9 @@ public class MainActivity extends Activity {
     private static final int REQ_PERMS = 1001;
     private static final int REQ_BG_LOC = 1002;
 
+    private static final String JAMSHID_ID = "6280077746";
+    private static final String DILRABO_ID = "1512600413";
+
     private TextView statusBadge;
     private TextView userSelectedText;
 
@@ -43,6 +45,11 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         handleIncomingIntent(getIntent());
+
+        String savedUid = getSavedUid();
+        if (savedUid.isEmpty()) {
+            saveUid(JAMSHID_ID, "Jamshid");
+        }
 
         ScrollView scrollView = new ScrollView(this);
         scrollView.setBackgroundColor(Color.parseColor("#0f0c24"));
@@ -91,7 +98,7 @@ public class MainActivity extends Activity {
         userSelectedText.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showMemberPickerDialog();
+                toggleUser();
             }
         });
         updateUserText();
@@ -132,34 +139,24 @@ public class MainActivity extends Activity {
         setContentView(scrollView);
 
         String curUid = getSavedUid();
-        if (!curUid.isEmpty()) {
-            sendApkPing(curUid);
-            startGpsService();
-        } else {
-            showMemberPickerDialog();
-        }
-        updateUserText();
+        sendApkPing(curUid);
+        startGpsService();
 
         requestNeededPermissions();
     }
 
-    private void showMemberPickerDialog() {
-        final String[] names = new String[]{"Jamshid", "Dilrabo"};
-        final String[] ids = new String[]{"6280077746", "1512600413"};
-
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("👤 Oila a'zosini tanlang:");
-        builder.setItems(names, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                saveUid(ids[which], names[which]);
-                updateUserText();
-                sendApkPing(ids[which]);
-                startGpsService();
-            }
-        });
-        builder.setCancelable(!getSavedUid().isEmpty());
-        builder.show();
+    private void toggleUser() {
+        String uid = getSavedUid();
+        if (DILRABO_ID.equals(uid)) {
+            saveUid(JAMSHID_ID, "Jamshid");
+            Toast.makeText(this, "👤 Jamshid tanlandi", Toast.LENGTH_SHORT).show();
+        } else {
+            saveUid(DILRABO_ID, "Dilrabo");
+            Toast.makeText(this, "👤 Dilrabo tanlandi", Toast.LENGTH_SHORT).show();
+        }
+        updateUserText();
+        sendApkPing(getSavedUid());
+        startGpsService();
     }
 
     private Button createStyledButton(String text, String colorHex) {
@@ -179,18 +176,10 @@ public class MainActivity extends Activity {
 
     private void updateUserText() {
         String uid = getSavedUid();
-        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
-        String name = sp.getString("name", "");
-        if (!name.isEmpty()) {
-            userSelectedText.setText("👤 " + name);
-        } else if ("6280077746".equals(uid)) {
-            userSelectedText.setText("👤 Jamshid");
-        } else if ("1512600413".equals(uid)) {
+        if (DILRABO_ID.equals(uid)) {
             userSelectedText.setText("👤 Dilrabo");
-        } else if (!uid.isEmpty()) {
-            userSelectedText.setText("👤 ID: " + uid);
         } else {
-            userSelectedText.setText("👤 Oila a'zosini tanlang");
+            userSelectedText.setText("👤 Jamshid");
         }
     }
 
@@ -211,7 +200,7 @@ public class MainActivity extends Activity {
             if (uid != null && !uid.trim().isEmpty()) {
                 String name = data.getQueryParameter("name");
                 if (name == null || name.trim().isEmpty()) {
-                    name = "6280077746".equals(uid) ? "Jamshid" : ("1512600413".equals(uid) ? "Dilrabo" : "A'zo");
+                    name = DILRABO_ID.equals(uid) ? "Dilrabo" : "Jamshid";
                 }
                 saveUid(uid.trim(), name);
                 return true;
@@ -223,8 +212,6 @@ public class MainActivity extends Activity {
     private void saveUid(String uid, String name) {
         SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
         sp.edit().putString("uid", uid).putString("name", name).apply();
-        sendApkPing(uid);
-        startGpsService();
     }
 
     private void sendApkPing(final String uid) {
@@ -260,7 +247,7 @@ public class MainActivity extends Activity {
 
     private String getSavedUid() {
         SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
-        return sp.getString("uid", "");
+        return sp.getString("uid", JAMSHID_ID);
     }
 
     private void requestNeededPermissions() {
@@ -298,12 +285,7 @@ public class MainActivity extends Activity {
 
     private void onForegroundPermissionsGranted() {
         startGpsService();
-        String uid = getSavedUid();
-        if (!uid.isEmpty()) {
-            sendApkPing(uid);
-        } else {
-            showMemberPickerDialog();
-        }
+        sendApkPing(getSavedUid());
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);
