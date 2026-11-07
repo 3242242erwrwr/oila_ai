@@ -164,39 +164,40 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=24`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=25`;
+  const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
+        .url("📲 Ha, Haqiqiy ilovani o'rnatish", apkDownloadUrl)
         .row()
-        .text("📥 Android Ilovani (.apk) o'rnatish", 'download_apk');
+        .webApp("🏠 Yo'q, Telegramda ochish", personalUrl);
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy (Ilova)*\n\n` +
-        `• Hoziroq kirish uchun: *🏠 3D Uyni ochish (Ilova)*\n` +
-        `• Telefon yopiq (cho'ntakda) paytda ham 24/7 GPS ishlashi uchun: *📥 Android Ilovani (.apk) o'rnatish*`,
+        `🏠 *Oilaviy 3D Uy*\n\n` +
+        `Telefon qulflanib cho'ntakda turganda ham **24/7 Real-Time manzil** ko'rsatib turishi uchun telefoningizga **Haqiqiy ilovani** o'rnatasizmi?`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
       const personalIkb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish (Ilova)", personalUrl)
+        .url("📲 Ha, Haqiqiy ilovani o'rnatish", apkDownloadUrl)
         .row()
-        .text("📥 Android Ilovani (.apk) o'rnatish", 'download_apk');
+        .webApp("🏠 Yo'q, Telegramda ochish", personalUrl);
       await bot.api.sendMessage(
         uid,
-        `🏠 *Oilaviy 3D Uy (Ilova)*\n\nKirish yoki Android (.apk) ilovani o'rnatish uchun pastdagi tugmani bosing:`,
+        `🏠 *Oilaviy 3D Uy*\n\n` +
+        `Telefon qulflanib cho'ntakda turganda ham **24/7 Real-Time manzil** ko'rsatib turishi uchun telefoningizga **Haqiqiy ilovani** o'rnatasizmi?`,
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
       const groupIkb = new InlineKeyboard()
-        .url("🏠 3D Uyni Ilova orqali ochish", `https://t.me/${botUsername}?start=xona`);
+        .url("🏠 3D Uyni ochish", `https://t.me/${botUsername}?start=xona`);
       await ctx.reply(
         "🏠 *Oilaviy 3D Uy*\n\n" +
-        "Ilova orqali kirish uchun pastdagi tugmani bosing:",
+        "Kirish yoki ilovani o'rnatish uchun pastdagi tugmani bosing:",
         { parse_mode: 'Markdown', reply_markup: groupIkb }
       );
     }
