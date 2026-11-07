@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=11';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=11';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=11';
+import { Room, DOOR } from './room.js?v=12';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=12';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=12';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -157,7 +157,19 @@ function sync(members, animate) {
       continue;
     }
 
+    const prevHeldKey = c.heldItemKey || '';
     c.setMember(m, spot?.waitingWc);
+    const heldChanged = (c.heldItemKey || '') !== prevHeldKey;
+
+    const faceTargetNow = () => {
+      if (m.job === 'robot' && m.deliverToId) {
+        const targetChar = chars.get(Number(m.deliverToId));
+        if (targetChar && targetChar.group.visible) {
+          targetChar.lookAtPosition(spot.pos, 14000);
+          c.lookAtPosition(targetChar.group.position, 14000);
+        }
+      }
+    };
 
     if (indoor && spot) {
       if (!c.wantHome) {
@@ -172,13 +184,17 @@ function sync(members, animate) {
         const poseChanged = c.spot?.pose !== spot.pose;
         if (posChanged) {
           if (animate && c.group.visible) {
-            c.moveTo(room.pathBetween(fromState(), spot), spot);
+            c.moveTo(room.pathBetween(fromState(), spot), spot, faceTargetNow);
           } else {
             c.placeAt(spot);
+            faceTargetNow();
           }
-        } else if (poseChanged) {
+        } else if (poseChanged || heldChanged) {
           c.spot = spot;
           c.applyPose(spot.pose || 'stand', 1);
+          faceTargetNow();
+        } else if (m.job === 'robot' && m.deliverToId) {
+          faceTargetNow();
         }
       }
     } else if (!indoor && c.wantHome) {

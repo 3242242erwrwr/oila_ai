@@ -914,10 +914,35 @@ export class Room {
         if (m.deliverToId) {
           const targetSpot = result.get(Number(m.deliverToId));
           if (targetSpot) {
-            const deliverPos = (targetSpot.approach || targetSpot.pos).clone();
-            if (deliverPos.distanceTo(targetSpot.pos) < 0.55) {
-              deliverPos.z += targetSpot.pos.z < 0 ? 0.85 : -0.85;
+            const fwdX = Math.sin(targetSpot.rotY || 0);
+            const fwdZ = Math.cos(targetSpot.rotY || 0);
+            const rightX = Math.cos(targetSpot.rotY || 0);
+            const rightZ = -Math.sin(targetSpot.rotY || 0);
+
+            let deliverPos;
+            if (targetSpot.pose === 'stand' || targetSpot.pose === 'cook') {
+              // Tik turgan odamning shundoq ro'parasida (yuzma-yuz) turadi
+              deliverPos = new THREE.Vector3(
+                targetSpot.pos.x + fwdX * 0.78,
+                0,
+                targetSpot.pos.z + fwdZ * 0.78
+              );
+            } else {
+              // Stulda yoki divanda o'tirgan odamning orqasida EMAS, stulning ochiq yon-old tomonida turadi!
+              const c1 = new THREE.Vector3(
+                targetSpot.pos.x + rightX * 0.74 - fwdX * 0.14,
+                0,
+                targetSpot.pos.z + rightZ * 0.74 - fwdZ * 0.14
+              );
+              const c2 = new THREE.Vector3(
+                targetSpot.pos.x - rightX * 0.74 - fwdX * 0.14,
+                0,
+                targetSpot.pos.z - rightZ * 0.74 - fwdZ * 0.14
+              );
+              const ref = NAV_NODES[targetSpot.node] || targetSpot.approach || targetSpot.pos;
+              deliverPos = c1.distanceTo(ref) <= c2.distanceTo(ref) ? c1 : c2;
             }
+
             const rotY = Math.atan2(
               targetSpot.pos.x - deliverPos.x,
               targetSpot.pos.z - deliverPos.z

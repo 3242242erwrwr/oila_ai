@@ -57,6 +57,7 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 let geminiDirectBlocked = false;
 let robotBusyUntil = 0;
 let robotStepTimers = [];
+const humanItemTimers = new Map();
 
 function clearRobotTimers() {
   for (const t of robotStepTimers) clearTimeout(t);
@@ -217,11 +218,26 @@ Foydalanuvchi buyrug'i: "${text}"`;
 
   // Rejadagi qadamlarni ketma-ket bajaramiz
   const steps = plan.steps.slice(0, 4);
+
+  // Agar buyruq beruvchi "ko'chada/ishda/o'qishda" bo'lsa-yu, Robotdan o'ziga biror narsa olib kelishni so'ragan bo'lsa, uni uyga (mehmonxonaga) kiritamiz
+  const needsCallerIndoor = steps.some((s) => s.deliverToId && Number(s.deliverToId) === Number(fromMember?.id));
+  if (fromMember && needsCallerIndoor && !INDOOR_ROOMS.includes(fromMember.status)) {
+    store.update(fromMember.id, { status: 'home' });
+  }
+
   steps.forEach((step, idx) => {
     const runStep = () => {
-      const targetStatus = VALID_STATUSES.has(step.status) ? step.status : robot.status;
+      let targetStatus = VALID_STATUSES.has(step.status) ? step.status : robot.status;
       const heldItem = step.item && typeof step.item === 'object' && step.item.label ? step.item : null;
       const delivId = step.deliverToId ? Number(step.deliverToId) : null;
+
+      // Agar aniq bir odamga yetkazib berilayotgan bo'lsa, o'sha odamning hozirgi xonasiga boradi
+      if (delivId && targetStatus !== 'out') {
+        const targetPerson = store.get(delivId);
+        if (targetPerson && INDOOR_ROOMS.includes(targetPerson.status)) {
+          targetStatus = targetPerson.status;
+        }
+      }
 
       // Agar Mushuk yoki It haqida gap ketgan bo'lsa
       if (step.callPets) {
@@ -237,14 +253,82 @@ Foydalanuvchi buyrug'i: "${text}"`;
       if (step.wakeMemberId) {
         const targetMember = store.get(Number(step.wakeMemberId));
         if (targetMember && targetMember.status === 'sleep') {
-          setTimeout(() => {
+          scheduleRobotStep(() => {
             store.update(Number(step.wakeMemberId), { status: 'home' });
             store.say(Number(step.wakeMemberId), "🥱 Uyqudan turdim, xayrli kun!", null);
-          }, 1500);
+          }, 4500);
         }
       }
 
-      if (step.reply) {
+      // Agar bu buyumni odamga eltib berish qadami bo'lsa:
+      if (heldItem && delivId && targetStatus !== 'out' && heldItem.type !== 'broom') {
+        if (idx > 0) {
+          store.say(
+            AI_IDS.ROBOT,
+            `🤖 ${heldItem.emoji || '✨'} ${heldItem.label}ni oldim, hozir yoningizga olib boryapman! 🏃‍♂️`,
+            null
+          );
+        }
+
+        // 1) Robot odamning oldiga yetib kelganda (~6.0s) asosiy gapini aytadi
+        scheduleRobotStep(() => {
+          if (step.reply) {
+            store.say(AI_IDS.ROBOT, step.reply, null);
+          }
+        }, 6000);
+
+        // 2) Oradan 1.4 soniya o'tgach (7.4s), odam buyumni Robotning qo'lidan o'z qo'liga oladi va munosabat bildiradi!
+        scheduleRobotStep(() => {
+          const recipient = store.get(delivId);
+          if (!recipient) return;
+
+          store.update(AI_IDS.ROBOT, { heldItem: null });
+          store.update(delivId, { heldItem });
+
+          if (humanItemTimers.has(delivId)) {
+            clearTimeout(humanItemTimers.get(delivId));
+          }
+          humanItemTimers.set(
+            delivId,
+            setTimeout(() => {
+              const pNow = store.get(delivId);
+              if (pNow && pNow.heldItem) {
+                store.update(delivId, { heldItem: null });
+              }
+              humanItemTimers.delete(delivId);
+            }, 22000)
+          );
+
+          let reaction = `😋 Katta rahmat, AI Robot! ${heldItem.label}ni oldim, qo'ling dard ko'rmasin! ${heldItem.emoji || '✨'}`;
+          if (heldItem.type === 'water') {
+            reaction = `🥤 Rahmat, AI Robot! Muzdek ${heldItem.label} juda maza ekan! 😋✨`;
+          } else if (heldItem.type === 'tea') {
+            reaction = `☕ Barakalla, AI Robot! Issiqqina ${heldItem.label} ayni muddao bo'ldi! 😊`;
+          } else if (heldItem.type === 'banana' || heldItem.type === 'apple' || heldItem.type === 'watermelon') {
+            reaction = `😋 Katta rahmat, AI Robot! ${heldItem.label} juda shirin ekan, maza qilib yeyapman! ${heldItem.emoji || '🍌'}`;
+          } else if (heldItem.type === 'food' || heldItem.type === 'cake') {
+            reaction = `🍽️ Voh, rahmat AI Robot! ${heldItem.label} juda mazali ko'rinyapti! 😋`;
+          }
+          store.say(delivId, reaction, null);
+        }, 7400);
+
+        // 3) Robot odamga "Osh bo'lsin!" deb javob qaytaradi (9.2s)
+        scheduleRobotStep(() => {
+          store.say(AI_IDS.ROBOT, "🤖 Osh bo'lsin! Yana xizmat bo'lsa, har doim tayyorman! 😊✨", null);
+        }, 9200);
+
+        // 4) Odam buyumni yeb/ichib bo'lgach (25s), qo'li bo'shaydi va Robot erkin holatga qaytadi
+        scheduleRobotStep(() => {
+          const pNow = store.get(delivId);
+          if (pNow && pNow.heldItem) {
+            store.update(delivId, { heldItem: null });
+          }
+          const rNow = store.get(AI_IDS.ROBOT);
+          if (rNow && (rNow.heldItem || rNow.deliverToId)) {
+            store.update(AI_IDS.ROBOT, { heldItem: null, deliverToId: null });
+          }
+        }, 25000);
+      } else if (step.reply) {
         store.say(AI_IDS.ROBOT, step.reply, null);
       }
     };
@@ -252,12 +336,12 @@ Foydalanuvchi buyrug'i: "${text}"`;
     if (idx === 0) {
       runStep();
     } else {
-      scheduleRobotStep(runStep, idx * 8500);
+      scheduleRobotStep(runStep, idx * 7000);
     }
   });
 
-  // Oxirgi qadamda patnisda narsa bo'lsa, foydalanuvchi ko'rib rohatlanishi uchun 45 soniyadan so'ng patnisni yig'ishtiradi
-  const totalDuration = (steps.length - 1) * 8500 + 45000;
+  // Zaxira tozalash: 45 soniyadan so'ng patnis va yetkazish holatini tozalash
+  const totalDuration = (steps.length - 1) * 7000 + 45000;
   scheduleRobotStep(() => {
     const rNow = store.get(AI_IDS.ROBOT);
     if (rNow && (rNow.heldItem || rNow.deliverToId)) {

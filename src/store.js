@@ -224,6 +224,9 @@ class Store extends EventEmitter {
     const now = new Date().toISOString();
     if (patch.status && patch.status !== m.status) {
       patch.statusAt = now;
+      if (!m.isAi && patch.heldItem === undefined) {
+        patch.heldItem = null;
+      }
     }
     Object.assign(m, patch, { updatedAt: now });
     this.save();

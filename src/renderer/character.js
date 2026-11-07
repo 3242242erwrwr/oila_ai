@@ -88,12 +88,15 @@ export class Character {
 
   buildRig(member) {
     this.body.clear();
+    if (this.itemLabel) this.body.add(this.itemLabel);
     const a = member.appearance || {};
     this.appearanceKey = JSON.stringify(a) + ':' + (member.job || '');
     this.mats = [];
     this.isQuadruped = member.job === 'cat' || member.job === 'dog';
     this.isRobot = member.job === 'robot';
     this.tail = null;
+    this.trayGroup = null;
+    this.heldItemKey = '';
 
     const m = (color) => {
       const mat = toon(color);
@@ -265,6 +268,13 @@ export class Character {
     this.buildHair(a.hairStyle || 0, hair);
     this.buildHat(a.hat || 'doppi', m);
     this.body.add(this.head);
+
+    // Odam personajlari ham qo'lida 3D buyum / taom / ichimlik ushlab tura oladi
+    this.trayGroup = new THREE.Group();
+    this.trayGroup.position.set(0, 0.48, 0.32);
+    this.trayGroup.visible = false;
+    this.body.add(this.trayGroup);
+    this.heldItemKey = '';
   }
 
   buildRobotRig(m) {
@@ -364,24 +374,33 @@ export class Character {
   }
 
   updateHeldItem(heldItem) {
-    if (!this.isRobot || !this.trayGroup) {
+    if (this.isQuadruped || !this.trayGroup) {
       if (this.itemBadgeEl) this.itemBadgeEl.style.display = 'none';
+      if (this.itemLabel) this.itemLabel.visible = false;
       return;
     }
     const key = heldItem ? `${heldItem.type}:${heldItem.emoji}:${heldItem.label}` : '';
-    if (key === this.heldItemKey) return;
+    if (key === this.heldItemKey) {
+      const vis = Boolean(heldItem) && this.group.visible;
+      if (this.itemBadgeEl) this.itemBadgeEl.style.display = vis ? '' : 'none';
+      if (this.itemLabel) this.itemLabel.visible = vis;
+      return;
+    }
     this.heldItemKey = key;
     this.trayGroup.clear();
 
     if (!heldItem) {
       this.trayGroup.visible = false;
       this.itemBadgeEl.style.display = 'none';
+      if (this.itemLabel) this.itemLabel.visible = false;
       return;
     }
 
     this.trayGroup.visible = true;
     this.itemBadgeEl.textContent = `${heldItem.emoji || '✨'} ${heldItem.label || ''}`.trim();
-    this.itemBadgeEl.style.display = '';
+    const vis = this.group.visible;
+    this.itemBadgeEl.style.display = vis ? '' : 'none';
+    if (this.itemLabel) this.itemLabel.visible = vis;
 
     const m = (col) => toon(col);
     const type = heldItem.type || 'item';
@@ -765,6 +784,9 @@ export class Character {
     this.group.visible = v;
     this.label.visible = v;
     this.tagEl.style.display = v ? '' : 'none';
+    const showItem = v && Boolean(this.member?.heldItem) && !this.isQuadruped;
+    if (this.itemLabel) this.itemLabel.visible = showItem;
+    if (this.itemBadgeEl) this.itemBadgeEl.style.display = showItem ? '' : 'none';
   }
 
   setOpacity(o) {
@@ -863,17 +885,24 @@ export class Character {
     }, 850);
   }
 
-  moveTo(path, spot) {
+  moveTo(path, spot, onReached) {
     this.clearTimers();
     this.spot = spot;
     this.wantHome = true;
     this.path = path.slice(1);
+    this.setMember(this.member, spot.waitingWc);
+    if (this.path.length === 0) {
+      this.state = 'turning';
+      this.sitT = 0;
+      onReached?.();
+      return;
+    }
     this.resetBodyPose();
     this.state = 'walking';
-    this.setMember(this.member, spot.waitingWc);
     this.onArrive = () => {
       this.state = 'turning';
       this.sitT = 0;
+      onReached?.();
     };
   }
 
@@ -990,8 +1019,9 @@ export class Character {
       return;
     }
 
-    this.phoneMesh.visible = !this.isRobot && pose === 'insta' && k > 0.6;
-    this.spatulaMesh.visible = !this.isRobot && pose === 'cook' && k > 0.6;
+    const hasHeld = Boolean(this.member?.heldItem);
+    this.phoneMesh.visible = !this.isRobot && !hasHeld && pose === 'insta' && k > 0.6;
+    this.spatulaMesh.visible = !this.isRobot && !hasHeld && pose === 'cook' && k > 0.6;
 
     if (pose === 'sleep') {
       this.body.position.set(0, 0.56 * k, 0.42 * k);
@@ -1007,7 +1037,8 @@ export class Character {
     if (pose === 'cook' || pose === 'stand' || pose === 'carry') {
       this.body.position.y = 0;
       this.legL.rotation.x = this.legR.rotation.x = 0;
-      if (this.isRobot && this.member?.heldItem) {
+      if (this.trayGroup) this.trayGroup.position.set(0, 0.54, 0.34);
+      if (hasHeld) {
         this.armL.rotation.x = -1.1 * k;
         this.armR.rotation.x = -1.1 * k;
       } else {
@@ -1019,7 +1050,12 @@ export class Character {
 
     this.body.position.y = (SEAT_Y - HIP_Y) * k;
     this.legL.rotation.x = this.legR.rotation.x = (-Math.PI / 2) * k;
-    if (pose === 'insta') {
+    if (this.trayGroup) this.trayGroup.position.set(0, 0.48, 0.32);
+    if (hasHeld) {
+      this.armL.rotation.x = -1.05 * k;
+      this.armR.rotation.x = -1.05 * k;
+      this.head.rotation.x = 0.12 * k;
+    } else if (pose === 'insta') {
       this.armL.rotation.x = -0.7 * k;
       this.armR.rotation.x = -1.35 * k;
       this.head.rotation.x = 0.35 * k;
@@ -1081,6 +1117,20 @@ export class Character {
         this.head.rotation.y = lerpAngle(this.head.rotation.y, this.lookYaw, 0.15);
       } else {
         this.head.rotation.y = Math.sin(this.time * 1.1) * 0.18;
+      }
+      return;
+    }
+    const hasHeld = Boolean(this.member?.heldItem);
+    if (!this.isRobot && hasHeld && pose !== 'sleep') {
+      // Odam personaji Robot olib kelgan narsani qo'lida ushlab maza qilib yeydi / ichadi!
+      const sip = Math.max(0, Math.sin(this.time * 2.8));
+      this.armL.rotation.x = -1.05;
+      this.armR.rotation.x = -1.05 - sip * 0.45;
+      this.head.rotation.x = sip * 0.18;
+      if (this.lookYaw != null) {
+        this.head.rotation.y = lerpAngle(this.head.rotation.y, this.lookYaw, 0.15);
+      } else {
+        this.head.rotation.y = Math.sin(this.time * 1.2) * 0.08;
       }
       return;
     }
