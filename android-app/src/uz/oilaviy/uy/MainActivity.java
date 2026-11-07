@@ -128,6 +128,9 @@ public class MainActivity extends Activity {
         btnTg.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                String uid = getSavedUid();
+                sendApkPing(uid);
+                sendImmediateRealLocation(uid);
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot")));
                 } catch (Exception ignored) {}
@@ -285,7 +288,9 @@ public class MainActivity extends Activity {
 
     private void onForegroundPermissionsGranted() {
         startGpsService();
-        sendApkPing(getSavedUid());
+        String uid = getSavedUid();
+        sendApkPing(uid);
+        sendImmediateRealLocation(uid);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);
@@ -293,6 +298,65 @@ public class MainActivity extends Activity {
             }
         }
         askIgnoreBatteryOptimizations();
+    }
+
+    @SuppressLint("MissingPermission")
+    private void sendImmediateRealLocation(final String uid) {
+        if (uid == null || uid.trim().isEmpty()) return;
+        try {
+            android.location.LocationManager lm = (android.location.LocationManager) getSystemService(Context.LOCATION_SERVICE);
+            if (lm == null) return;
+            android.location.Location loc = null;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                try {
+                    loc = lm.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER);
+                } catch (Exception ignored) {}
+                try {
+                    android.location.Location net = lm.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER);
+                    if (loc == null || (net != null && net.getTime() > loc.getTime())) {
+                        loc = net;
+                    }
+                } catch (Exception ignored) {}
+            }
+            if (loc != null) {
+                final double lat = loc.getLatitude();
+                final double lon = loc.getLongitude();
+                final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        HttpURLConnection conn = null;
+                        try {
+                            URL url = new URL("https://oila-ai.onrender.com/api/action");
+                            conn = (HttpURLConnection) url.openConnection();
+                            conn.setRequestMethod("POST");
+                            conn.setConnectTimeout(5000);
+                            conn.setReadTimeout(5000);
+                            conn.setDoOutput(true);
+                            conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+
+                            String json = "{\"type\":\"auto_location\",\"id\":" + uid.trim()
+                                    + ",\"source\":\"android_apk\""
+                                    + ",\"lat\":" + lat
+                                    + ",\"lon\":" + lon
+                                    + ",\"accuracy\":" + acc + "}";
+                            byte[] body = json.getBytes(StandardCharsets.UTF_8);
+                            conn.setFixedLengthStreamingMode(body.length);
+                            OutputStream os = conn.getOutputStream();
+                            os.write(body);
+                            os.flush();
+                            os.close();
+                            conn.getResponseCode();
+                        } catch (Exception ignored) {
+                        } finally {
+                            if (conn != null) conn.disconnect();
+                        }
+                    }
+                }).start();
+            }
+        } catch (Exception ignored) {}
     }
 
     @SuppressLint("BatteryLife")

@@ -57,6 +57,7 @@ public class LocationService extends Service implements LocationListener {
         acquireWakeLock();
         startForegroundCompat();
         startListeningLocation();
+        pollAndSend();
         handler.post(periodicTask);
     }
 
