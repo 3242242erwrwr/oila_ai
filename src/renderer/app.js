@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=17';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=17';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=17';
+import { Room, DOOR } from './room.js?v=18';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=18';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=18';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -38,9 +38,60 @@ const JOB_TITLE = {
 const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc', 'garage']);
 
 const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'));
-document.getElementById('map-btn').addEventListener('click', () => fmap.toggle());
+document.getElementById('map-btn').addEventListener('click', () => {
+  pollLocationOnce(true, true);
+  fmap.toggle();
+});
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
-document.getElementById('map-fit').addEventListener('click', () => fmap.fit());
+document.getElementById('map-fit').addEventListener('click', () => {
+  pollLocationOnce(true, true);
+  fmap.fit();
+});
+
+// ---------- PWA Ilova o'rnatish (1 ta tugma bilan telefonga o'rnatish) ----------
+const installBtn = document.getElementById('install-btn');
+let deferredInstallPrompt = null;
+const isStandalone =
+  window.matchMedia?.('(display-mode: standalone)')?.matches ||
+  window.navigator?.standalone === true;
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+if (!isStandalone && installBtn) {
+  installBtn.style.display = 'inline-flex';
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (installBtn && !isStandalone) {
+    installBtn.style.display = 'inline-flex';
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (installBtn) installBtn.style.display = 'none';
+  toast('🎉 "Oilaviy Uy" ilovasi telefoningizga o\'rnatildi!');
+});
+
+if (installBtn) {
+  installBtn.addEventListener('click', async () => {
+    pollLocationOnce(true, true);
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        installBtn.style.display = 'none';
+      }
+      deferredInstallPrompt = null;
+    } else {
+      toast('📲 Yuqori o\'ng burchakdagi "⋮" menyuni bosib "Установить приложение / Добавить на гл. экран" ni tanlang!');
+    }
+  });
+}
 document.getElementById('map-wrap').addEventListener('click', (e) => {
   if (e.target.id === 'map-wrap') fmap.close();
 });

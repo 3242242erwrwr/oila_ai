@@ -1,0 +1,19 @@
+{
+  "name": "Oilaviy 3D Uy — Jonli Xarita va Suhbat",
+  "short_name": "Oilaviy Uy",
+  "description": "3D Oilaviy Uy, AI Robot va Real-Time Oila Xaritasi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1a1423",
+  "theme_color": "#6c5ce7",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -3,6 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#1a1423" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Oilaviy Uy" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
   <title>Oilaviy Uy</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="../../node_modules/leaflet/dist/leaflet.css" />
@@ -25,6 +32,7 @@
     <div class="top-bar">
       <div id="bot-status" class="bot-status connecting">⏳ Bot ulanmoqda...</div>
       <button id="map-btn" class="btn">🗺️ Xarita</button>
+      <button id="install-btn" class="btn" style="display:none;background:linear-gradient(135deg,#00b4d8,#0077b6);">📲 Ilovani o'rnatish</button>
     </div>
   </div>
 
@@ -80,6 +88,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=17"></script>
+  <script type="module" src="app.js?v=18"></script>
 </body>
 </html>
