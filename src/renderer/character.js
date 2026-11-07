@@ -816,6 +816,10 @@ export class Character {
     clearTimeout(this.carTimer1);
     clearTimeout(this.carTimer2);
     clearTimeout(this.talkReturnTimer);
+    if (this.activeCar) {
+      this.activeCar.doorTarget = 0;
+      this.activeCar = null;
+    }
     this.lookYaw = null;
     this.talkBodyRotY = null;
   }
@@ -855,6 +859,7 @@ export class Character {
   // Taksist mashinada qaytib kelib, eshikni ochib tushib uyga kirishi
   enterByCar(car, pathFromCarToSpot, spot) {
     this.clearTimers();
+    this.activeCar = car;
     this.spot = spot;
     this.wantHome = true;
     this.setVisible(false);
@@ -970,6 +975,7 @@ export class Character {
   // Taksist garajga yurib borib, mashina eshigini ochib minib ketishi
   leaveByCar(pathToCar, car, onGone) {
     this.clearTimers();
+    this.activeCar = car;
     this.wantHome = false;
     car.targetZ = car.homeZ;
     this.path = pathToCar.slice(1);
@@ -1213,6 +1219,22 @@ export class Character {
 
   isNear(point, r) {
     return this.group.visible && this.group.position.distanceTo(point) < r;
+  }
+
+  // Faqat personaj haqiqatan ko'cha eshigidan kirib-chiqib ketayotgan (walking) paytdagina eshik ochiladi
+  isPassingFrontDoor() {
+    if (!this.group.visible || this.state !== 'walking') return false;
+    const p = this.group.position;
+    if (Math.abs(p.x - -1.8) > 0.85) return false;
+    if (p.z < 4.95 || p.z > 7.05) return false;
+    return p.z > 5.15 || this.path.some((wp) => wp.z > 5.05);
+  }
+
+  // Faqat personaj hojatxona eshigidan o'tayotgan (walking) paytdagina hojatxona eshigi ochilib-yopiladi
+  isPassingWcDoor() {
+    if (!this.group.visible || this.state !== 'walking') return false;
+    const p = this.group.position;
+    return Math.abs(p.x - 4.0) < 0.95 && Math.abs(p.z - 2.8) < 0.75;
   }
 
   dispose() {

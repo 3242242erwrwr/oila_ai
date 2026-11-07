@@ -859,9 +859,9 @@ export class Room {
     // Doimiy AI personajlar (Robot, Mushuk, It) uchun har bir xonada odamlarning stul/karavotini band qilmaydigan ochiq joylar
     const aiRoomSpots = {
       home: [
-        { pos: new THREE.Vector3(-1.85, 0, 3.2), approach: new THREE.Vector3(-1.85, 0, 3.2), node: 'hall_w', rotY: Math.PI / 4, pose: 'stand' },
-        { pos: new THREE.Vector3(2.45, 0, 3.6), approach: new THREE.Vector3(2.45, 0, 3.6), node: 'hall_se', rotY: -Math.PI / 4, pose: 'stand' },
-        { pos: new THREE.Vector3(-0.6, 0, 4.4), approach: new THREE.Vector3(-0.6, 0, 4.4), node: 'hall_s', rotY: Math.PI, pose: 'stand' },
+        { pos: new THREE.Vector3(-1.85, 0, 3.1), approach: new THREE.Vector3(-1.85, 0, 3.1), node: 'hall_w', rotY: Math.PI / 4, pose: 'stand' },
+        { pos: new THREE.Vector3(2.45, 0, 3.4), approach: new THREE.Vector3(2.45, 0, 3.4), node: 'hall_se', rotY: -Math.PI / 4, pose: 'stand' },
+        { pos: new THREE.Vector3(0.4, 0, 3.8), approach: new THREE.Vector3(0.4, 0, 3.8), node: 'hall_s', rotY: Math.PI, pose: 'stand' },
       ],
       tv: [
         { pos: new THREE.Vector3(2.55, 0, -2.2), approach: new THREE.Vector3(2.55, 0, -2.2), node: 'hall_tv', rotY: -0.4, pose: 'stand' },
@@ -1004,7 +1004,6 @@ export class Room {
       if (spot) result.set(m.id, spot);
     }
 
-    this.wcDoorTarget = used.wc > 0 ? 0 : 1.1;
     return result;
   }
 
@@ -1114,6 +1113,10 @@ export class Room {
 
   setDoorWanted(open) {
     this.doorTarget = open ? 1.35 : 0;
+  }
+
+  setWcDoorWanted(open) {
+    this.wcDoorTarget = open ? 1.1 : 0;
   }
 
   updateTime(now = new Date()) {

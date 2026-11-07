@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
-import { Room, DOOR } from './room.js?v=12';
-import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=12';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=12';
+import { Room, DOOR } from './room.js?v=13';
+import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=13';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=13';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -866,12 +866,15 @@ function loop(time) {
   timer.update(time);
   const dt = Math.min(timer.getDelta(), 0.05);
   elapsed += dt;
-  let nearDoor = false;
+  let nearFrontDoor = false;
+  let nearWcDoor = false;
   for (const c of chars.values()) {
     c.update(dt);
-    if (c.isNear(DOOR.inside, 1.5) || c.isNear(DOOR.outside, 1.5)) nearDoor = true;
+    if (c.isPassingFrontDoor()) nearFrontDoor = true;
+    if (c.isPassingWcDoor()) nearWcDoor = true;
   }
-  room.setDoorWanted(nearDoor);
+  room.setDoorWanted(nearFrontDoor);
+  room.setWcDoorWanted(nearWcDoor);
   room.update(dt, elapsed);
   controls.update();
   outline.render(scene, camera);
