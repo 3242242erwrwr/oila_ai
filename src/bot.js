@@ -164,7 +164,7 @@ async function sendApkToChat(chatId) {
 async function sendRoomLink(ctx) {
   const baseUrl = getPublicUrlFn();
   const uid = ctx.from?.id || '';
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=27`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=28`;
   const apkDownloadUrl = `${baseUrl}/Oilaviy_Uy.apk`;
   const isHttps = baseUrl.startsWith('https://');
   const isPrivate = ctx.chat?.type === 'private';
@@ -172,25 +172,27 @@ async function sendRoomLink(ctx) {
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .url("📲 1. Ilovani o'rnatish", apkDownloadUrl)
         .row()
-        .url("📲 24/7 Fon GPS datchigi (.apk)", apkDownloadUrl);
+        .webApp("🏠 2. 3D Uyni ochish", personalUrl);
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy*\n\n` +
-        `• 3D Uyga kirish: *🏠 3D Uyni ochish*\n` +
-        `• Telegram yopiq paytda ham 24/7 Real-Time GPS uzatib turishi uchun: *📲 24/7 Fon GPS datchigi (.apk)*`,
+        `📋 *Qo'llanma:*\n\n` +
+        `1️⃣ *Avval ilovani o'rnating*\n` +
+        `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
+        `3D Uyga kirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
     } else {
       const personalIkb = new InlineKeyboard()
-        .webApp("🏠 3D Uyni ochish", personalUrl)
+        .url("📲 1. Ilovani o'rnatish", apkDownloadUrl)
         .row()
-        .url("📲 24/7 Fon GPS datchigi (.apk)", apkDownloadUrl);
+        .webApp("🏠 2. 3D Uyni ochish", personalUrl);
       await bot.api.sendMessage(
         uid,
-        `🏠 *Oilaviy 3D Uy*\n\n` +
-        `• 3D Uyga kirish: *🏠 3D Uyni ochish*\n` +
-        `• Telegram yopiq paytda ham 24/7 Real-Time GPS uzatib turishi uchun: *📲 24/7 Fon GPS datchigi (.apk)*`,
+        `📋 *Qo'llanma:*\n\n` +
+        `1️⃣ *Avval ilovani o'rnating*\n` +
+        `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
+        `3D Uyga kirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: personalIkb }
       ).catch(() => {});
 
@@ -284,6 +286,10 @@ async function startBot(token, onStatus, options = {}) {
       await ctx.reply(
         `Xush kelibsiz, *${m.name}*! 👋\n` +
         `👤 Kasb: ${JOBS[m.job]?.label || m.job}\n\n` +
+        `📋 *Qo'llanma:*\n` +
+        `1️⃣ *Avval ilovani o'rnating*\n` +
+        `2️⃣ *O'rnatib bo'lgach ilovani oching va ruxsatlarni berib qo'ying*\n\n` +
+        `Shundan so'ng Telegramdan chiqib ketsangiz ham 24/7 Real-Time joylashuv xaritada ko'rinadi!\n\n` +
         `Pastdagi tugmalardan foydalaning:`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard() }
       );

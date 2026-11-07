@@ -8,80 +8,190 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.provider.Settings;
-import android.webkit.GeolocationPermissions;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.FrameLayout;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends Activity {
-    private static final String BASE_URL = "https://oila-ai.onrender.com/";
     private static final int REQ_PERMS = 1001;
     private static final int REQ_BG_LOC = 1002;
-    private WebView webView;
 
-    @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+    private TextView statusBadge;
+    private TextView userSelectedText;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.parseColor("#0f0c24"));
-        webView = new WebView(this);
-        webView.setBackgroundColor(Color.parseColor("#0f0c24"));
-        root.addView(webView, new FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-        ));
-        setContentView(root);
-
         handleIncomingIntent(getIntent());
 
-        WebSettings ws = webView.getSettings();
-        ws.setJavaScriptEnabled(true);
-        ws.setDomStorageEnabled(true);
-        ws.setDatabaseEnabled(true);
-        ws.setGeolocationEnabled(true);
-        ws.setMediaPlaybackRequiresUserGesture(false);
-        ws.setCacheMode(WebSettings.LOAD_DEFAULT);
-        ws.setUserAgentString(ws.getUserAgentString() + " OilaviyUyAndroidApp/1.0");
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setBackgroundColor(Color.parseColor("#0f0c24"));
 
-        webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(48, 64, 48, 64);
+        layout.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        webView.setWebViewClient(new WebViewClient() {
+        TextView iconView = new TextView(this);
+        iconView.setText("🏠");
+        iconView.setTextSize(64f);
+        iconView.setGravity(Gravity.CENTER);
+        layout.addView(iconView);
+
+        TextView titleView = new TextView(this);
+        titleView.setText("Oilaviy Uy");
+        titleView.setTextSize(26f);
+        titleView.setTypeface(null, Typeface.BOLD);
+        titleView.setTextColor(Color.WHITE);
+        titleView.setGravity(Gravity.CENTER);
+        titleView.setPadding(0, 16, 0, 8);
+        layout.addView(titleView);
+
+        TextView subTitleView = new TextView(this);
+        subTitleView.setText("📍 24/7 Fon GPS Datchigi");
+        subTitleView.setTextSize(16f);
+        subTitleView.setTextColor(Color.parseColor("#94a3b8"));
+        subTitleView.setGravity(Gravity.CENTER);
+        subTitleView.setPadding(0, 0, 0, 32);
+        layout.addView(subTitleView);
+
+        statusBadge = new TextView(this);
+        statusBadge.setText("🟢 Datchik ishga tushdi va faol");
+        statusBadge.setTextSize(15f);
+        statusBadge.setTypeface(null, Typeface.BOLD);
+        statusBadge.setTextColor(Color.parseColor("#10b981"));
+        statusBadge.setGravity(Gravity.CENTER);
+        statusBadge.setPadding(32, 20, 32, 20);
+
+        GradientDrawable badgeBg = new GradientDrawable();
+        badgeBg.setColor(Color.parseColor("#1e1b4b"));
+        badgeBg.setCornerRadius(24f);
+        badgeBg.setStroke(2, Color.parseColor("#10b981"));
+        statusBadge.setBackground(badgeBg);
+        layout.addView(statusBadge);
+
+        userSelectedText = new TextView(this);
+        userSelectedText.setTextSize(16f);
+        userSelectedText.setTextColor(Color.parseColor("#e2e8f0"));
+        userSelectedText.setGravity(Gravity.CENTER);
+        userSelectedText.setPadding(0, 36, 0, 16);
+        updateUserText();
+        layout.addView(userSelectedText);
+
+        TextView selectLabel = new TextView(this);
+        selectLabel.setText("O'zingizni tanlang:");
+        selectLabel.setTextSize(14f);
+        selectLabel.setTextColor(Color.parseColor("#94a3b8"));
+        selectLabel.setGravity(Gravity.CENTER);
+        selectLabel.setPadding(0, 0, 0, 16);
+        layout.addView(selectLabel);
+
+        LinearLayout buttonsLayout = new LinearLayout(this);
+        buttonsLayout.setOrientation(LinearLayout.HORIZONTAL);
+        buttonsLayout.setGravity(Gravity.CENTER);
+
+        Button btnJamshid = createStyledButton("🙋‍♂️ Jamshid", "#3b82f6");
+        btnJamshid.setOnClickListener(new View.OnClickListener() {
             @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                Uri uri = request.getUrl();
-                if (uri != null && (uri.getHost() != null && uri.getHost().contains("oila-ai.onrender.com"))) {
-                    return false;
-                }
+            public void onClick(View v) {
+                saveUid("6280077746");
+                updateUserText();
+            }
+        });
+        buttonsLayout.addView(btnJamshid);
+
+        View spacer = new View(this);
+        buttonsLayout.addView(spacer, new LinearLayout.LayoutParams(24, 1));
+
+        Button btnDilrabo = createStyledButton("🙋‍♀️ Dilrabo", "#ec4899");
+        btnDilrabo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                saveUid("1512600413");
+                updateUserText();
+            }
+        });
+        buttonsLayout.addView(btnDilrabo);
+        layout.addView(buttonsLayout);
+
+        TextView descBox = new TextView(this);
+        descBox.setText("✅ Barcha ruxsatlar berildi!\n\nEndi bu ilovani yopib qo'ysangiz ham bo'ladi — u cho'ntagingizda 24/7 orqa fonda ishlab turadi.\n\n3D Uy va oila a'zolarini esa Telegram bot orqali ko'raverasiz!");
+        descBox.setTextSize(15f);
+        descBox.setTextColor(Color.parseColor("#cbd5e1"));
+        descBox.setGravity(Gravity.CENTER);
+        descBox.setPadding(32, 32, 32, 32);
+
+        GradientDrawable descBg = new GradientDrawable();
+        descBg.setColor(Color.parseColor("#181432"));
+        descBg.setCornerRadius(20f);
+        descBox.setBackground(descBg);
+
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        descParams.setMargins(0, 40, 0, 32);
+        descBox.setLayoutParams(descParams);
+        layout.addView(descBox);
+
+        Button btnTg = createStyledButton("✈️ Telegram Botni ochish", "#6366f1");
+        btnTg.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
                 try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/HomeChat_3d_bot")));
                 } catch (Exception ignored) {}
-                return true;
             }
         });
+        layout.addView(btnTg);
 
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
-                callback.invoke(origin, true, false);
-            }
-        });
+        scrollView.addView(layout);
+        setContentView(scrollView);
 
-        loadHomeUrl();
         requestNeededPermissions();
+        startGpsService();
+    }
+
+    private Button createStyledButton(String text, String colorHex) {
+        Button btn = new Button(this);
+        btn.setText(text);
+        btn.setTextColor(Color.WHITE);
+        btn.setTextSize(15f);
+        btn.setTypeface(null, Typeface.BOLD);
+        btn.setPadding(36, 24, 36, 24);
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor(colorHex));
+        bg.setCornerRadius(20f);
+        btn.setBackground(bg);
+        return btn;
+    }
+
+    private void updateUserText() {
+        String uid = getSavedUid();
+        if ("6280077746".equals(uid)) {
+            userSelectedText.setText("👤 A'zo: Jamshid");
+        } else if ("1512600413".equals(uid)) {
+            userSelectedText.setText("👤 A'zo: Dilrabo");
+        } else if (!uid.isEmpty()) {
+            userSelectedText.setText("👤 ID: " + uid);
+        } else {
+            userSelectedText.setText("⚠️ Iltimos, pastdan o'zingizni tanlang:");
+        }
     }
 
     @Override
@@ -89,7 +199,7 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         if (handleIncomingIntent(intent)) {
-            loadHomeUrl();
+            updateUserText();
         }
     }
 
@@ -104,12 +214,6 @@ public class MainActivity extends Activity {
             }
         }
         return false;
-    }
-
-    private void loadHomeUrl() {
-        String uid = getSavedUid();
-        String url = BASE_URL + "?v=24" + (uid.isEmpty() ? "" : "&uid=" + Uri.encode(uid));
-        webView.loadUrl(url);
     }
 
     private void saveUid(String uid) {
@@ -196,28 +300,5 @@ public class MainActivity extends Activity {
                 startService(svc);
             }
         } catch (Exception ignored) {}
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            moveTaskToBack(true);
-        }
-    }
-
-    public class Bridge {
-        @JavascriptInterface
-        public void setUserId(String uid) {
-            if (uid != null && !uid.trim().isEmpty()) {
-                saveUid(uid.trim());
-            }
-        }
-
-        @JavascriptInterface
-        public String getUserId() {
-            return getSavedUid();
-        }
     }
 }
