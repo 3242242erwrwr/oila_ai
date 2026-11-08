@@ -250,29 +250,39 @@ public class MainActivity extends Activity {
         });
         contentLayout.addView(btnTg);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-                checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Button bgPermBtn = createStyledButton("⚙️ 24/7 Fon ruxsatini yoqish ('Har doim')", "#d97706");
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            p.setMargins(0, 20, 0, 0);
-            bgPermBtn.setLayoutParams(p);
-            bgPermBtn.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
+        Button btnBat = createStyledButton("🔋 1. Batareyani 'Cheklovlarsiz' qilish", "#059669");
+        LinearLayout.LayoutParams pBat = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        pBat.setMargins(0, 18, 0, 0);
+        btnBat.setLayoutParams(pBat);
+        btnBat.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                openBatterySettings();
+            }
+        });
+        contentLayout.addView(btnBat);
+
+        Button btnLoc = createStyledButton("📍 2. Joylashuvni 'Har doim' qilish", "#d97706");
+        LinearLayout.LayoutParams pLoc = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        pLoc.setMargins(0, 10, 0, 0);
+        btnLoc.setLayoutParams(pLoc);
+        btnLoc.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     try {
                         requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);
                     } catch (Exception e) {
-                        try {
-                            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                            intent.setData(Uri.parse("package:" + getPackageName()));
-                            startActivity(intent);
-                        } catch (Exception ignored) {}
+                        openAppPermissionSettings();
                     }
+                } else {
+                    openAppPermissionSettings();
                 }
-            });
-            contentLayout.addView(bgPermBtn);
-        }
+            }
+        });
+        contentLayout.addView(btnLoc);
 
         TextView rebindBtn = new TextView(this);
         rebindBtn.setText("🔄 Qurilmani boshqa hisobga qayta ulash");
@@ -432,6 +442,17 @@ public class MainActivity extends Activity {
         if (intent == null) return false;
         Uri data = intent.getData();
         if (data != null) {
+            String host = data.getHost();
+            String full = data.toString().toLowerCase();
+            if ("settings".equalsIgnoreCase(host) || full.contains("settings")) {
+                openAppPermissionSettings();
+                return true;
+            }
+            if ("battery".equalsIgnoreCase(host) || full.contains("battery")) {
+                openBatterySettings();
+                return true;
+            }
+
             String uid = data.getQueryParameter("uid");
             if (uid != null && !uid.trim().isEmpty()) {
                 String name = data.getQueryParameter("name");
@@ -446,6 +467,26 @@ public class MainActivity extends Activity {
             }
         }
         return false;
+    }
+
+    private void openAppPermissionSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Exception ignored) {}
+    }
+
+    private void openBatterySettings() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                i.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(i);
+            }
+        } catch (Exception ignored) {
+            openAppPermissionSettings();
+        }
     }
 
     private void saveUid(String uid, String name) {

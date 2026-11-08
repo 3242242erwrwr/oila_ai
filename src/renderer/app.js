@@ -101,6 +101,21 @@ if (installBtn) {
     }
   });
 }
+const settingsBtn = document.getElementById('settings-btn');
+const settingsWrap = document.getElementById('settings-wrap');
+const settingsClose = document.getElementById('settings-close');
+if (settingsBtn && settingsWrap) {
+  settingsBtn.addEventListener('click', () => settingsWrap.classList.add('open'));
+}
+if (settingsClose && settingsWrap) {
+  settingsClose.addEventListener('click', () => settingsWrap.classList.remove('open'));
+}
+if (settingsWrap) {
+  settingsWrap.addEventListener('click', (e) => {
+    if (e.target === settingsWrap) settingsWrap.classList.remove('open');
+  });
+}
+
 document.getElementById('map-wrap').addEventListener('click', (e) => {
   if (e.target.id === 'map-wrap') fmap.close();
 });
@@ -108,6 +123,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     fmap.close();
     closeCharModal();
+    if (settingsWrap) settingsWrap.classList.remove('open');
   }
 });
 

@@ -399,6 +399,20 @@ async function startBot(token, onStatus, options = {}) {
     await sendApkToChat(ctx.chat?.id);
   });
 
+  bot.command('sozlama', async (ctx) => {
+    const ikb = new InlineKeyboard()
+      .url("🔋 1. Batareya (Cheklovlarsiz)", "oilaviyuy://battery")
+      .row()
+      .url("📍 2. Joylashuv (Har doim)", "oilaviyuy://settings");
+    await ctx.reply(
+      `⚙️ *24/7 Fon Datchigi sozlamalari*\n\n` +
+      `Telefon ekrani o'chganda yoki Telegramdan chiqqanda datchik uzilib qolmasligi uchun pastdagi 2 ta tugmani bosing:\n\n` +
+      `1️⃣ *Batareya:* Cheklovlarsiz (Без ограничений)\n` +
+      `2️⃣ *Joylashuv:* Har doim ruxsat berish (Разрешить в любом режиме)`,
+      { parse_mode: 'Markdown', reply_markup: ikb }
+    );
+  });
+
   bot.callbackQuery('install_apk', async (ctx) => {
     await ctx.answerCallbackQuery({ text: '📲 Ilova yuborilmoqda...' }).catch(() => {});
     const targetChatId = ctx.chat?.id || ctx.from?.id;
@@ -786,6 +800,7 @@ async function startBot(token, onStatus, options = {}) {
   await bot.api.setMyCommands([
     { command: 'start', description: "A'zo bo'lish va tugmalar" },
     { command: 'xona', description: "3D Uyni telefonda / PC'da ochish" },
+    { command: 'sozlama', description: "⚙️ 24/7 Datchik sozlamalarini ochish" },
     { command: 'profil', description: "Ism, yosh va kasbni o'zgartirish" },
     { command: 'holat', description: "Oila a'zolari holati" },
     { command: 'uy', description: 'Uy manzilini belgilash' },
