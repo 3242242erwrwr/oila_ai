@@ -271,15 +271,7 @@ public class MainActivity extends Activity {
         btnLoc.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    try {
-                        requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_BG_LOC);
-                    } catch (Exception e) {
-                        openAppPermissionSettings();
-                    }
-                } else {
-                    openAppPermissionSettings();
-                }
+                openAppPermissionSettings();
             }
         });
         contentLayout.addView(btnLoc);
@@ -473,20 +465,35 @@ public class MainActivity extends Activity {
         try {
             Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
             intent.setData(Uri.parse("package:" + getPackageName()));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
             startActivity(intent);
-        } catch (Exception ignored) {}
+            Toast.makeText(this, "📍 Ruxsatlar -> Joylashuv: 'Har doim ruxsat berish' ni tanlang", Toast.LENGTH_LONG).show();
+        } catch (Exception e) {
+            try {
+                Intent fallback = new Intent(Settings.ACTION_SETTINGS);
+                fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(fallback);
+            } catch (Exception ignored) {}
+        }
     }
 
     private void openBatterySettings() {
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                if (pm != null && pm.isIgnoringBatteryOptimizations(getPackageName())) {
+                    Toast.makeText(this, "✅ Batareya allaqachon cheklovlarsiz!", Toast.LENGTH_SHORT).show();
+                    return;
+                }
                 Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                 i.setData(Uri.parse("package:" + getPackageName()));
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(i);
+                Toast.makeText(this, "🔋 Batareya: 'Cheklovlarsiz' (Без ограничений) ni tanlang", Toast.LENGTH_LONG).show();
+                return;
             }
-        } catch (Exception ignored) {
-            openAppPermissionSettings();
-        }
+        } catch (Exception ignored) {}
+        openAppPermissionSettings();
     }
 
     private void saveUid(String uid, String name) {

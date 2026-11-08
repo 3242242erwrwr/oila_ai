@@ -110,6 +110,10 @@ if (settingsBtn && settingsWrap) {
 if (settingsClose && settingsWrap) {
   settingsClose.addEventListener('click', () => settingsWrap.classList.remove('open'));
 }
+const settingsOk = document.getElementById('settings-ok');
+if (settingsOk && settingsWrap) {
+  settingsOk.addEventListener('click', () => settingsWrap.classList.remove('open'));
+}
 if (settingsWrap) {
   settingsWrap.addEventListener('click', (e) => {
     if (e.target === settingsWrap) settingsWrap.classList.remove('open');
