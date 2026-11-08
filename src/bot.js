@@ -714,7 +714,6 @@ async function startBot(token, onStatus, options = {}) {
     const msgText = text.slice(0, 160);
     const lower = msgText.toLowerCase();
     const others = store.all().filter((x) => x.id !== id);
-    const robot = store.get(900001);
 
     let targetId = activeChatTarget.get(id);
     let target = targetId && others.find((x) => x.id === targetId);
@@ -722,7 +721,29 @@ async function startBot(token, onStatus, options = {}) {
       target = others.find((x) => lower.includes(x.name.toLowerCase()));
     }
 
-    const isHumanTarget = target && !target.isAi;
+    // 1. Mushuk bilan muloqot:
+    if (target?.job === 'cat' || target?.id === 900002 || lower.includes('mushuk') || lower.includes('momiqvoy')) {
+      store.say(id, msgText, 900002);
+      const petReply = await handlePetCommand(m, 900002, msgText, store);
+      await ctx.reply(petReply || `🐱 *Mushuk (Momiqvoy):* Miyovv... 🐾 (Yoningizga keldi)`, {
+        parse_mode: 'Markdown',
+        reply_markup: mainKeyboard(id),
+      });
+      return;
+    }
+
+    // 2. Kuchuk / It bilan muloqot:
+    if (target?.job === 'dog' || target?.id === 900003 || lower.includes('kuchuk') || lower.includes('bobik') || lower.includes(' it ') || lower === 'it') {
+      store.say(id, msgText, 900003);
+      const petReply = await handlePetCommand(m, 900003, msgText, store);
+      await ctx.reply(petReply || `🐶 *It (Bobik):* Vov-vov! 🐾 (Dumini likillatib keldi)`, {
+        parse_mode: 'Markdown',
+        reply_markup: mainKeyboard(id),
+      });
+      return;
+    }
+
+    // 3. AI Robot bilan suhbat yoki buyruq:
     const isCommand = lower.includes('olib') || lower.includes('keltir') || lower.includes('chiq') ||
                       lower.includes('kir') || lower.includes('bor') || lower.includes('tozala') ||
                       lower.includes('supur') || lower.includes('uyg') || lower.includes('choy') ||
@@ -731,8 +752,8 @@ async function startBot(token, onStatus, options = {}) {
                       lower.includes('qil') || lower.includes('bajar') || lower.includes('ishla') ||
                       lower.includes('kel');
 
-    // Agar inson tanlanmagan bo'lsa yoki buyruq berilgan bo'lsa -> 🤖 AI Robot bajaradi
-    if (!isHumanTarget || lower.includes('robot') || isCommand) {
+    if (target?.job === 'robot' || target?.id === 900001 || !target || isCommand) {
+      store.say(id, msgText, 900001);
       const dec = await handleRobotCommand(m, msgText, store);
       await ctx.reply(dec?.reply || `🤖 Buyruq qabul qilindi va 3D uyda bajarilmoqda!`, {
         reply_markup: mainKeyboard(id),
@@ -740,15 +761,9 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    store.say(id, msgText, target?.id || null);
-
-    if (target) {
-      if (target.job === 'cat' || target.job === 'dog') {
-        await handlePetCommand(m, target.id, msgText, store);
-        await ctx.reply(`🐾 *${target.name}*ga yetkazildi!`, { parse_mode: 'Markdown' });
-        return;
-      }
-      // Suhbatdosh ham javob yozsa avtomatik shu odamga ketishi uchun bog'lab qo'yamiz
+    // 4. Inson bilan suhbat:
+    if (target && !target.isAi) {
+      store.say(id, msgText, target.id);
       activeChatTarget.set(target.id, id);
       await bot.api.sendMessage(
         target.id,
@@ -758,6 +773,7 @@ async function startBot(token, onStatus, options = {}) {
       await ctx.reply(`✅ *${target.name}*ga yuborildi (3D uyda borib aytdi!)`, {
         parse_mode: 'Markdown',
       });
+      return;
     }
   });
 
@@ -790,27 +806,6 @@ async function startBot(token, onStatus, options = {}) {
     });
   };
   launchPolling();
-
-  // Datchik signali uzilgan (ilovani o'chirib tashlagan) a'zolarni xonadan butunlay o'chirish:
-  setInterval(() => {
-    const now = Date.now();
-    const TIMEOUT_MS = 20 * 60 * 1000; // 20 daqiqa datchikdan signal kelmasa
-    for (const m of store.all()) {
-      if (m.isAi) continue; // AI Robot, Mushuk, It DOIM qoladi
-      if (m.apkInstalled && m.lastApkPing && (now - m.lastApkPing > TIMEOUT_MS)) {
-        console.log(`[Datchik to'xtadi] ${m.name} (${m.id}) ilovani o'chirgan, xonadan o'chirilmoqda...`);
-        store.remove(m.id);
-        if (bot) {
-          bot.api.sendMessage(
-            m.id,
-            `⚠️ *Fon GPS datchigi to'xtadi yoki ilova o'chirildi!*\n\n` +
-            `Siz 3D xonadan va xaritadan chiqarildingiz. Qayta a'zo bo'lish uchun /start bosing.`,
-            { parse_mode: 'Markdown', reply_markup: { remove_keyboard: true } }
-          ).catch(() => {});
-        }
-      }
-    }
-  }, 60_000);
 
   return bot.botInfo.username;
 }

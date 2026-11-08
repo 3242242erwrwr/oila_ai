@@ -543,47 +543,55 @@ function buildFallbackPlan(fromMember, text, humans, robot) {
   };
 }
 
-// ==================== 🐱 MUSHUK VA 🐶 KUCHUK BILAN MULOQOT (GAPIRMAYDI, FAQAT HARAKATLANADI) ====================
+// ==================== 🐱 MUSHUK VA 🐶 KUCHUK BILAN MULOQOT ====================
 async function handlePetCommand(fromMember, petId, rawText, store) {
   const pet = store.get(Number(petId));
-  if (!pet) return;
+  if (!pet) return null;
   const fromName = fromMember?.name || "Do'stim";
   const text = String(rawText || '').trim();
   const callerRoom = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.status : 'home';
   const callerDeliv = fromMember && INDOOR_ROOMS.includes(fromMember.status) ? fromMember.id : null;
   const isCat = pet.job === 'cat';
-
-  const systemPrompt = `Sen 3D Oilaviy Uydagi ${isCat ? '"Mushuk"' : '"It"'}san. Hayvonlar gapirmaydi, faqat harakatlanadi.
-Foydalanuvchi (${fromName}) senga buyruq berdi yoki erkalamoqda.
-Buyruq ma'nosiga qarab qayerga borishingni ("status": "home|tv|pc|cook|eat|sleep|wc|garage|out") JSON formatda qaytar:
-{
-  "steps": [
-    {
-      "status": "home|tv|pc|cook|eat|sleep|wc|garage|out",
-      "deliverToId": ${callerDeliv || 'null'}
-    }
-  ]
-}
-Agar "ko'chaga chiq" deyilsa status: "out", deliverToId: null bo'lsin.
-Agar chaqirilsa yoki erkalansa status: "${callerRoom}", deliverToId: ${callerDeliv || 'null'} bo'lsin.`;
-
-  const plan = await askAiPlan(systemPrompt, `Foydalanuvchi (${fromName}, joyi: "${callerRoom}") yozdi: "${text}"`);
-  if (plan && Array.isArray(plan.steps) && plan.steps[0]) {
-    const st = plan.steps[0];
-    const targetStatus = VALID_STATUSES.has(st.status) ? st.status : callerRoom;
-    const deliv = targetStatus === 'out' ? null : (st.deliverToId ? Number(st.deliverToId) : null);
-    moveAi(store, pet.id, targetStatus, { deliverToId: deliv });
-    if (deliv) setTimeout(() => moveAi(store, pet.id, targetStatus, { deliverToId: null }), 7000);
-    return;
-  }
-
   const lower = text.toLowerCase();
-  if (lower.includes("ko'cha") || lower.includes('kocha') || lower.includes('tashqari')) {
-    moveAi(store, pet.id, 'out', { deliverToId: null });
-    return;
+
+  let reply = '';
+  let targetStatus = callerRoom;
+
+  if (isCat) {
+    if (lower.includes("ko'cha") || lower.includes('kocha') || lower.includes('tashqari')) {
+      targetStatus = 'out';
+      reply = `🐾 Miyov! 🐱 (Momiqvoy eshikdan ko'chaga chiqib ketdi)`;
+    } else if (lower.includes('sut') || lower.includes('ovqat') || lower.includes('och')) {
+      targetStatus = 'cook';
+      reply = `🐾 Miyooov! 🥛 (Momiqvoy oshxonaga sut ichgani yugurdi!)`;
+    } else if (lower.includes('uxla') || lower.includes('yot')) {
+      targetStatus = 'sleep';
+      reply = `🐾 Xrr-xrr-xrr... 😴 (Momiqvoy yotoqxonaga uxlashga ketdi)`;
+    } else {
+      targetStatus = callerRoom;
+      reply = `🐾 Miyovv... 🐱 (Momiqvoy ${fromName}ning yoniga kelib erkalanyapti, xrr-xrr...)`;
+    }
+  } else {
+    // Dog
+    if (lower.includes("ko'cha") || lower.includes('kocha') || lower.includes('tashqari')) {
+      targetStatus = 'out';
+      reply = `🐾 Vov-vov! 🐶 (Bobik hovliga, ko'chaga chiqdi)`;
+    } else if (lower.includes('suyak') || lower.includes('ovqat') || lower.includes('go\'sht') || lower.includes('gosht')) {
+      targetStatus = 'cook';
+      reply = `🐾 Vaf-vaf! 🍖 (Bobik oshxonaga suyak yegani chopdi!)`;
+    } else if (lower.includes('qo\'riqla') || lower.includes('qoriqla') || lower.includes('eshik')) {
+      targetStatus = 'home';
+      reply = `🐾 Vov! 🛡️ (Bobik eshik oldiga borib uyni sergak qo'riqlamoqda!)`;
+    } else {
+      targetStatus = callerRoom;
+      reply = `🐾 Vov-vov! 🐶 (Bobik dumini likillatib xursand bo'lib ${fromName}ning yoniga keldi!)`;
+    }
   }
-  moveAi(store, pet.id, callerRoom, { deliverToId: callerDeliv });
-  setTimeout(() => moveAi(store, pet.id, callerRoom, { deliverToId: null }), 7000);
+
+  moveAi(store, pet.id, targetStatus, { deliverToId: targetStatus === 'out' ? null : callerDeliv });
+  setTimeout(() => moveAi(store, pet.id, targetStatus, { deliverToId: null }), 7000);
+  store.say(pet.id, reply, callerDeliv);
+  return reply;
 }
 
 // ==================== MUSTAQIL AI HARAKAT SIKLI (VAZIYATGA QARAB YURISH) ====================

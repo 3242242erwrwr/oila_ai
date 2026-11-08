@@ -38,7 +38,7 @@
       "isAi": true,
       "aiType": "cat",
       "status": "home",
-      "taskSeq": 0,
+      "taskSeq": 2,
       "statusAt": "2026-11-08T02:24:00.000Z",
       "seat": 3,
       "appearance": {
@@ -54,7 +54,9 @@
         "hat": "none",
         "outfit": "cat"
       },
-      "joinedAt": "2026-11-08T02:24:00.000Z"
+      "joinedAt": "2026-11-08T02:24:00.000Z",
+      "deliverToId": null,
+      "updatedAt": "2026-11-08T09:31:20.104Z"
     },
     {
       "id": 900003,
@@ -65,7 +67,7 @@
       "isAi": true,
       "aiType": "dog",
       "status": "home",
-      "taskSeq": 0,
+      "taskSeq": 2,
       "statusAt": "2026-11-08T02:24:00.000Z",
       "seat": 4,
       "appearance": {
@@ -81,7 +83,79 @@
         "hat": "none",
         "outfit": "dog"
       },
-      "joinedAt": "2026-11-08T02:24:00.000Z"
+      "joinedAt": "2026-11-08T02:24:00.000Z",
+      "deliverToId": null,
+      "updatedAt": "2026-11-08T09:31:20.106Z"
+    },
+    {
+      "id": 6280077746,
+      "name": "Jamshid",
+      "gender": "male",
+      "age": 28,
+      "job": "dev",
+      "apkInstalled": true,
+      "lastApkPing": 1794129938000,
+      "welcomeSent": true,
+      "status": "home",
+      "seat": 0,
+      "appearance": {
+        "skin": "#ffd9b8",
+        "hair": "#2b1d16",
+        "hairStyle": 0,
+        "shirt": "#6c5ce7",
+        "pants": "#3d5a80",
+        "scale": 1,
+        "glasses": true,
+        "mustache": false,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "hoodie"
+      },
+      "location": {
+        "lat": 40.641095,
+        "lon": 72.252109,
+        "accuracy": 15,
+        "live": true,
+        "liveUntil": 8640000000000,
+        "at": "2026-11-08T09:00:00.000Z",
+        "distance": 0
+      },
+      "joinedAt": "2026-11-06T15:00:00.000Z"
+    },
+    {
+      "id": 1512600413,
+      "name": "Dilrabo",
+      "gender": "female",
+      "age": 25,
+      "job": "housewife",
+      "apkInstalled": true,
+      "lastApkPing": 1794129938000,
+      "welcomeSent": true,
+      "status": "home",
+      "seat": 1,
+      "appearance": {
+        "skin": "#f2c29b",
+        "hair": "#5a3825",
+        "hairStyle": 1,
+        "shirt": "#ff8fab",
+        "pants": "#2d3142",
+        "scale": 1,
+        "glasses": false,
+        "mustache": false,
+        "beard": false,
+        "hat": "romol",
+        "outfit": "apron"
+      },
+      "location": {
+        "lat": 40.641095,
+        "lon": 72.252109,
+        "accuracy": 15,
+        "live": true,
+        "liveUntil": 8640000000000,
+        "at": "2026-11-08T09:00:00.000Z",
+        "distance": 0
+      },
+      "joinedAt": "2026-11-07T12:00:00.000Z"
     }
   ],
   "home": {
@@ -90,5 +164,14 @@
     "setBy": "Jamshid",
     "at": "2026-11-06T16:10:24.691Z"
   },
-  "groupChatId": -1004438231107
+  "groupChatId": -1004438231107,
+  "pairingCodes": {
+    "529305": {
+      "deviceId": "",
+      "createdAt": 1794129938000,
+      "paired": true,
+      "uid": "1512600413",
+      "name": "Dilrabo"
+    }
+  }
 }

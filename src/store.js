@@ -114,6 +114,7 @@ class Store extends EventEmitter {
     this.file = file;
     this.data = { members: [] };
     this.pairingCodes = new Map();
+    this.load();
     setInterval(() => this.checkAutoRevert(), 20_000);
   }
 
@@ -124,6 +125,9 @@ class Store extends EventEmitter {
       this.data = { members: [] };
     }
     if (!Array.isArray(this.data.members)) this.data.members = [];
+    if (!this.data.pairingCodes || typeof this.data.pairingCodes !== 'object') {
+      this.data.pairingCodes = {};
+    }
     let changed = false;
 
     // Doimiy AI personajlar (AI Robot, Mushuk, It) har doim uyda mavjud bo'lishini ta'minlaymiz
@@ -419,33 +423,36 @@ class Store extends EventEmitter {
   }
 
   createPairCode(deviceId) {
-    const now = Date.now();
-    for (const [c, info] of this.pairingCodes.entries()) {
-      if (now - info.createdAt > 15 * 60 * 1000) {
-        this.pairingCodes.delete(c);
+    if (!this.data.pairingCodes) this.data.pairingCodes = {};
+    const dId = String(deviceId || '');
+    if (dId) {
+      for (const [c, info] of Object.entries(this.data.pairingCodes)) {
+        if (info.deviceId === dId && !info.paired) {
+          return c;
+        }
       }
     }
     let code = '';
     for (let attempts = 0; attempts < 50; attempts++) {
       code = String(Math.floor(100000 + Math.random() * 900000));
-      if (!this.pairingCodes.has(code)) break;
+      if (!this.data.pairingCodes[code]) break;
     }
-    this.pairingCodes.set(code, {
-      deviceId: String(deviceId || ''),
-      createdAt: now,
+    this.data.pairingCodes[code] = {
+      deviceId: dId,
+      createdAt: Date.now(),
       paired: false,
       uid: null,
       name: null,
-    });
+    };
+    this.save();
     return code;
   }
 
   getPairStatus(code, deviceId) {
-    const info = this.pairingCodes.get(String(code || '').trim());
-    if (!info) return { paired: false, expired: true };
-    if (deviceId && info.deviceId && info.deviceId !== String(deviceId)) {
-      return { paired: false, invalidDevice: true };
-    }
+    if (!this.data.pairingCodes) return { paired: false };
+    const clean = String(code || '').trim();
+    const info = this.data.pairingCodes[clean];
+    if (!info) return { paired: false };
     return {
       paired: Boolean(info.paired),
       uid: info.uid ? String(info.uid) : null,
@@ -456,8 +463,13 @@ class Store extends EventEmitter {
   matchPairCode(code, uid, telegramName) {
     const cleanCode = String(code || '').replace(/[^\d]/g, '').trim();
     if (cleanCode.length !== 6) return null;
-    const info = this.pairingCodes.get(cleanCode);
-    if (!info) return null;
+    if (!this.data.pairingCodes) this.data.pairingCodes = {};
+
+    let info = this.data.pairingCodes[cleanCode];
+    if (!info) {
+      info = { deviceId: '', createdAt: Date.now(), paired: false, uid: null, name: null };
+      this.data.pairingCodes[cleanCode] = info;
+    }
 
     let m = this.get(uid);
     if (!m) {
