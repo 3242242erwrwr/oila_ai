@@ -64,16 +64,45 @@ export class FamilyMap {
 
   ensure() {
     if (this.map) return;
-    this.map = L.map(this.mapEl, { zoomControl: true }).setView(DEFAULT_VIEW, 12);
+    this.map = L.map(this.mapEl, { zoomControl: true }).setView(DEFAULT_VIEW, 14);
+
+    // 1. Batafsil xarita (barcha ko'cha nomlari, mahallalar va uy raqamlari bilan)
+    const detailedMap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google / Batafsil Xarita',
+    }).addTo(this.map);
+
+    // 2. Sun'iy yo'ldosh (Gibrid: ko'chalar va binolar nomlari ustida yozilgan jonli fotosurat)
+    const hybridSat = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Hybrid',
+    });
+
+    // 3. Yandex Xarita
+    const yandexLayer = L.tileLayer('https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=uz_UZ', {
+      maxZoom: 19,
+      attribution: '© Yandex Xarita',
+    });
+
+    // 4. Standart OpenStreetMap
     const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
-    }).addTo(this.map);
-    const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: '© Esri',
     });
-    L.control.layers({ '🗺️ Xarita': osm, "🛰️ Sun'iy yo'ldosh": sat }, null, { position: 'topright' }).addTo(this.map);
+
+    L.control.layers(
+      {
+        '🗺️ Batafsil Xarita (Ko\'chalar va Uylar)': detailedMap,
+        '🛰️ Sun\'iy yo\'ldosh (Gibrid)': hybridSat,
+        '🟡 Yandex Xarita': yandexLayer,
+        '🌍 OpenStreetMap': osm,
+      },
+      null,
+      { position: 'topright' }
+    ).addTo(this.map);
+
     this.render();
   }
 
