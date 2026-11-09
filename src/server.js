@@ -13,6 +13,8 @@ const MIME = {
   '.json': 'application/json; charset=utf-8',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.apk': 'application/vnd.android.package-archive',
 };
@@ -207,19 +209,26 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
-    // 4. Statik fayllar (renderer va node_modules)
+    // 4. Statik fayllar (renderer, node_modules va yuklangan rasmlar)
     let filePath;
     if (pathname === '/' || pathname === '/index.html') {
       filePath = path.join(RENDERER, 'index.html');
     } else if (pathname.startsWith('/node_modules/')) {
       filePath = path.join(ROOT, pathname);
+    } else if (pathname.startsWith('/photos/')) {
+      filePath = path.join(ROOT, 'data', pathname);
     } else {
       filePath = path.join(RENDERER, pathname);
     }
 
     // Xavfsizlik tekshiruvi
     const resolved = path.resolve(filePath);
-    if (!resolved.startsWith(path.resolve(RENDERER)) && !resolved.startsWith(path.resolve(path.join(ROOT, 'node_modules')))) {
+    const allowedRoots = [
+      path.resolve(RENDERER),
+      path.resolve(path.join(ROOT, 'node_modules')),
+      path.resolve(path.join(ROOT, 'data', 'photos')),
+    ];
+    if (!allowedRoots.some((dir) => resolved.startsWith(dir))) {
       res.writeHead(403);
       res.end('Forbidden');
       return;

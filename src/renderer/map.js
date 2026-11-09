@@ -165,7 +165,25 @@ export class FamilyMap {
 
   makeIcon(m, loc) {
     const root = el('div', 'pin-wrap');
-    const pin = el('div', 'pin' + (isLive(loc) ? ' live' : ''));
+    const isLiveLoc = isLive(loc);
+    const hasPhoto = Boolean(m.photo || m.photoUrl);
+
+    if (hasPhoto) {
+      const pin = el('div', 'pin has-photo' + (isLiveLoc ? ' live' : ''));
+      const img = document.createElement('img');
+      img.src = m.photo || m.photoUrl;
+      img.alt = m.name || '';
+      img.onerror = () => {
+        pin.className = 'pin' + (isLiveLoc ? ' live' : '');
+        pin.style.setProperty('--c', m.appearance?.shirt || '#6c5ce7');
+        pin.innerHTML = `<span>${(m.name[0] || '?').toUpperCase()}</span>`;
+      };
+      pin.append(img);
+      root.append(pin, el('div', 'pin-name', m.name));
+      return L.divIcon({ html: root, className: 'pin-icon', iconSize: [44, 62], iconAnchor: [22, 44], popupAnchor: [0, -42] });
+    }
+
+    const pin = el('div', 'pin' + (isLiveLoc ? ' live' : ''));
     pin.style.setProperty('--c', m.appearance?.shirt || '#6c5ce7');
     pin.append(el('span', null, (m.name[0] || '?').toUpperCase()));
     root.append(pin, el('div', 'pin-name', m.name));

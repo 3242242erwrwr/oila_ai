@@ -115,7 +115,7 @@ class Store extends EventEmitter {
     this.data = { members: [] };
     this.pairingCodes = new Map();
     this.load();
-    setInterval(() => this.checkAutoRevert(), 20_000);
+    setInterval(() => this.checkAutoRevert(), 20_000).unref();
   }
 
   load() {

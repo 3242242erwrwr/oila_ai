@@ -28,6 +28,7 @@ const BTN_JOIN = "👨‍👩‍👧‍👦 Oilaga a'zo bo'lish";
 const BTN_STATUS = "🎭 Holatni o'zgartirish";
 const BTN_ROOM = '🏠 3D Uyni ochish';
 const BTN_CHAT = '💬 Suhbat';
+const BTN_PHOTO = '📸 Rasm yuklash';
 const BTN_BACK = '🔙 Orqaga';
 const LOCATION_BUTTON = '📍 Joylashuvni yuborish';
 
@@ -39,11 +40,11 @@ function joinKeyboard() {
     .persistent();
 }
 
-// Ro'yxatdan o'tgandan keyin DOIM turadigan 3 ta asosiy tugma (hech qanday joylashuv so'rovisiz!)
+// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (hech qanday joylashuv so'rovisiz!)
 function mainKeyboard() {
   return new Keyboard()
     .text(BTN_STATUS).text(BTN_ROOM).row()
-    .text(BTN_CHAT)
+    .text(BTN_CHAT).text(BTN_PHOTO)
     .resized()
     .persistent();
 }
@@ -509,6 +510,68 @@ async function startBot(token, onStatus, options = {}) {
   bot.on('message:location', (ctx) => handleLocation(ctx, ctx.message, false));
   bot.on('edited_message:location', (ctx) => handleLocation(ctx, ctx.editedMessage, true));
 
+  // Foydalanuvchi rasm yuborganda uni xaritadagi avatar doirasiga o'rnatish
+  bot.on('message:photo', async (ctx) => {
+    const id = ctx.from?.id;
+    if (!id) return;
+    const m = store.get(id);
+    if (!m) {
+      await ctx.reply("Siz hali oilaga a'zo emassiz. Avval pastdagi tugmani bosib a'zo bo'ling!", {
+        reply_markup: joinKeyboard(),
+      });
+      return;
+    }
+
+    try {
+      const photos = ctx.message.photo;
+      if (!photos || !photos.length) return;
+      // O'rtacha sifatli (avatar uchun optimal ~320px) rasm tanlanadi
+      const chosen = photos.length >= 2 ? photos[1] : photos[0];
+      const file = await ctx.api.getFile(chosen.file_id);
+      if (!file || !file.file_path) {
+        throw new Error("Telegram fayl yo'li topilmadi");
+      }
+
+      const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+      const res = await fetch(fileUrl);
+      if (!res.ok) throw new Error(`HTTP xatolik: ${res.status}`);
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      // data/photos jildiga saqlash
+      const photosDir = path.join(__dirname, '..', 'data', 'photos');
+      if (!fs.existsSync(photosDir)) {
+        fs.mkdirSync(photosDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(photosDir, `${id}.jpg`), buffer);
+
+      // JSON bazada ham Base64 saqlanadi (disk tozalanib yuborilsa ham rasm yo'qolmaydi)
+      const base64 = buffer.toString('base64');
+      const photoDataUrl = `data:image/jpeg;base64,${base64}`;
+      const photoUrl = `/photos/${id}.jpg?v=${Date.now()}`;
+
+      store.update(id, {
+        photo: photoDataUrl,
+        photoUrl: photoUrl,
+      });
+
+      await ctx.reply(
+        `✅ *${m.name}*, rasmingiz muvaffaqiyatli qabul qilindi!\n\n` +
+        `🗺️ Xaritadagi nishoningiz ushbu rasmga o'rnatildi va harakatlanganingizda atrofida yashil chiroq yonib turadi! ✨`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: mainKeyboard(id),
+        }
+      );
+    } catch (err) {
+      console.error('Foto yuklashda xatolik:', err);
+      await ctx.reply(
+        "❌ Rasmni yuklab olishda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.",
+        { reply_markup: mainKeyboard(id) }
+      );
+    }
+  });
+
   // Fon rejimda joylashuv yangilanganda chatga ortiqcha SMS yuborilmaydi (faqat 3D uy va xaritada Live ko'rinadi)
 
   bot.on('message:text', async (ctx) => {
@@ -525,6 +588,17 @@ async function startBot(token, onStatus, options = {}) {
 
     // Guruhda boshqa hech qanday bot funksiyasi ishlamaydi (faqat 3D Uyni ochish!)
     if (!isPrivate) return;
+
+    // "📸 Rasm yuklash" tugmasi bosilganda yo'riqnoma berish
+    if (text === BTN_PHOTO) {
+      await ctx.reply(
+        "📸 *Xaritadagi rasmingizni o'rnatish yoki yangilash:*\n\n" +
+        "Galereyangizdan xohlagan rasmingizni to'g'ridan-to'g'ri shu botga yuboring!\n\n" +
+        "✨ Rasm qabul qilingach, xaritadagi nishoningiz doira shaklidagi ushbu rasmga aylanadi.",
+        { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
+      );
+      return;
+    }
 
     // "👨‍👩‍👧‍👦 Oilaga a'zo bo'lish" tugmasi bosilganda savol-javob boshlanadi
     if (text === BTN_JOIN) {
