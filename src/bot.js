@@ -43,13 +43,26 @@ function joinKeyboard() {
     .persistent();
 }
 
-// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (hech qanday joylashuv so'rovisiz!)
-function mainKeyboard() {
-  return new Keyboard()
-    .text(BTN_STATUS).text(BTN_ROOM).row()
-    .text(BTN_CHAT).text(BTN_PHOTO)
+// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (1-bosishda WebApp orqali to'g'ridan-to'g'ri ochiladi!)
+function mainKeyboard(uid) {
+  const baseUrl = getPublicUrlFn();
+  const isHttps = typeof baseUrl === 'string' && baseUrl.startsWith('https://');
+
+  const kb = new Keyboard();
+  if (isHttps) {
+    const mapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map${uid ? `&uid=${uid}` : ''}&v=50`;
+    const roomUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid || ''}&v=50`;
+    kb.webApp("🗺️ Jonli Xarita", mapUrl)
+      .webApp("🏠 3D Uy", roomUrl)
+      .row();
+  } else {
+    kb.text(BTN_ROOM).row();
+  }
+  kb.text(BTN_STATUS).text(BTN_CHAT).row()
+    .text(BTN_PHOTO)
     .resized()
     .persistent();
+  return kb;
 }
 
 // Guruhda FAQAT "🏠 3D Uyni ochish" tugmasi chiqadi
@@ -196,24 +209,27 @@ async function sendRoomLink(ctx) {
     return;
   }
 
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=41`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=50`;
+  const personalMapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map&uid=${uid}&v=50`;
   const isHttps = baseUrl.startsWith('https://');
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
+        .webApp("🗺️ Jonli Xarita", personalMapUrl)
         .webApp("🏠 3D Uyni ochish", personalUrl)
         .row()
         .text("📲 Fon GPS datchigi (.apk)", 'install_apk');
       await ctx.reply(
-        `🏠 *Oilaviy 3D Uy*\n\n` +
+        `🗺️ *Oilaviy Jonli Xarita va 3D Uy*\n\n` +
+        `• Xaritani ochish: *🗺️ Jonli Xarita*\n` +
         `• 3D Uyga kirish: *🏠 3D Uyni ochish*\n` +
         `• 24/7 fon joylashuvi uchun: *📲 Fon GPS datchigi (.apk)*`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await ctx.reply(
         `Pastdagi doimiy menyudan ham foydalanishingiz mumkin:`,
-        { reply_markup: mainKeyboard() }
+        { reply_markup: mainKeyboard(uid) }
       );
     } else {
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
@@ -340,7 +356,7 @@ async function startBot(token, onStatus, options = {}) {
           { parse_mode: 'Markdown', reply_markup: ikb }
         );
         await ctx.reply(`Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`, {
-          reply_markup: mainKeyboard(),
+          reply_markup: mainKeyboard(id),
         });
         return;
       } else {
@@ -358,18 +374,20 @@ async function startBot(token, onStatus, options = {}) {
     // 1. Agar a'zo bo'lgan va ilovani o'rnatgan bo'lsa: darhol uyga kirish tugmasi chiqadi
     if (m && m.apkInstalled) {
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=45`;
-      const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=50`;
+      const personalMapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map&uid=${m.id}&v=50`;
+      const ikb = new InlineKeyboard()
+        .webApp("🗺️ Jonli Xarita", personalMapUrl)
+        .webApp("🏠 3D Uyga kirish", personalUrl);
       await ctx.reply(
-        `✅ *Hammasini bajardingiz! Endi uyga kirishingiz mumkin.*\n\n` +
-        `👤 *${m.name}* (${JOBS[m.job]?.label || m.job})\n` +
+        `✅ *Xush kelibsiz, ${m.name}!* (${JOBS[m.job]?.label || m.job})\n\n` +
         `🟢 Fon GPS datchigi faol ishlamoqda.\n\n` +
-        `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
+        `Telegram ichida ochish uchun quyidagi tugmalarni bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await ctx.reply(
         `Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`,
-        { reply_markup: mainKeyboard() }
+        { reply_markup: mainKeyboard(m.id) }
       );
       return;
     }
@@ -945,9 +963,22 @@ async function startBot(token, onStatus, options = {}) {
   bot.catch((err) => console.error('Bot xatosi:', err.error || err));
 
   await bot.init();
-  await bot.api.setChatMenuButton({
-    menu_button: { type: 'commands' },
-  }).catch(() => {});
+  const baseUrl = getPublicUrlFn();
+  const isHttps = typeof baseUrl === 'string' && baseUrl.startsWith('https://');
+  if (isHttps) {
+    const defaultMapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map&v=50`;
+    await bot.api.setChatMenuButton({
+      menu_button: {
+        type: 'web_app',
+        text: '🗺️ Jonli Xarita',
+        web_app: { url: defaultMapUrl },
+      },
+    }).catch((err) => console.warn('setChatMenuButton xatosi:', err.message));
+  } else {
+    await bot.api.setChatMenuButton({
+      menu_button: { type: 'commands' },
+    }).catch(() => {});
+  }
   await bot.api.setMyCommands([
     { command: 'start', description: "A'zo bo'lish va tugmalar" },
     { command: 'xona', description: "3D Uyni telefonda / PC'da ochish" },

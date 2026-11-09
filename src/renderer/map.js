@@ -111,6 +111,7 @@ export class FamilyMap {
 
   open(focusId) {
     this.wrap.classList.add('open');
+    try { window.Telegram?.WebApp?.BackButton?.show?.(); } catch {}
     this.ensure();
     setTimeout(() => {
       this.map.invalidateSize();
@@ -129,6 +130,7 @@ export class FamilyMap {
 
   close() {
     this.wrap.classList.remove('open');
+    try { window.Telegram?.WebApp?.BackButton?.hide?.(); } catch {}
   }
 
   toggle() {

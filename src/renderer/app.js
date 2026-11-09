@@ -48,6 +48,24 @@ document.getElementById('map-fit').addEventListener('click', () => {
   fmap.fit();
 });
 
+// Telegram WebApp orqali to'g'ridan-to'g'ri xarita ochilgan bo'lsa (mode=map):
+const initUrlQuery = new URLSearchParams(window.location.search);
+if (initUrlQuery.get('mode') === 'map' || initUrlQuery.get('tab') === 'map') {
+  setTimeout(() => {
+    fmap.open();
+    try { pollLocationOnce(true, true); } catch {}
+    setTimeout(() => fmap.fit(), 350);
+  }, 250);
+}
+
+try {
+  window.Telegram?.WebApp?.BackButton?.onClick?.(() => {
+    if (fmap.isOpen) {
+      fmap.close();
+    }
+  });
+} catch {}
+
 // ---------- PWA / APK Ilova o'rnatish ----------
 const installBtn = document.getElementById('install-btn');
 let deferredInstallPrompt = null;
@@ -543,6 +561,7 @@ const statusGrid = document.getElementById('status-grid');
 try {
   window.Telegram?.WebApp?.ready?.();
   window.Telegram?.WebApp?.expand?.();
+  window.Telegram?.WebApp?.enableClosingConfirmation?.();
 } catch {}
 
 let activeMember = null;
