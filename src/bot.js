@@ -728,6 +728,7 @@ async function startBot(token, onStatus, options = {}) {
     const msgText = text.slice(0, 160);
     const lower = msgText.toLowerCase();
     const others = store.all().filter((x) => x.id !== id);
+    const otherHumans = others.filter((x) => !x.isAi);
 
     let targetId = activeChatTarget.get(id);
     let target = targetId && others.find((x) => x.id === targetId);
@@ -757,16 +758,12 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    // 3. AI Robot bilan suhbat yoki buyruq:
-    const isCommand = lower.includes('olib') || lower.includes('keltir') || lower.includes('chiq') ||
-                      lower.includes('kir') || lower.includes('bor') || lower.includes('tozala') ||
-                      lower.includes('supur') || lower.includes('uyg') || lower.includes('choy') ||
-                      lower.includes('suv') || lower.includes('banan') || lower.includes('olma') ||
-                      lower.includes('ovqat') || lower.includes('tort') || lower.includes('robot') ||
-                      lower.includes('qil') || lower.includes('bajar') || lower.includes('ishla') ||
-                      lower.includes('kel');
+    // 3. Agar Robot ataylab chaqirilgan bo'lsa:
+    const isExplicitRobot = target?.job === 'robot' || target?.id === 900001 ||
+                            lower.startsWith('robot') || lower.includes(' robot ') ||
+                            lower.includes('ey robot') || lower.includes('ey bot');
 
-    if (target?.job === 'robot' || target?.id === 900001 || !target || isCommand) {
+    if (isExplicitRobot) {
       store.say(id, msgText, 900001);
       const dec = await handleRobotCommand(m, msgText, store);
       await ctx.reply(dec?.reply || `🤖 Buyruq qabul qilindi va 3D uyda bajarilmoqda!`, {
@@ -776,19 +773,47 @@ async function startBot(token, onStatus, options = {}) {
     }
 
     // 4. Inson bilan suhbat:
+    // Agar aniq odam tanlanmagan bo'lsa, lekin uyda faqat 1 ta boshqa inson bo'lsa (masalan Jamshid va Dilrabo):
+    if (!target && otherHumans.length === 1) {
+      target = otherHumans[0];
+    }
+
     if (target && !target.isAi) {
       store.say(id, msgText, target.id);
+      activeChatTarget.set(id, target.id);
       activeChatTarget.set(target.id, id);
       await bot.api.sendMessage(
         target.id,
-        `💬 *${m.name} sizga yozdi:*\n${msgText}`,
+        `💬 *[Mehmonxona] ${m.name} sizga yozdi:*\n${msgText}`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard(target.id) }
-      ).catch(() => {});
+      ).catch((err) => console.error('Telegramga yuborishda xatolik:', err?.description || err?.message));
       await ctx.reply(`✅ *${target.name}*ga yuborildi (3D uyda borib aytdi!)`, {
         parse_mode: 'Markdown',
+        reply_markup: mainKeyboard(id),
       });
       return;
     }
+
+    // Agar uyda bir nechta odam bo'lsa va kimga yozish tanlanmagan bo'lsa:
+    if (otherHumans.length > 1 && !target) {
+      await ctx.reply(
+        `💬 *Xabaringizni kimga yubormoqchisiz?*\n` +
+        `Iltimos, pastdagi tugmalardan birini tanlang:`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: chatMembersKeyboard(id),
+        }
+      );
+      return;
+    }
+
+    // Agar umuman boshqa inson bo'lmasa, robotga yo'naltirish:
+    store.say(id, msgText, 900001);
+    const dec = await handleRobotCommand(m, msgText, store);
+    await ctx.reply(dec?.reply || `🤖 Xabar qabul qilindi va 3D uyda ko'rindi!`, {
+      reply_markup: mainKeyboard(id),
+    });
+    return;
   });
 
   bot.catch((err) => console.error('Bot xatosi:', err.error || err));
@@ -932,7 +957,7 @@ async function handleRoomAction(payload) {
     if (!text) return;
 
     const from = store.get(fromId);
-    const to = toId ? store.get(toId) : null;
+    let to = toId ? store.get(toId) : null;
     if (!from) return;
 
     if (to?.job === 'robot') {
@@ -944,15 +969,24 @@ async function handleRoomAction(payload) {
       return;
     }
 
+    // Agar kimga yozish tanlanmagan bo'lsa, lekin uyda faqat 1 ta boshqa inson bo'lsa:
+    const others = store.all().filter((x) => x.id !== from.id);
+    const otherHumans = others.filter((x) => !x.isAi);
+    if (!to && otherHumans.length === 1) {
+      to = otherHumans[0];
+    }
+
     store.say(from.id, text, to?.id || null);
 
     // Faqat qabul qiluvchining o'z lichkasiga yuboriladi (guruhga chiqarilmaydi!)
     if (to && !to.isAi && to.id !== from.id && bot) {
+      activeChatTarget.set(to.id, from.id);
+      activeChatTarget.set(from.id, to.id);
       bot.api.sendMessage(
         to.id,
-        `💬 *${from.name} (3D Uydan) sizga yozdi:*\n${text}`,
-        { parse_mode: 'Markdown' }
-      ).catch(() => {});
+        `💬 *[Mehmonxona] ${from.name} sizga yozdi:*\n${text}`,
+        { parse_mode: 'Markdown', reply_markup: mainKeyboard(to.id) }
+      ).catch((err) => console.error('3D xonadan xabar yuborishda xatolik:', err?.description || err?.message));
     }
   }
 }
