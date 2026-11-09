@@ -32,6 +32,9 @@ const BTN_PHOTO = '📸 Rasm yuklash';
 const BTN_BACK = '🔙 Orqaga';
 const LOCATION_BUTTON = '📍 Joylashuvni yuborish';
 
+// Xonadan yoki botdan qilingan suhbat nishonlari
+const activeChatTarget = new Map();
+
 // Yangi foydalanuvchi /start bosganda chiqadigan tugma
 function joinKeyboard() {
   return new Keyboard()
@@ -240,7 +243,6 @@ async function startBot(token, onStatus, options = {}) {
   bot = new Bot(token);
   const wizard = new Map();
   const awaitingHome = new Set();
-  const activeChatTarget = new Map();
 
   // Guruh tekshiruvi: faqat "Oila_3d_room" guruhida qoladi
   bot.use(async (ctx, next) => {
@@ -569,6 +571,51 @@ async function startBot(token, onStatus, options = {}) {
         "❌ Rasmni yuklab olishda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.",
         { reply_markup: mainKeyboard(id) }
       );
+    }
+  });
+
+  // Telegramdan a'zo ovozli xabar (voice note) yuborganida
+  bot.on('message:voice', async (ctx) => {
+    const id = ctx.from.id;
+    const m = store.get(id);
+    if (!m) return;
+
+    let targetId = activeChatTarget.get(id);
+    const others = store.all().filter((x) => x.id !== id && !x.isAi);
+    let target = targetId && others.find((x) => x.id === targetId);
+    if (!target && others.length === 1) target = others[0];
+
+    try {
+      const voice = ctx.message.voice;
+      const file = await ctx.api.getFile(voice.file_id);
+      const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
+      const res = await fetch(fileUrl);
+      const arrayBuffer = await res.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const base64 = buffer.toString('base64');
+      const audioDataUrl = `data:audio/ogg;base64,${base64}`;
+
+      store.say(id, "🎙️ [Ovozli xabar]", target?.id || null);
+      store.emit('voice', {
+        fromId: id,
+        fromName: m.name,
+        toId: target?.id || null,
+        audio: audioDataUrl,
+      });
+
+      if (target && target.id !== id) {
+        await ctx.api.sendVoice(target.id, voice.file_id, {
+          caption: `🎙️ *${m.name} sizga ovozli xabar yubordi!*`,
+          parse_mode: 'Markdown',
+          reply_markup: mainKeyboard(target.id),
+        }).catch(() => {});
+      }
+
+      await ctx.reply(`✅ Ovozli xabaringiz ${target ? target.name + 'ga' : 'uyga'} yetkazildi! 🎙️`, {
+        reply_markup: mainKeyboard(id),
+      });
+    } catch (err) {
+      console.error('Telegram voice qabul qilishda xatolik:', err);
     }
   });
 
@@ -1066,6 +1113,61 @@ async function handleRoomAction(payload) {
         `💬 *[Mehmonxona] ${from.name} sizga yozdi:*\n${text}`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard(to.id) }
       ).catch((err) => console.error('3D xonadan xabar yuborishda xatolik:', err?.description || err?.message));
+    }
+  }
+
+  // 3D Uydan yoki Xaritadan ovozli xabar yuborilganda:
+  if (payload.type === 'voice') {
+    const fromId = Number(payload.fromId);
+    const toId = payload.toId ? Number(payload.toId) : null;
+    const from = store.get(fromId);
+    let to = toId ? store.get(toId) : null;
+    if (!from || !payload.audio) return;
+
+    const others = store.all().filter((x) => x.id !== from.id);
+    const otherHumans = others.filter((x) => !x.isAi);
+    if (!to && otherHumans.length === 1) {
+      to = otherHumans[0];
+    }
+
+    // 3D uyda personaj ustida ovoz belgisi
+    store.say(from.id, "🎙️ [Ovozli xabar]", to?.id || null);
+    store.emit('voice', {
+      fromId: from.id,
+      fromName: from.name,
+      toId: to?.id || null,
+      audio: payload.audio,
+    });
+
+    // Qabul qiluvchining Telegram lichkasiga real sendVoice yuborish
+    if (to && !to.isAi && to.id !== from.id && bot) {
+      activeChatTarget.set(to.id, from.id);
+      activeChatTarget.set(from.id, to.id);
+
+      try {
+        const base64Data = payload.audio.includes(',') ? payload.audio.split(',')[1] : payload.audio;
+        const audioBuffer = Buffer.from(base64Data, 'base64');
+        const inputFile = new InputFile(audioBuffer, 'voice.ogg');
+
+        await bot.api.sendVoice(to.id, inputFile, {
+          caption: `🎙️ *${from.name} sizga ovozli xabar yubordi!*`,
+          parse_mode: 'Markdown',
+          reply_markup: mainKeyboard(to.id),
+        });
+      } catch (err) {
+        console.error('sendVoice error:', err?.description || err?.message || err);
+        try {
+          const base64Data = payload.audio.includes(',') ? payload.audio.split(',')[1] : payload.audio;
+          const audioBuffer = Buffer.from(base64Data, 'base64');
+          await bot.api.sendAudio(to.id, new InputFile(audioBuffer, 'voice.mp3'), {
+            caption: `🎙️ *${from.name} sizga ovozli xabar yubordi!*`,
+            parse_mode: 'Markdown',
+            reply_markup: mainKeyboard(to.id),
+          });
+        } catch (e2) {
+          console.error('sendAudio fallback error:', e2?.message);
+        }
+      }
     }
   }
 }

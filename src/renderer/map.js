@@ -47,9 +47,10 @@ function el(tag, cls, text) {
 }
 
 export class FamilyMap {
-  constructor(wrap, mapEl) {
+  constructor(wrap, mapEl, onMemberClick = null) {
     this.wrap = wrap;
     this.mapEl = mapEl;
+    this.onMemberClick = onMemberClick;
     this.map = null;
     this.markers = new Map();
     this.addrCache = new Map();
@@ -242,6 +243,12 @@ export class FamilyMap {
       }
       if (loc.accuracy) box.append(el('div', 'pop-sub', `🎯 Aniqlik: ±${Math.round(loc.accuracy)} m`));
     }
+    const btn = el('button', 'pop-chat-btn', '💬 / 🎙️ Xabar yuborish');
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      this.onMemberClick?.(m);
+    };
+    box.append(btn);
     return box;
   }
 
