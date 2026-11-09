@@ -603,7 +603,12 @@ async function startBot(token, onStatus, options = {}) {
           gender = 'female';
         }
 
-        if (store.get(id)) {
+        const existingByName = store.all().find((x) => !x.isAi && x.name.toLowerCase() === state.name.toLowerCase());
+        if (existingByName && Number(existingByName.id) !== Number(id)) {
+          existingByName.id = id;
+          existingByName.apkInstalled = true;
+          store.updateProfile(id, { name: state.name, gender, age: state.age || 25, job: jobKey });
+        } else if (store.get(id)) {
           store.updateProfile(id, { name: state.name, gender, age: state.age || 25, job: jobKey });
         } else {
           store.add(id, { name: state.name, gender, age: state.age || 25, job: jobKey });

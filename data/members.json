@@ -156,6 +156,105 @@
         "distance": 0
       },
       "joinedAt": "2026-11-07T12:00:00.000Z"
+    },
+    {
+      "id": 1000001,
+      "name": "Dilmurod",
+      "gender": "male",
+      "age": 45,
+      "job": "taxi",
+      "apkInstalled": true,
+      "status": "home",
+      "seat": 5,
+      "appearance": {
+        "skin": "#ffd9b8",
+        "hair": "#2b1d16",
+        "hairStyle": 0,
+        "shirt": "#118ab2",
+        "pants": "#2d3142",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "location": {
+        "lat": 40.641095,
+        "lon": 72.252109,
+        "accuracy": 15,
+        "live": true,
+        "liveUntil": 8640000000000,
+        "at": "2026-11-09T12:00:00.000Z",
+        "distance": 0
+      },
+      "joinedAt": "2026-11-08T10:00:00.000Z"
+    },
+    {
+      "id": 1000002,
+      "name": "Murad",
+      "gender": "male",
+      "age": 44,
+      "job": "taxi",
+      "apkInstalled": true,
+      "status": "home",
+      "seat": 6,
+      "appearance": {
+        "skin": "#f2c29b",
+        "hair": "#5a3825",
+        "hairStyle": 0,
+        "shirt": "#118ab2",
+        "pants": "#3d5a80",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "location": {
+        "lat": 40.641095,
+        "lon": 72.252109,
+        "accuracy": 15,
+        "live": true,
+        "liveUntil": 8640000000000,
+        "at": "2026-11-09T12:00:00.000Z",
+        "distance": 0
+      },
+      "joinedAt": "2026-11-08T10:00:00.000Z"
+    },
+    {
+      "id": 1000003,
+      "name": "Jaxongir",
+      "gender": "male",
+      "age": 44,
+      "job": "taxi",
+      "apkInstalled": true,
+      "status": "home",
+      "seat": 7,
+      "appearance": {
+        "skin": "#e0a878",
+        "hair": "#1c1c2e",
+        "hairStyle": 0,
+        "shirt": "#ffd166",
+        "pants": "#264653",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "location": {
+        "lat": 40.641095,
+        "lon": 72.252109,
+        "accuracy": 15,
+        "live": true,
+        "liveUntil": 8640000000000,
+        "at": "2026-11-09T12:00:00.000Z",
+        "distance": 0
+      },
+      "joinedAt": "2026-11-08T10:00:00.000Z"
     }
   ],
   "home": {
