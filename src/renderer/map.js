@@ -243,7 +243,7 @@ export class FamilyMap {
       }
       if (loc.accuracy) box.append(el('div', 'pop-sub', `🎯 Aniqlik: ±${Math.round(loc.accuracy)} m`));
     }
-    const btn = el('button', 'pop-chat-btn', '💬 / 🎙️ Xabar yuborish');
+    const btn = el('button', 'pop-chat-btn', '🎙️ Ovozli xabar yuborish');
     btn.onclick = (e) => {
       e.stopPropagation();
       this.onMemberClick?.(m);

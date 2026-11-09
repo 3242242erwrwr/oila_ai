@@ -37,7 +37,7 @@ const JOB_TITLE = {
 
 const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc', 'garage']);
 
-const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'), (m) => openCharModal(m));
+const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'), (m) => openCharModal(m, true));
 document.getElementById('map-btn').addEventListener('click', () => {
   pollLocationOnce(true, true);
   fmap.toggle();
@@ -536,6 +536,7 @@ const chatTargetLabel = document.getElementById('chat-target-label');
 const senderList = document.getElementById('sender-list');
 const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
+const chatSubmit = document.getElementById('chat-submit');
 const statusSection = document.getElementById('status-section');
 const statusGrid = document.getElementById('status-grid');
 
@@ -735,6 +736,12 @@ function closeCharModal() {
   charWrap.classList.remove('open');
   activeMember = null;
   cancelVoiceRecording();
+  if (chatInput) chatInput.style.display = 'block';
+  if (chatSubmit) chatSubmit.style.display = 'block';
+  if (btnVoice) {
+    btnVoice.textContent = '🎙️';
+    btnVoice.classList.remove('btn-voice-large');
+  }
 }
 
 document.getElementById('char-close').addEventListener('click', closeCharModal);
@@ -742,7 +749,7 @@ charWrap.addEventListener('click', (e) => {
   if (e.target === charWrap) closeCharModal();
 });
 
-function openCharModal(member) {
+function openCharModal(member, isFromMap = false) {
   const latest = lastMembers.find((m) => String(m.id) === String(member.id)) || member;
   activeMember = latest;
   const jIcon = JOB_ICON[latest.job] || '👤';
@@ -753,6 +760,33 @@ function openCharModal(member) {
 
   const humans = lastMembers.filter((m) => !m.isAi);
   const myMember = humans.find((m) => String(m.id) === String(myUid)) || humans[0] || null;
+
+  // 🗺️ Xaritadan ochilganda: MATN YO'Q, FAQAT KATTA OVOZLI XABAR TUGMASI!
+  if (isFromMap) {
+    chatForm.style.display = 'flex';
+    if (chatInput) chatInput.style.display = 'none';
+    if (chatSubmit) chatSubmit.style.display = 'none';
+    if (btnVoice) {
+      btnVoice.textContent = '🎙️ Bosing va ovozli gapiring';
+      btnVoice.classList.add('btn-voice-large');
+    }
+    if (chatTargetLabel) {
+      chatTargetLabel.textContent = `🎙️ ${latest.name}ga ovozli xabar yuborish:`;
+    }
+    senderList.replaceChildren();
+    if (statusSection) statusSection.style.display = 'none';
+    selectedTargetId = String(latest.id);
+    charWrap.classList.add('open');
+    return;
+  }
+
+  // 3D Uydan ochilganda: odatiy ko'rinish
+  if (chatInput) chatInput.style.display = 'block';
+  if (chatSubmit) chatSubmit.style.display = 'block';
+  if (btnVoice) {
+    btnVoice.textContent = '🎙️';
+    btnVoice.classList.remove('btn-voice-large');
+  }
 
   // 🤖 1. AI ROBOT USTIGA BOSILGANDA: Buyruq berish oynasi
   if (latest.job === 'robot') {
