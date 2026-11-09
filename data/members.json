@@ -9,7 +9,7 @@
       "isAi": true,
       "aiType": "robot",
       "status": "home",
-      "taskSeq": 0,
+      "taskSeq": 12,
       "heldItem": null,
       "deliverToId": null,
       "statusAt": "2026-11-08T02:24:00.000Z",
@@ -27,7 +27,8 @@
         "hat": "none",
         "outfit": "robot"
       },
-      "joinedAt": "2026-11-08T02:24:00.000Z"
+      "joinedAt": "2026-11-08T02:24:00.000Z",
+      "updatedAt": "2026-11-09T15:56:33.290Z"
     },
     {
       "id": 900002,
@@ -37,9 +38,9 @@
       "job": "cat",
       "isAi": true,
       "aiType": "cat",
-      "status": "home",
-      "taskSeq": 2,
-      "statusAt": "2026-11-08T02:24:00.000Z",
+      "status": "eat",
+      "taskSeq": 123,
+      "statusAt": "2026-11-09T16:02:19.755Z",
       "seat": 3,
       "appearance": {
         "skin": "#f4a261",
@@ -56,7 +57,7 @@
       },
       "joinedAt": "2026-11-08T02:24:00.000Z",
       "deliverToId": null,
-      "updatedAt": "2026-11-08T09:31:20.104Z"
+      "updatedAt": "2026-11-09T16:02:19.755Z"
     },
     {
       "id": 900003,
@@ -67,8 +68,8 @@
       "isAi": true,
       "aiType": "dog",
       "status": "home",
-      "taskSeq": 2,
-      "statusAt": "2026-11-08T02:24:00.000Z",
+      "taskSeq": 134,
+      "statusAt": "2026-11-09T16:01:51.755Z",
       "seat": 4,
       "appearance": {
         "skin": "#d4a373",
@@ -85,7 +86,192 @@
       },
       "joinedAt": "2026-11-08T02:24:00.000Z",
       "deliverToId": null,
-      "updatedAt": "2026-11-09T12:00:00.000Z"
+      "updatedAt": "2026-11-09T16:01:57.756Z"
+    },
+    {
+      "id": 6280077746,
+      "name": "Jamshid",
+      "gender": "male",
+      "age": 39,
+      "job": "taxi",
+      "status": "home",
+      "statusAt": "2026-11-09T15:56:22.288Z",
+      "seat": 0,
+      "appearance": {
+        "skin": "#9c6644",
+        "hair": "#2b1d16",
+        "hairStyle": 3,
+        "shirt": "#118ab2",
+        "pants": "#3d5a80",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "joinedAt": "2026-11-09T14:39:43.456Z",
+      "apkInstalled": true,
+      "lastApkPing": 1794240134698,
+      "welcomeSent": true,
+      "location": {
+        "lat": 40.641095,
+        "lon": 72.252109,
+        "accuracy": 100,
+        "live": true,
+        "liveUntil": 1794326534698,
+        "distance": 0,
+        "address": "Asaka, lmom Buxoriy ko'chasi",
+        "at": "2026-11-09T16:02:14.698Z"
+      }
+    },
+    {
+      "id": 5123370336,
+      "name": "Мурат",
+      "gender": "male",
+      "age": 45,
+      "job": "taxi",
+      "status": "home",
+      "statusAt": "2026-11-09T14:43:30.373Z",
+      "seat": 1,
+      "appearance": {
+        "skin": "#f2c29b",
+        "hair": "#2b1d16",
+        "hairStyle": 3,
+        "shirt": "#118ab2",
+        "pants": "#4a4e69",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "joinedAt": "2026-11-09T14:43:30.373Z",
+      "apkInstalled": true,
+      "lastApkPing": 1794240138566,
+      "welcomeSent": true,
+      "location": {
+        "lat": 40.640386096281944,
+        "lon": 72.25355432212075,
+        "accuracy": 4.900000095367432,
+        "live": true,
+        "liveUntil": 1794326538566,
+        "distance": 145,
+        "address": "Asaka",
+        "at": "2026-11-09T16:02:18.566Z"
+      }
+    },
+    {
+      "id": 1512600413,
+      "name": "Dilrabo",
+      "gender": "female",
+      "age": 34,
+      "job": "housewife",
+      "status": "home",
+      "statusAt": "2026-11-09T14:44:44.288Z",
+      "seat": 5,
+      "appearance": {
+        "skin": "#e0a878",
+        "hair": "#2b1d16",
+        "hairStyle": 1,
+        "shirt": "#e63946",
+        "pants": "#4a4e69",
+        "scale": 1,
+        "glasses": false,
+        "mustache": false,
+        "beard": false,
+        "hat": "romol",
+        "outfit": "apron"
+      },
+      "joinedAt": "2026-11-09T14:44:44.288Z",
+      "apkInstalled": true,
+      "lastApkPing": 1794240126009,
+      "welcomeSent": true,
+      "location": {
+        "lat": 40.64110646,
+        "lon": 72.25237083,
+        "accuracy": 10.9664,
+        "live": true,
+        "liveUntil": 1794326526011,
+        "distance": 22,
+        "address": "Asaka, lmom Buxoriy ko'chasi",
+        "at": "2026-11-09T16:02:06.011Z"
+      }
+    },
+    {
+      "id": 780454115,
+      "name": "Jahongir",
+      "gender": "male",
+      "age": 43,
+      "job": "taxi",
+      "status": "home",
+      "statusAt": "2026-11-09T14:55:12.497Z",
+      "seat": 6,
+      "appearance": {
+        "skin": "#ffd9b8",
+        "hair": "#2b1d16",
+        "hairStyle": 3,
+        "shirt": "#118ab2",
+        "pants": "#4a4e69",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "joinedAt": "2026-11-09T14:55:12.497Z",
+      "apkInstalled": true,
+      "lastApkPing": 1794237005318,
+      "welcomeSent": true,
+      "location": {
+        "lat": 40.6406481,
+        "lon": 72.2523439,
+        "accuracy": 1.565999984741211,
+        "live": true,
+        "liveUntil": 1794323405318,
+        "distance": 53,
+        "address": "Asaka, lmom Buxoriy ko'chasi",
+        "at": "2026-11-09T15:10:05.318Z"
+      }
+    },
+    {
+      "id": 7748681452,
+      "name": "Dilmurod",
+      "gender": "male",
+      "age": 45,
+      "job": "taxi",
+      "status": "out",
+      "statusAt": "2026-11-09T15:53:46.209Z",
+      "seat": 7,
+      "appearance": {
+        "skin": "#9c6644",
+        "hair": "#2b1d16",
+        "hairStyle": 3,
+        "shirt": "#118ab2",
+        "pants": "#2d3142",
+        "scale": 1,
+        "glasses": false,
+        "mustache": true,
+        "beard": false,
+        "hat": "doppi",
+        "outfit": "taxi"
+      },
+      "joinedAt": "2026-11-09T15:11:08.473Z",
+      "apkInstalled": true,
+      "lastApkPing": 1794240123724,
+      "welcomeSent": true,
+      "location": {
+        "lat": 40.64611785836436,
+        "lon": 72.24636771390234,
+        "accuracy": 4,
+        "live": true,
+        "liveUntil": 1794326523725,
+        "distance": 739,
+        "address": "Asaka",
+        "at": "2026-11-09T16:02:03.725Z"
+      }
     }
   ],
   "home": {
