@@ -250,14 +250,14 @@ html, body {
   display: block;
 }
 .pin.has-photo.live {
-  border-color: #10b981;
+  border-color: #ff3b3b;
 }
 .pin.has-photo.live::after {
   content: '';
   position: absolute;
   inset: -6px;
   border-radius: 50%;
-  border: 3px solid #10b981;
+  border: 3px solid #ff3b3b;
   animation: pulse 1.5s infinite;
 }
 @keyframes pulse {

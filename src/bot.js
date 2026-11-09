@@ -557,7 +557,7 @@ async function startBot(token, onStatus, options = {}) {
 
       await ctx.reply(
         `✅ *${m.name}*, rasmingiz muvaffaqiyatli qabul qilindi!\n\n` +
-        `🗺️ Xaritadagi nishoningiz ushbu rasmga o'rnatildi va harakatlanganingizda atrofida yashil chiroq yonib turadi! ✨`,
+        `🗺️ Xaritadagi nishoningiz ushbu rasmga o'rnatildi va onlayn bo'lganingizda atrofida qizil jonli signal yonib-o'chib turadi! 🔴✨`,
         {
           parse_mode: 'Markdown',
           reply_markup: mainKeyboard(id),

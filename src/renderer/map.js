@@ -33,7 +33,9 @@ export function formatDistance(m) {
 
 export function isLive(loc) {
   if (!loc?.live) return false;
-  const fresh = Date.now() - new Date(loc.at).getTime() < 30 * 60000;
+  // Internet yoqiq turganda telefon datchigi muntazam signal uzatib turadi.
+  // Agar internet o'chsa yoki signal to'xtasa, 45 soniya ichida avtomatik oflaynga o'tadi.
+  const fresh = Date.now() - new Date(loc.at).getTime() < 45 * 1000;
   return fresh && (!loc.liveUntil || loc.liveUntil > Date.now());
 }
 
@@ -55,7 +57,7 @@ export class FamilyMap {
     this.homeLayer = null;
     this.members = [];
     this.home = null;
-    setInterval(() => this.isOpen && this.render(), 10000);
+    setInterval(() => this.isOpen && this.render(), 3000);
   }
 
   get isOpen() {
