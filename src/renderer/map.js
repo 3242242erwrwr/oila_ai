@@ -52,6 +52,7 @@ export class FamilyMap {
     this.map = null;
     this.markers = new Map();
     this.iconKeys = new Map();
+    this.popupKeys = new Map();
     this.animFrames = new Map();
     this.animTargets = new Map();
     this.addrCache = new Map();
@@ -60,6 +61,8 @@ export class FamilyMap {
     this.homeKey = '';
     this.members = [];
     this.home = null;
+    this.followId = null;
+    this.myUid = null;
     setInterval(() => this.isOpen && this.render(), 3000);
   }
 
@@ -67,31 +70,95 @@ export class FamilyMap {
     return this.wrap.classList.contains('open');
   }
 
+  setMyUid(uid) {
+    this.myUid = uid ? Number(uid) : null;
+  }
+
+  updateFollowUi() {
+    const btn = document.getElementById('map-follow');
+    if (!btn) return;
+    if (this.followId != null) {
+      const target = this.members.find((x) => Number(x.id) === Number(this.followId));
+      btn.textContent = `🧭 Kuzatish: ${target?.name || '...'} ✓`;
+      btn.classList.add('following');
+    } else {
+      btn.textContent = '🧭 Kuzatish';
+      btn.classList.remove('following');
+    }
+  }
+
+  follow(id) {
+    this.followId = id != null ? Number(id) : null;
+    this.updateFollowUi();
+    if (this.followId != null && this.map) {
+      const humans = this.members.filter((x) => !x.isAi);
+      const idx = humans.findIndex((x) => Number(x.id) === this.followId);
+      const m = idx >= 0 ? humans[idx] : null;
+      const loc = m ? this.resolveLoc(m, idx, humans.length) : null;
+      if (loc) {
+        const z = Math.max(this.map.getZoom() || 16, 17);
+        this.map.setView([loc.lat, loc.lon], z, { animate: true });
+      }
+    }
+    if (this.map) this.render();
+  }
+
+  stopFollow() {
+    if (this.followId == null) return;
+    this.followId = null;
+    this.updateFollowUi();
+    if (this.map) this.render();
+  }
+
+  toggleFollowMe() {
+    if (this.followId != null) {
+      this.stopFollow();
+      return;
+    }
+    const humans = this.members.filter((x) => !x.isAi);
+    const me = (this.myUid && humans.find((x) => Number(x.id) === Number(this.myUid))) || humans[0];
+    if (me) {
+      this.follow(me.id);
+    }
+  }
+
   ensure() {
     if (this.map) return;
     this.map = L.map(this.mapEl, { zoomControl: true }).setView(DEFAULT_VIEW, 14);
 
-    // 1. Batafsil xarita (barcha ko'cha nomlari, mahallalar va uy raqamlari bilan)
-    const detailedMap = L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
-      maxZoom: 20,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-      attribution: '© Google / Batafsil Xarita',
-    }).addTo(this.map);
-
-    // 2. Sun'iy yo'ldosh (Gibrid: ko'chalar va binolar nomlari ustida yozilgan jonli fotosurat)
-    const hybridSat = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-      maxZoom: 20,
-      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
-      attribution: '© Google Hybrid',
+    // Barmoq bilan xaritani surib ko'rganda kuzatish avtomatik pauza bo'ladi
+    this.map.on('dragstart', () => {
+      if (this.followId != null) this.stopFollow();
     });
 
-    // 3. Yandex Xarita
+    // 1. O'zbekcha HD batafsil xarita (ko'chalar, mahallalar, do'kon va bino nomlari aniq)
+    const googleUz = L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=uz&scale=2&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Oʻzbekcha HD',
+    }).addTo(this.map);
+
+    // 2. Sun'iy yo'ldosh + O'zbekcha nomlar (Gibrid HD)
+    const hybridSatUz = L.tileLayer('https://{s}.google.com/vt/lyrs=y&hl=uz&scale=2&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Gibrid HD',
+    });
+
+    // 3. Ruscha HD batafsil xarita
+    const googleRu = L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=ru&scale=2&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      attribution: '© Google Ruscha HD',
+    });
+
+    // 4. Yandex Xarita
     const yandexLayer = L.tileLayer('https://core-renderer-tiles.maps.yandex.net/tiles?l=map&x={x}&y={y}&z={z}&scale=1&lang=uz_UZ', {
       maxZoom: 19,
       attribution: '© Yandex Xarita',
     });
 
-    // 4. Standart OpenStreetMap
+    // 5. OpenStreetMap
     const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
@@ -99,8 +166,9 @@ export class FamilyMap {
 
     L.control.layers(
       {
-        '🗺️ Batafsil Xarita (Ko\'chalar va Uylar)': detailedMap,
-        '🛰️ Sun\'iy yo\'ldosh (Gibrid)': hybridSat,
+        "🇺🇿 O'zbekcha HD Xarita": googleUz,
+        '🛰️ Sun\'iy yo\'ldosh (Gibrid HD)': hybridSatUz,
+        '🇷🇺 Ruscha HD Xarita': googleRu,
         '🟡 Yandex Xarita': yandexLayer,
         '🌍 OpenStreetMap': osm,
       },
@@ -108,6 +176,7 @@ export class FamilyMap {
       { position: 'topright' }
     ).addTo(this.map);
 
+    this.updateFollowUi();
     this.render();
   }
 
@@ -119,10 +188,12 @@ export class FamilyMap {
       const humans = this.members.filter((x) => !x.isAi);
       const idx = focusId != null ? humans.findIndex((x) => x.id === focusId) : -1;
       const m = idx >= 0 ? humans[idx] : null;
-      const loc = m ? this.resolveLoc(m, idx) : null;
+      const loc = m ? this.resolveLoc(m, idx, humans.length) : null;
       if (m && loc) {
         this.map.setView([loc.lat, loc.lon], 16);
         this.markers.get(m.id)?.openPopup();
+      } else if (this.followId != null) {
+        this.follow(this.followId);
       } else {
         this.fit();
       }
@@ -141,6 +212,7 @@ export class FamilyMap {
   update(members, home) {
     if (members) this.members = members;
     if (home !== undefined) this.home = home;
+    this.updateFollowUi();
     if (this.map) this.render();
   }
 
@@ -201,6 +273,11 @@ export class FamilyMap {
       return;
     }
     this.animTargets.set(id, [toLat, toLon]);
+
+    // Agar ushbu odam "Kuzatish" rejimida bo'lsa, xarita ham u bilan birga silliq siljib yuradi
+    if (this.followId != null && Number(id) === Number(this.followId) && this.map && this.isOpen) {
+      this.map.panTo([toLat, toLon], { animate: true, duration: 0.85, easeLinearity: 1 });
+    }
 
     const cur = marker.getLatLng();
     if (!cur) {
@@ -291,6 +368,17 @@ export class FamilyMap {
       }
       if (loc.accuracy) box.append(el('div', 'pop-sub', `🎯 Aniqlik: ±${Math.round(loc.accuracy)} m`));
     }
+
+    const isFollowing = this.followId != null && Number(this.followId) === Number(m.id);
+    const followBtn = el('button', 'pop-follow-btn' + (isFollowing ? ' active' : ''), isFollowing ? "🧭 Kuzatishni o'chirish ✓" : '🧭 Kuzatish');
+    followBtn.type = 'button';
+    followBtn.onclick = (e) => {
+      e.stopPropagation();
+      if (isFollowing) this.stopFollow();
+      else this.follow(m.id);
+    };
+    box.append(followBtn);
+
     return box;
   }
 
@@ -304,19 +392,27 @@ export class FamilyMap {
       seen.add(m.id);
       const ll = [loc.lat, loc.lon];
       const iconKey = `${isLive(loc)}|${m.name}|${m.photo ? 'p' : m.photoUrl || ''}|${m.appearance?.shirt || ''}`;
+      const addr = loc.isHomeFallback ? '' : (this.getAddress(loc) || '');
+      const isFollowing = this.followId != null && Number(this.followId) === Number(m.id);
+      const popupKey = `${m.status}|${loc.at}|${timeAgo(loc.at)}|${loc.distance}|${loc.speed || 0}|${addr}|${isFollowing}`;
+
       let marker = this.markers.get(m.id);
       if (!marker) {
         marker = L.marker(ll, { icon: this.makeIcon(m, loc) }).addTo(this.map);
         marker.bindPopup(this.makePopup(m, loc));
         this.markers.set(m.id, marker);
         this.iconKeys.set(m.id, iconKey);
+        this.popupKeys.set(m.id, popupKey);
       } else {
         this.animateMarkerTo(m.id, marker, loc.lat, loc.lon);
         if (this.iconKeys.get(m.id) !== iconKey) {
           marker.setIcon(this.makeIcon(m, loc));
           this.iconKeys.set(m.id, iconKey);
         }
-        marker.setPopupContent(this.makePopup(m, loc));
+        if (this.popupKeys.get(m.id) !== popupKey) {
+          marker.setPopupContent(this.makePopup(m, loc));
+          this.popupKeys.set(m.id, popupKey);
+        }
       }
     });
     for (const [id, marker] of this.markers) {
@@ -326,6 +422,7 @@ export class FamilyMap {
         this.animFrames.delete(id);
         this.animTargets.delete(id);
         this.iconKeys.delete(id);
+        this.popupKeys.delete(id);
         marker.remove();
         this.markers.delete(id);
       }
