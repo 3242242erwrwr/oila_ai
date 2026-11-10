@@ -21,6 +21,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.PowerManager;
+import android.os.SystemClock;
 
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -44,8 +45,8 @@ public class LocationService extends Service implements LocationListener {
     private double lastSentLon = Double.NaN;
     private float lastSentAcc = 15f;
     private volatile long lastSentAt = 0;
-    private long lastLocationFixTime = 0;
-    private long lastGpsFixAt = 0;
+    private long lastGpsElapsedNs = 0;
+    private long lastNetElapsedNs = 0;
 
     private final Runnable periodicTask = new Runnable() {
         @Override
@@ -112,7 +113,7 @@ public class LocationService extends Service implements LocationListener {
                     : new Notification.Builder(this);
 
             nb.setContentTitle("🏠 Oilaviy Uy")
-              .setContentText("📍 24/7 Tezkor Real-Time GPS faol")
+              .setContentText("📍 24/7 Aniq Real-Time GPS faol")
               .setSmallIcon(R.drawable.ic_launcher)
               .setContentIntent(pi)
               .setOngoing(true);
@@ -158,6 +159,21 @@ public class LocationService extends Service implements LocationListener {
                 || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
     }
 
+    private long getElapsedNs(Location loc) {
+        if (loc == null) return 0L;
+        try {
+            return loc.getElapsedRealtimeNanos();
+        } catch (Exception e) {
+            return 0L;
+        }
+    }
+
+    private long ageMs(Location loc) {
+        long ns = getElapsedNs(loc);
+        if (ns <= 0L) return Long.MAX_VALUE / 2L;
+        return Math.max(0L, (SystemClock.elapsedRealtimeNanos() - ns) / 1_000_000L);
+    }
+
     @SuppressLint("MissingPermission")
     private void pollAndSend() {
         if (!hasLocationPerm() || locationManager == null) return;
@@ -189,39 +205,54 @@ public class LocationService extends Service implements LocationListener {
         boolean bIsGps = LocationManager.GPS_PROVIDER.equals(b.getProvider());
         float accA = a.hasAccuracy() ? a.getAccuracy() : 20f;
         float accB = b.hasAccuracy() ? b.getAccuracy() : 20f;
-        long timeDelta = b.getTime() - a.getTime();
+        long ageA = ageMs(a);
+        long ageB = ageMs(b);
 
-        // Agar ikkalasidan biri toza GPS (<=25m) bo'lsa va 20 soniyadan eski bo'lmasa, NETWORK ni ustun qo'ymaymiz
-        if (aIsGps && !bIsGps && accA <= 25f && (b.getTime() - a.getTime()) < 20000L) {
+        // Toza GPS (<25 soniya yosh va <=40m aniqlik) har doim NETWORK dan ustun turadi
+        if (aIsGps && !bIsGps && accA <= 40f && ageA < 25000L) {
             return a;
         }
-        if (bIsGps && !aIsGps && accB <= 25f && (a.getTime() - b.getTime()) < 20000L) {
+        if (bIsGps && !aIsGps && accB <= 40f && ageB < 25000L) {
             return b;
         }
 
-        if (timeDelta > 2000) return b;
-        if (timeDelta < -2000) return a;
+        // Monoton (soat farqisiz) yosh solishtiruvi: 3 soniyadan yangirog'i yutadi
+        if (ageB + 3000L < ageA) return b;
+        if (ageA + 3000L < ageB) return a;
         return accB <= accA ? b : a;
     }
 
     @Override
     public void onLocationChanged(Location loc) {
         if (loc == null) return;
-        final long now = System.currentTimeMillis();
-        final boolean isGps = LocationManager.GPS_PROVIDER.equals(loc.getProvider());
-        final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
+        long elNs = getElapsedNs(loc);
+        boolean isGps = LocationManager.GPS_PROVIDER.equals(loc.getProvider());
+        float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
 
-        if (isGps && acc <= 35f) {
-            lastGpsFixAt = now;
-        } else if (!isGps && (now - lastGpsFixAt) < 20000L) {
-            // Toza GPS yaqinda kelgan bo'lsa, NETWORK nuqtasini o'tkazib yuboramiz
+        if (isGps) {
+            // Faqat o'z provayderining eski dublikatini rad etamiz — NETWORK soati bilan hech qachon to'qnashmaydi!
+            if (elNs > 0L && lastGpsElapsedNs > 0L && elNs < lastGpsElapsedNs) {
+                return;
+            }
+            if (elNs > 0L) lastGpsElapsedNs = elNs;
+            if (acc <= 40f || bestLocation == null || !LocationManager.GPS_PROVIDER.equals(bestLocation.getProvider())) {
+                bestLocation = loc;
+            } else {
+                bestLocation = pickBetter(bestLocation, loc);
+            }
+            considerSending(bestLocation);
             return;
         }
 
-        if (loc.getTime() > 0 && lastLocationFixTime > 0 && loc.getTime() + 1500L < lastLocationFixTime) {
+        // NETWORK / PASSIVE: agar oxirgi 25 soniyada aniq GPS ishlagan bo'lsa, sakramasligi uchun o'tkazib yuboramiz
+        long sinceGpsMs = lastGpsElapsedNs > 0L ? (SystemClock.elapsedRealtimeNanos() - lastGpsElapsedNs) / 1_000_000L : Long.MAX_VALUE;
+        if (sinceGpsMs < 25000L && bestLocation != null && (bestLocation.hasAccuracy() ? bestLocation.getAccuracy() : 20f) <= 40f) {
             return;
         }
-        if (loc.getTime() > 0) lastLocationFixTime = loc.getTime();
+        if (elNs > 0L && lastNetElapsedNs > 0L && elNs < lastNetElapsedNs) {
+            return;
+        }
+        if (elNs > 0L) lastNetElapsedNs = elNs;
         bestLocation = pickBetter(bestLocation, loc);
         considerSending(bestLocation);
     }
@@ -245,12 +276,14 @@ public class LocationService extends Service implements LocationListener {
         double distMoved = first ? Double.POSITIVE_INFINITY : distanceMeters(lastSentLat, lastSentLon, lat, lon);
         double minRealMove = acc <= 15f ? 3.5 : Math.min(15.0, Math.max(5.0, acc * 0.6));
 
+        boolean accuracyOk = (acc <= 65f) || (acc <= 85f && distMoved >= 20.0);
+
         final double sendLat;
         final double sendLon;
         final float sendSpeed;
         final String sendProv;
 
-        if (first || (acc <= 65f && distMoved >= minRealMove)) {
+        if (first || (accuracyOk && distMoved >= minRealMove)) {
             if (!first && (now - lastSentAt) < 1200L) {
                 return;
             }

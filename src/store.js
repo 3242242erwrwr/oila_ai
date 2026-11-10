@@ -321,13 +321,11 @@ class Store extends EventEmitter {
       if (accuracy != null && accuracy > 80) {
         lat = prev.lat;
         lon = prev.lon;
-      } else if (accuracy != null && accuracy > 45 && stepDist <= 40) {
+      } else if (accuracy != null && accuracy > 65 && stepDist <= 25) {
         lat = prev.lat;
         lon = prev.lon;
       } else {
         const dtSec = prev.at ? Math.max(1, (Date.now() - new Date(prev.at).getTime()) / 1000) : 10;
-        const spd = loc.speed != null ? Number(loc.speed) : 0;
-        const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 22 && (spd >= 3 || stepDist >= 8);
         const minRealMove = accuracy != null && accuracy <= 15 ? 3.5 : (accuracy != null ? Math.min(16, Math.max(5, accuracy * 0.6)) : 5);
         if ((stepDist / dtSec > 75 && (accuracy == null || accuracy > 12)) || stepDist <= minRealMove) {
           lat = prev.lat;
