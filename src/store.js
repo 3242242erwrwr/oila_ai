@@ -337,10 +337,17 @@ class Store extends EventEmitter {
         const dtSec = prev.at ? Math.max(1, (Date.now() - new Date(prev.at).getTime()) / 1000) : 10;
         const spd = loc.speed != null ? Number(loc.speed) : 0;
         const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 25 && spd >= 3;
-        const minRealMove = isGpsMoving ? 2.5 : (accuracy != null && accuracy <= 12 ? 4.0 : (accuracy != null ? Math.min(15, Math.max(5.5, accuracy * 0.55)) : 5));
+        // Turganda (spd < 3) 15 m gacha GPS tebranishini qotirib ushlaymiz; yurganda 2.5 m sezgirlik
+        const minRealMove = isGpsMoving
+          ? 2.5
+          : (accuracy != null && accuracy > 25 ? Math.min(22, Math.max(15, accuracy * 0.6)) : 15);
         if ((stepDist / dtSec > 75 && (accuracy == null || accuracy > 12)) || stepDist <= minRealMove) {
           lat = prev.lat;
           lon = prev.lon;
+        } else if (isGpsMoving && spd < 20 && stepDist < 35) {
+          // Sekin/shahar ichida harakatda chap-o'ng tebranishni tekislash (30% oldingi + 70% yangi)
+          lat = prev.lat * 0.3 + lat * 0.7;
+          lon = prev.lon * 0.3 + lon * 0.7;
         }
       }
     } else if (accuracy != null && accuracy > 120) {
@@ -383,7 +390,7 @@ class Store extends EventEmitter {
       prev &&
       Number.isFinite(prev.lat) &&
       Number.isFinite(prev.lon) &&
-      distanceMeters(prev.lat, prev.lon, lat, lon) < 2.0;
+      distanceMeters(prev.lat, prev.lon, lat, lon) < 1.5;
 
     m.location = {
       ...loc,

@@ -300,6 +300,15 @@ export class FamilyMap {
       ? 1050
       : Math.min(2200, Math.max(1150, Math.round(approxMeters * 12)));
 
+    if (isFollowed && approxMeters >= 3) {
+      this.map.panTo([toLat, toLon], {
+        animate: true,
+        duration: Math.min(1.1, duration / 1000),
+        easeLinearity: 1,
+        noMoveStart: true,
+      });
+    }
+
     const fromLat = cur.lat;
     const fromLon = cur.lng;
     const start = performance.now();
@@ -309,9 +318,6 @@ export class FamilyMap {
       const curLat = fromLat + dLat * t;
       const curLon = fromLon + dLon * t;
       marker.setLatLng([curLat, curLon]);
-      if (this.followId != null && Number(id) === Number(this.followId) && this.map && this.isOpen) {
-        this.map.setView([curLat, curLon], this.map.getZoom(), { animate: false });
-      }
       if (t < 1) {
         this.animFrames.set(id, requestAnimationFrame(step));
       } else {
