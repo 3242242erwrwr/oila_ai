@@ -168,23 +168,30 @@ export class FamilyMap {
       if (this.followId != null) this.stopFollow();
     });
 
-    // 1. O'zbekcha HD batafsil xarita (ko'chalar, mahallalar, do'kon va bino nomlari aniq)
-    const googleUz = L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=uz&scale=2&x={x}&y={y}&z={z}', {
+    const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    const isVerySlowNet = Boolean(conn && (conn.saveData || conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g'));
+    const tileScale = isVerySlowNet ? 1 : 2;
+
+    // 1. O'zbekcha HD batafsil xarita (kuchsiz tarmoqda avtomatik yengil scale=1)
+    const googleUz = L.tileLayer(`https://{s}.google.com/vt/lyrs=m&hl=uz&scale=${tileScale}&x={x}&y={y}&z={z}`, {
       maxZoom: 20,
+      keepBuffer: 2,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       attribution: '© Google Oʻzbekcha HD',
     }).addTo(this.map);
 
     // 2. Sun'iy yo'ldosh + O'zbekcha nomlar (Gibrid HD)
-    const hybridSatUz = L.tileLayer('https://{s}.google.com/vt/lyrs=y&hl=uz&scale=2&x={x}&y={y}&z={z}', {
+    const hybridSatUz = L.tileLayer(`https://{s}.google.com/vt/lyrs=y&hl=uz&scale=${tileScale}&x={x}&y={y}&z={z}`, {
       maxZoom: 20,
+      keepBuffer: 2,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       attribution: '© Google Gibrid HD',
     });
 
     // 3. Ruscha HD batafsil xarita
-    const googleRu = L.tileLayer('https://{s}.google.com/vt/lyrs=m&hl=ru&scale=2&x={x}&y={y}&z={z}', {
+    const googleRu = L.tileLayer(`https://{s}.google.com/vt/lyrs=m&hl=ru&scale=${tileScale}&x={x}&y={y}&z={z}`, {
       maxZoom: 20,
+      keepBuffer: 2,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
       attribution: '© Google Ruscha HD',
     });

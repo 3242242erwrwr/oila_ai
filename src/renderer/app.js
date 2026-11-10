@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=67';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=68';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -463,36 +463,30 @@ function createWebApi() {
     })
     .catch(() => ({ members: [], home: null, bot: { ok: false } }));
 
-  const pollState = () =>
-    fetch('/api/state', { cache: 'no-store' })
+  let pollInFlight = false;
+  const pollState = () => {
+    if (pollInFlight) return Promise.resolve();
+    pollInFlight = true;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 7000);
+    return fetch('/api/state', { cache: 'no-store', signal: ctrl.signal })
       .then((r) => r.json())
       .then((s) => applyState(s, false))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(timer);
+        pollInFlight = false;
+      });
+  };
 
+  let es = null;
   let lastSseAt = 0;
   let lastPollAt = 0;
-  const es = new EventSource('/api/events');
-  es.onopen = () => { lastSseAt = Date.now(); };
+  let sseTimer = null;
+  let sseBackoff = 1000;
+  let wasDown = false;
 
-  // Oyna yashiringanda so'rov yubormaymiz; SSE ishlayotganida faqat 12 soniyada zaxira tekshiruv
-  setInterval(() => {
-    if (document.hidden) return;
-    const now = Date.now();
-    const sseHealthy = es.readyState === 1 && now - lastSseAt < 12000;
-    const minGap = sseHealthy ? 12000 : 2500;
-    if (now - lastPollAt < minGap) return;
-    lastPollAt = now;
-    pollState();
-  }, 1500);
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      lastPollAt = Date.now();
-      pollState();
-    }
-  });
-
-  es.onmessage = (ev) => {
+  const handleSseMessage = (ev) => {
     lastSseAt = Date.now();
     try {
       const { ch, data, seq } = JSON.parse(ev.data);
@@ -519,6 +513,73 @@ function createWebApi() {
       }
     } catch {}
   };
+
+  const connectSse = (forceRestart = false) => {
+    if (sseTimer) {
+      clearTimeout(sseTimer);
+      sseTimer = null;
+    }
+    if (es) {
+      if (!forceRestart && es.readyState !== 2) return;
+      try { es.close(); } catch {}
+      es = null;
+    }
+    es = new EventSource('/api/events');
+    es.onopen = () => {
+      lastSseAt = Date.now();
+      sseBackoff = 1000;
+      if (wasDown) {
+        wasDown = false;
+        pollState();
+      }
+    };
+    es.onmessage = handleSseMessage;
+    es.onerror = () => {
+      wasDown = true;
+      if (es && es.readyState === 2) {
+        try { es.close(); } catch {}
+        es = null;
+        if (!document.hidden && navigator.onLine !== false) {
+          const waitMs = sseBackoff;
+          sseBackoff = Math.min(8000, sseBackoff * 2);
+          sseTimer = setTimeout(() => connectSse(true), waitMs);
+        }
+      }
+    };
+  };
+
+  connectSse(true);
+
+  const reconnectNow = () => {
+    sseBackoff = 1000;
+    lastPollAt = Date.now();
+    pollState();
+    const stalled = !es || es.readyState !== 1 || Date.now() - lastSseAt > 20000;
+    if (stalled) connectSse(true);
+  };
+
+  // Oyna yashiringanda so'rov yubormaymiz; SSE ishlayotganida faqat 12 soniyada zaxira tekshiruv
+  setInterval(() => {
+    if (document.hidden) return;
+    const now = Date.now();
+    const sseHealthy = es && es.readyState === 1 && now - lastSseAt < 12000;
+    const minGap = sseHealthy ? 12000 : 2500;
+    if (now - lastPollAt < minGap) return;
+    lastPollAt = now;
+    pollState();
+    if (es && es.readyState === 2) connectSse(true);
+  }, 1500);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) reconnectNow();
+  });
+  window.addEventListener('online', reconnectNow);
+  window.addEventListener('focus', () => {
+    if (!document.hidden) reconnectNow();
+  });
+  window.addEventListener('offline', () => {
+    wasDown = true;
+  });
 
   return {
     getMembers: () => statePromise.then((s) => s.members || []),
@@ -730,6 +791,9 @@ function startSilentAutoLocation() {
     if (document.visibilityState === 'visible') {
       pollLocationOnce(false, false);
     }
+  });
+  window.addEventListener('online', () => {
+    pollLocationOnce(true, false);
   });
 }
 
