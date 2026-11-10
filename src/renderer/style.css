@@ -500,6 +500,16 @@ html, body {
 .status-btn.active, .st-btn.active { background: #b8f2d0; border-width: 2.5px; }
 
 @media (max-width: 720px) {
+  .map-wrap { padding: 0; }
+  .map-box {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .map-head { padding: 8px 10px; font-size: 14px; gap: 6px; }
   .title { font-size: 17px; }
   .top-left { top: 10px; left: 10px; }
   .bot-status { padding: 3px 8px; font-size: 11px; border-width: 2px; }
