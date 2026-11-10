@@ -33,8 +33,7 @@ export function formatDistance(m) {
 
 export function isLive(loc) {
   if (!loc?.live) return false;
-  // Internet yoqiq turganda telefon datchigi muntazam signal uzatib turadi.
-  // Agar internet o'chsa yoki signal to'xtasa, 30 daqiqadan keyin oflaynga o'tadi.
+  // Oldingi barqaror holat: oxirgi signaldan keyin 30 daqiqa davomida jonli ko'rinadi
   const fresh = Date.now() - new Date(loc.at).getTime() < 30 * 60000;
   return fresh && (!loc.liveUntil || loc.liveUntil > Date.now());
 }
@@ -52,12 +51,15 @@ export class FamilyMap {
     this.mapEl = mapEl;
     this.map = null;
     this.markers = new Map();
+    this.iconKeys = new Map();
+    this.animFrames = new Map();
     this.addrCache = new Map();
     this.addrPending = new Set();
     this.homeLayer = null;
+    this.homeKey = '';
     this.members = [];
     this.home = null;
-    setInterval(() => this.isOpen && this.render(), 10000);
+    setInterval(() => this.isOpen && this.render(), 5000);
   }
 
   get isOpen() {
@@ -143,7 +145,7 @@ export class FamilyMap {
 
   // Har bir oila a'zosining joylashuvini aniqlaymiz:
   // 1. Agar GPS lokatsiyasi bo'lsa -> GPS nuqtasida
-  // 2. Agar alohida GPS bo'lmasa, lekin uyda yoki bino ichida bo'lsa -> Uy nuqtasida (bir-birini to'sib qo'ymasligi uchun biroz suriladi)
+  // 2. Agar alohida GPS bo'lmasa, lekin uyda yoki bino ichida bo'lsa -> Uy nuqtasida
   resolveLoc(m, index = 0, total = 1) {
     if (m.location && Number.isFinite(m.location.lat) && Number.isFinite(m.location.lon)) {
       return m.location;
@@ -192,6 +194,43 @@ export class FamilyMap {
     return L.divIcon({ html: root, className: 'pin-icon', iconSize: [40, 56], iconAnchor: [20, 40], popupAnchor: [0, -38] });
   }
 
+  animateMarkerTo(id, marker, toLat, toLon) {
+    const cur = marker.getLatLng();
+    if (!cur) {
+      marker.setLatLng([toLat, toLon]);
+      return;
+    }
+    const dLat = toLat - cur.lat;
+    const dLon = toLon - cur.lng;
+    if (Math.abs(dLat) < 1e-7 && Math.abs(dLon) < 1e-7) return;
+
+    const prevRaf = this.animFrames.get(id);
+    if (prevRaf) cancelAnimationFrame(prevRaf);
+
+    // Juda uzoqqa (2+ km) sakraganda darhol o'tkazamiz, yaqin masofada esa silliq sirpanadi
+    if (Math.abs(dLat) > 0.02 || Math.abs(dLon) > 0.02) {
+      marker.setLatLng([toLat, toLon]);
+      return;
+    }
+
+    const fromLat = cur.lat;
+    const fromLon = cur.lng;
+    const start = performance.now();
+    const duration = 850;
+
+    const step = (now) => {
+      const t = Math.min(1, (now - start) / duration);
+      const ease = 1 - Math.pow(1 - t, 3);
+      marker.setLatLng([fromLat + dLat * ease, fromLon + dLon * ease]);
+      if (t < 1) {
+        this.animFrames.set(id, requestAnimationFrame(step));
+      } else {
+        this.animFrames.delete(id);
+      }
+    };
+    this.animFrames.set(id, requestAnimationFrame(step));
+  }
+
   getAddress(loc) {
     if (loc.address) return loc.address;
     const key = `${loc.lat.toFixed(4)},${loc.lon.toFixed(4)}`;
@@ -236,6 +275,9 @@ export class FamilyMap {
         box.append(el('div', 'pop-sub', `📍 ${addr}`));
       }
       box.append(el('div', 'pop-sub', `${isLive(loc) ? '🔴 Jonli • ' : '🕒 '}${timeAgo(loc.at)}`));
+      if (loc.speed != null && loc.speed >= 5) {
+        box.append(el('div', 'pop-sub', `🚗 Tezlik: ${Math.round(loc.speed)} km/soat`));
+      }
       if (loc.distance != null) {
         const distLabel = loc.distance <= 5 ? '🏠 Uyda (0 m)' : `🏠 Uydan ${formatDistance(loc.distance)}`;
         box.append(el('div', 'pop-sub', distLabel));
@@ -254,38 +296,48 @@ export class FamilyMap {
       if (!loc) return;
       seen.add(m.id);
       const ll = [loc.lat, loc.lon];
+      const iconKey = `${isLive(loc)}|${m.name}|${m.photo ? 'p' : m.photoUrl || ''}|${m.appearance?.shirt || ''}`;
       let marker = this.markers.get(m.id);
       if (!marker) {
         marker = L.marker(ll, { icon: this.makeIcon(m, loc) }).addTo(this.map);
+        marker.bindPopup(this.makePopup(m, loc));
         this.markers.set(m.id, marker);
+        this.iconKeys.set(m.id, iconKey);
       } else {
-        marker.setLatLng(ll);
-        marker.setIcon(this.makeIcon(m, loc));
-      }
-      const popupContent = this.makePopup(m, loc);
-      marker.bindPopup(popupContent);
-      if (marker.isPopupOpen()) {
-        marker.setPopupContent(popupContent);
+        this.animateMarkerTo(m.id, marker, loc.lat, loc.lon);
+        if (this.iconKeys.get(m.id) !== iconKey) {
+          marker.setIcon(this.makeIcon(m, loc));
+          this.iconKeys.set(m.id, iconKey);
+        }
+        marker.setPopupContent(this.makePopup(m, loc));
       }
     });
     for (const [id, marker] of this.markers) {
       if (!seen.has(id)) {
+        const raf = this.animFrames.get(id);
+        if (raf) cancelAnimationFrame(raf);
+        this.animFrames.delete(id);
+        this.iconKeys.delete(id);
         marker.remove();
         this.markers.delete(id);
       }
     }
 
-    if (this.homeLayer) this.homeLayer.remove();
-    this.homeLayer = null;
-    if (this.home) {
-      const homeCoords = [this.home.lat, this.home.lon];
-      this.homeLayer = L.layerGroup([
-        L.circle(homeCoords, { radius: 150, color: '#6c5ce7', weight: 2, fillOpacity: 0.12 }),
-        L.marker(homeCoords, {
-          icon: L.divIcon({ html: '<div class="home-pin">🏠</div>', className: 'pin-icon', iconSize: [40, 40], iconAnchor: [20, 20] }),
-          zIndexOffset: -100,
-        }).bindPopup('🏠 Oilaviy Uy'),
-      ]).addTo(this.map);
+    const nextHomeKey = this.home ? `${this.home.lat}|${this.home.lon}` : '';
+    if (nextHomeKey !== this.homeKey) {
+      if (this.homeLayer) this.homeLayer.remove();
+      this.homeLayer = null;
+      this.homeKey = nextHomeKey;
+      if (this.home) {
+        const homeCoords = [this.home.lat, this.home.lon];
+        this.homeLayer = L.layerGroup([
+          L.circle(homeCoords, { radius: 150, color: '#6c5ce7', weight: 2, fillOpacity: 0.12 }),
+          L.marker(homeCoords, {
+            icon: L.divIcon({ html: '<div class="home-pin">🏠</div>', className: 'pin-icon', iconSize: [40, 40], iconAnchor: [20, 20] }),
+            zIndexOffset: -100,
+          }).bindPopup('🏠 Oilaviy Uy'),
+        ]).addTo(this.map);
+      }
     }
   }
 

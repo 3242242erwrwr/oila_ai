@@ -322,9 +322,11 @@ class Store extends EventEmitter {
         lon = prev.lon;
       } else {
         const stepDist = distanceMeters(prev.lat, prev.lon, lat, lon);
-        // 4-5 metr ichida yoki GPS xatoligi (accuracy) doirasidagi o'z-o'zidan sakrashlarni bloklaymiz
-        const minRealMove = accuracy != null ? Math.min(35, Math.max(20, accuracy * 1.5)) : 20;
-        if (stepDist <= minRealMove) {
+        const dtSec = prev.at ? Math.max(1, (Date.now() - new Date(prev.at).getTime()) / 1000) : 10;
+        const spd = loc.speed != null ? Number(loc.speed) : 0;
+        const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 18 && spd >= 5;
+        const minRealMove = isGpsMoving ? 6 : (accuracy != null ? Math.min(35, Math.max(18, accuracy * 1.4)) : 18);
+        if ((stepDist / dtSec > 75 && (accuracy == null || accuracy > 12)) || stepDist <= minRealMove) {
           lat = prev.lat;
           lon = prev.lon;
         }
@@ -377,6 +379,7 @@ class Store extends EventEmitter {
       lon,
       accuracy,
       distance,
+      speed: sameSpot ? 0 : (loc.speed != null ? Math.round(Number(loc.speed)) : 0),
       address: sameSpot && prev?.address ? prev.address : (loc.address || prev?.address || null),
       at: now,
     };

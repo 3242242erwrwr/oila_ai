@@ -496,7 +496,7 @@ public class MainActivity extends Activity {
                     } catch (Exception ignored) {}
                 }
             }
-            if (loc != null) {
+            if (loc != null && (!loc.hasAccuracy() || loc.getAccuracy() <= 45f) && (System.currentTimeMillis() - loc.getTime()) < 120000L) {
                 final double lat = loc.getLatitude();
                 final double lon = loc.getLongitude();
                 final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 15f;

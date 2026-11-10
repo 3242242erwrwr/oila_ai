@@ -980,7 +980,11 @@ async function handleRoomAction(payload) {
       const lon = Number(payload.lon);
       const accuracy = payload.accuracy != null ? Number(payload.accuracy) : null;
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-      if (accuracy != null && accuracy > 400) return;
+      if (accuracy != null && accuracy > 120) return;
+      const speed = payload.speed != null && Number.isFinite(Number(payload.speed)) ? Number(payload.speed) : null;
+      const provider = typeof payload.provider === 'string' ? payload.provider : null;
+      if (payload.source === 'android_apk') m.lastApkLocationAt = Date.now();
+      else if (m.lastApkLocationAt && Date.now() - m.lastApkLocationAt < 120_000) return;
 
       if (!store.getHome()) {
         store.setHome(lat, lon, m.name);
@@ -989,6 +993,8 @@ async function handleRoomAction(payload) {
         lat,
         lon,
         accuracy,
+        speed,
+        provider,
         live: true,
         liveUntil: Date.now() + 86_400_000,
       });

@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=38';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=60';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -573,6 +573,8 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   // Kompyuter (PC) Wi-Fi xatolarini bloklaymiz; faqat Telefon / Ilova / Telegram WebApp dan myUid bilan yuboriladi!
   if (!isMobileOrTelegramApp || !myUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+  const meApk = lastMembers.find((x) => Number(x.id) === Number(myUid));
+  if (meApk?.apkInstalled && meApk?.lastApkPing && Date.now() - meApk.lastApkPing < 180_000) return;
   if (accuracy != null && accuracy > 45 && lastSentLat != null) return;
   if (accuracy != null && accuracy > 120) return;
 
