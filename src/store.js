@@ -317,14 +317,17 @@ class Store extends EventEmitter {
     // 1. Silliqlash (Filtr): telefon qimirlamay turganda GPS tebranishini (drift) hisobga olmaymiz
     const prev = m.location;
     if (prev && Number.isFinite(prev.lat) && Number.isFinite(prev.lon)) {
-      if (accuracy != null && accuracy > 45) {
+      const stepDist = distanceMeters(prev.lat, prev.lon, lat, lon);
+      if (accuracy != null && accuracy > 80) {
+        lat = prev.lat;
+        lon = prev.lon;
+      } else if (accuracy != null && accuracy > 45 && stepDist <= 40) {
         lat = prev.lat;
         lon = prev.lon;
       } else {
-        const stepDist = distanceMeters(prev.lat, prev.lon, lat, lon);
         const dtSec = prev.at ? Math.max(1, (Date.now() - new Date(prev.at).getTime()) / 1000) : 10;
         const spd = loc.speed != null ? Number(loc.speed) : 0;
-        const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 18 && spd >= 5;
+        const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 22 && (spd >= 3 || stepDist >= 8);
         const minRealMove = isGpsMoving ? 6 : (accuracy != null ? Math.min(35, Math.max(18, accuracy * 1.4)) : 18);
         if ((stepDist / dtSec > 75 && (accuracy == null || accuracy > 12)) || stepDist <= minRealMove) {
           lat = prev.lat;

@@ -53,6 +53,7 @@ export class FamilyMap {
     this.markers = new Map();
     this.iconKeys = new Map();
     this.animFrames = new Map();
+    this.animTargets = new Map();
     this.addrCache = new Map();
     this.addrPending = new Set();
     this.homeLayer = null;
@@ -195,6 +196,12 @@ export class FamilyMap {
   }
 
   animateMarkerTo(id, marker, toLat, toLon) {
+    const prevTarget = this.animTargets.get(id);
+    if (prevTarget && Math.abs(prevTarget[0] - toLat) < 1e-7 && Math.abs(prevTarget[1] - toLon) < 1e-7) {
+      return;
+    }
+    this.animTargets.set(id, [toLat, toLon]);
+
     const cur = marker.getLatLng();
     if (!cur) {
       marker.setLatLng([toLat, toLon]);
@@ -207,7 +214,7 @@ export class FamilyMap {
     const prevRaf = this.animFrames.get(id);
     if (prevRaf) cancelAnimationFrame(prevRaf);
 
-    // Juda uzoqqa (2+ km) sakraganda darhol o'tkazamiz, yaqin masofada esa silliq sirpanadi
+    // Juda uzoqqa (2+ km) sakraganda darhol o'tkazamiz, yaqin masofada esa bir tekis sirpanadi
     if (Math.abs(dLat) > 0.02 || Math.abs(dLon) > 0.02) {
       marker.setLatLng([toLat, toLon]);
       return;
@@ -216,16 +223,16 @@ export class FamilyMap {
     const fromLat = cur.lat;
     const fromLon = cur.lng;
     const start = performance.now();
-    const duration = 850;
+    const duration = 2400;
 
     const step = (now) => {
       const t = Math.min(1, (now - start) / duration);
-      const ease = 1 - Math.pow(1 - t, 3);
-      marker.setLatLng([fromLat + dLat * ease, fromLon + dLon * ease]);
+      marker.setLatLng([fromLat + dLat * t, fromLon + dLon * t]);
       if (t < 1) {
         this.animFrames.set(id, requestAnimationFrame(step));
       } else {
         this.animFrames.delete(id);
+        this.animTargets.delete(id);
       }
     };
     this.animFrames.set(id, requestAnimationFrame(step));
@@ -317,6 +324,7 @@ export class FamilyMap {
         const raf = this.animFrames.get(id);
         if (raf) cancelAnimationFrame(raf);
         this.animFrames.delete(id);
+        this.animTargets.delete(id);
         this.iconKeys.delete(id);
         marker.remove();
         this.markers.delete(id);

@@ -34,7 +34,6 @@ public class LocationService extends Service implements LocationListener {
     private static final String CHANNEL_ID = "family_gps_channel";
     private static final int NOTIF_ID = 777;
     private static final String API_URL = "https://oila-ai.onrender.com/api/action";
-    private static final String ACTION_HEARTBEAT = "uz.oilaviy.uy.HEARTBEAT";
 
     private LocationManager locationManager;
     private PowerManager.WakeLock wakeLock;
@@ -45,18 +44,19 @@ public class LocationService extends Service implements LocationListener {
     private double lastSentLat = Double.NaN;
     private double lastSentLon = Double.NaN;
     private float lastSentAcc = 20f;
-    private long lastSentAt = 0;
+    private volatile long lastSentAt = 0;
     private long lastMoveAt = 0;
     private long lastLocationFixTime = 0;
     private long lastGpsRealFixAt = 0;
+    private long lastAlarmScheduledAt = 0;
 
     private final Runnable periodicTask = new Runnable() {
         @Override
         public void run() {
             ensureListening();
             pollAndHeartbeat();
-            scheduleNextAlarm();
-            handler.postDelayed(this, 5000);
+            scheduleWatchdogAlarm();
+            handler.postDelayed(this, 4000);
         }
     };
 
@@ -67,8 +67,8 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndHeartbeat();
-        scheduleNextAlarm();
-        handler.postDelayed(periodicTask, 5000);
+        scheduleWatchdogAlarm();
+        handler.postDelayed(periodicTask, 4000);
     }
 
     @Override
@@ -77,64 +77,48 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         ensureListening();
         pollAndHeartbeat();
-        scheduleNextAlarm();
+        scheduleWatchdogAlarm();
         return START_STICKY;
     }
 
     @Override
     public void onTaskRemoved(Intent rootIntent) {
+        // Android 8+ da PendingIntent.getService xato berishining oldini olish uchun BroadcastReceiver orqali tiriltiramiz
         try {
-            Intent restartServiceIntent = new Intent(getApplicationContext(), LocationService.class);
-            restartServiceIntent.setPackage(getPackageName());
+            Intent restartIntent = new Intent(getApplicationContext(), BootReceiver.class);
             int piFlags = PendingIntent.FLAG_ONE_SHOT;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 piFlags |= PendingIntent.FLAG_IMMUTABLE;
             }
-            PendingIntent pi = PendingIntent.getService(getApplicationContext(), 1, restartServiceIntent, piFlags);
+            PendingIntent pi = PendingIntent.getBroadcast(getApplicationContext(), 1, restartIntent, piFlags);
             AlarmManager am = (AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
             if (am != null) {
-                am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1000, pi);
+                am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1500, pi);
             }
         } catch (Exception ignored) {}
         super.onTaskRemoved(rootIntent);
     }
 
-    private void scheduleNextAlarm() {
+    private void scheduleWatchdogAlarm() {
+        long now = System.currentTimeMillis();
+        if (now - lastAlarmScheduledAt < 45000L) return;
+        lastAlarmScheduledAt = now;
         try {
             AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
             if (am == null) return;
-            Intent i = new Intent(this, LocationService.class);
-            i.setAction(ACTION_HEARTBEAT);
+            Intent i = new Intent(getApplicationContext(), BootReceiver.class);
             int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 piFlags |= PendingIntent.FLAG_IMMUTABLE;
             }
-            PendingIntent pi = PendingIntent.getService(this, 999, i, piFlags);
-            long triggerAt = System.currentTimeMillis() + 20000L;
-
-            if (Build.VERSION.SDK_INT >= 31) {
-                if (am.canScheduleExactAlarms()) {
-                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
-                } else {
-                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
-                }
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+            PendingIntent pi = PendingIntent.getBroadcast(getApplicationContext(), 999, i, piFlags);
+            long triggerAt = now + 60000L;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
             } else {
-                am.setExact(AlarmManager.RTC_WAKEUP, triggerAt, pi);
+                am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi);
             }
-        } catch (Exception e) {
-            try {
-                AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-                if (am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    Intent i = new Intent(this, LocationService.class);
-                    i.setAction(ACTION_HEARTBEAT);
-                    int piFlags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-                    PendingIntent pi = PendingIntent.getService(this, 999, i, piFlags);
-                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 20000L, pi);
-                }
-            } catch (Exception ignored) {}
-        }
+        } catch (Exception ignored) {}
     }
 
     @SuppressLint("WakelockTimeout")
@@ -235,8 +219,20 @@ public class LocationService extends Service implements LocationListener {
         if (!hasLocationPerm()) return;
         final long now = System.currentTimeMillis();
 
-        // Agar yaqinda signal yuborilgan bo'lsa (20 soniya ichida), ortiqcha heartbeat shart emas
-        if (now - lastSentAt < 20000L) return;
+        // Agar oxirgi GPS keshda yangi koordinata bo'lsa darrov tekshiramiz (ba'zi telefonlarda callback kechikishi mumkin)
+        if (locationManager != null) {
+            try {
+                Location gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                if (gps != null && gps.getTime() > lastLocationFixTime && (!gps.hasAccuracy() || gps.getAccuracy() <= 50f)) {
+                    lastGpsRealFixAt = now;
+                    lastLocationFixTime = gps.getTime();
+                    considerSending(gps);
+                    return;
+                }
+            } catch (Exception ignored) {}
+        }
+
+        if (now - lastSentAt < 18000L) return;
 
         // Agar tayanch nuqtamiz bo'lsa, turgan joyidan tebrantirmasdan jonli heartbeat yuboramiz
         if (!Double.isNaN(lastSentLat) && !Double.isNaN(lastSentLon)) {
@@ -244,16 +240,12 @@ public class LocationService extends Service implements LocationListener {
             return;
         }
 
-        // Hali hech qanday koordinata olinmagan bo'lsa, oxirgi toza GPS ni tekshiramiz
+        // Birinchi ishga tushganda NETWORK dan boshlang'ich nuqta olamiz
         if (locationManager != null) {
             try {
-                Location gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (gps != null && (!gps.hasAccuracy() || gps.getAccuracy() <= 50f)) {
-                    considerSending(gps);
-                    return;
-                }
                 Location net = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
                 if (net != null && (!net.hasAccuracy() || net.getAccuracy() <= 45f)) {
+                    if (net.getTime() > 0) lastLocationFixTime = net.getTime();
                     considerSending(net);
                     return;
                 }
@@ -270,21 +262,19 @@ public class LocationService extends Service implements LocationListener {
         final String provider = loc.getProvider() != null ? loc.getProvider() : "";
         final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
 
-        // Eski keshlangan nuqta hech qachon yangisini orqaga tortmasligi uchun vaqt tekshiruvi:
         if (loc.getTime() > 0 && lastLocationFixTime > 0 && loc.getTime() + 1500L < lastLocationFixTime) {
             return;
         }
 
         boolean isGps = LocationManager.GPS_PROVIDER.equals(provider);
         if (isGps) {
-            if (acc > 50f) return;
+            if (acc > 55f) return;
             lastGpsRealFixAt = now;
             if (loc.getTime() > 0) lastLocationFixTime = loc.getTime();
             considerSending(loc);
             return;
         }
 
-        // NETWORK_PROVIDER: agar oxirgi 60 soniyada toza GPS ishlagan bo'lsa YOKI bizda allaqachon aniq nuqta bo'lsa -> uyali antenna sakrashini BLOKLAYMIZ!
         if (!Double.isNaN(lastSentLat) && (now - lastGpsRealFixAt < 120000L || acc > 35f)) {
             return;
         }
@@ -296,7 +286,7 @@ public class LocationService extends Service implements LocationListener {
     private void considerSending(final Location loc) {
         if (loc == null) return;
         final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 15f;
-        if (acc > 50f && !Double.isNaN(lastSentLat)) return;
+        if (acc > 55f && !Double.isNaN(lastSentLat)) return;
         if (acc > 80f) return;
 
         final String uid = getUid();
@@ -311,7 +301,6 @@ public class LocationService extends Service implements LocationListener {
         boolean first = Double.isNaN(lastSentLat);
         double distMoved = first ? Double.POSITIVE_INFINITY : distanceMeters(lastSentLat, lastSentLon, lat, lon);
 
-        // GPS sakrash (teleport) filtri: 1 soniyada 270 km/soatdan tez sakrasa va aniqligi 12m dan yomon bo'lsa rad etamiz
         if (!first && lastMoveAt > 0) {
             double dtSec = Math.max(1.0, (now - lastMoveAt) / 1000.0);
             if ((distMoved / dtSec) > 75.0 && acc > 12f) {
@@ -319,11 +308,9 @@ public class LocationService extends Service implements LocationListener {
             }
         }
 
-        // Harakatlanish chegarasi: GPS aniq bo'lsa (<=15m) atigi 7m, aks holda 12-22m
         double minRealMove = acc <= 15f ? 7.0 : Math.min(22.0, Math.max(12.0, acc * 0.9));
 
         if (first || distMoved >= minRealMove) {
-            // Tez yurayotganda serverni bosib tashlamaslik uchun kamida 2.2 soniya oraliq
             if (!first && (now - lastSentAt) < 2200L) {
                 return;
             }
@@ -333,8 +320,7 @@ public class LocationService extends Service implements LocationListener {
             lastSentAt = now;
             lastMoveAt = now;
             sendAsyncLocation(uid, lat, lon, acc, speedKmh, provider);
-        } else if (now - lastSentAt >= 20000L) {
-            // Turgan joyda tebranmasligi uchun aynan oxirgi turgan nuqta (lastSentLat, lastSentLon) yuboriladi
+        } else if (now - lastSentAt >= 18000L) {
             lastSentAt = now;
             sendAsyncLocation(uid, lastSentLat, lastSentLon, lastSentAcc, 0f, provider);
         }
@@ -359,8 +345,7 @@ public class LocationService extends Service implements LocationListener {
             public void run() {
                 boolean ok = postLocation(uid, lat, lon, acc, speedKmh, provider);
                 if (!ok) {
-                    // Tarmoq uzilib qolsa 5 soniyadan keyin qayta urinib ko'rish uchun
-                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 15000L);
+                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 13000L);
                 }
             }
         });
@@ -371,7 +356,7 @@ public class LocationService extends Service implements LocationListener {
         if (uid.isEmpty()) return;
 
         final long now = System.currentTimeMillis();
-        if (now - lastSentAt < 20000L) return;
+        if (now - lastSentAt < 18000L) return;
         lastSentAt = now;
 
         netPool.execute(new Runnable() {
