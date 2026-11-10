@@ -573,7 +573,7 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
   // Kompyuter (PC) Wi-Fi xatolarini bloklaymiz; faqat Telefon / Ilova / Telegram WebApp dan myUid bilan yuboriladi!
   if (!isMobileOrTelegramApp || !myUid || !api?.sendRoomAction) return;
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-  if (accuracy != null && accuracy > 65 && lastSentLat != null) return;
+  if (accuracy != null && accuracy > 45 && lastSentLat != null) return;
   if (accuracy != null && accuracy > 120) return;
 
   const now = Date.now();
@@ -583,7 +583,7 @@ function pushSilentLocation(lat, lon, accuracy = null, force = false) {
       : Math.hypot((lat - lastSentLat) * 111320, (lon - lastSentLon) * 85000);
 
   // Silliqlash (Filtr): 4-5 metr va GPS aniqligi (accuracy) chegarasidan oshmaguncha nuqtani siljitmaymiz
-  const minRealMove = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+  const minRealMove = accuracy != null ? Math.min(35, Math.max(20, accuracy * 1.5)) : 20;
   const movedEnough = distMoved >= minRealMove;
 
   if (!force && !movedEnough) {

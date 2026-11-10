@@ -317,18 +317,20 @@ class Store extends EventEmitter {
     // 1. Silliqlash (Filtr): telefon qimirlamay turganda GPS tebranishini (drift) hisobga olmaymiz
     const prev = m.location;
     if (prev && Number.isFinite(prev.lat) && Number.isFinite(prev.lon)) {
-      if (accuracy != null && accuracy > 60) {
+      if (accuracy != null && accuracy > 45) {
         lat = prev.lat;
         lon = prev.lon;
       } else {
         const stepDist = distanceMeters(prev.lat, prev.lon, lat, lon);
         // 4-5 metr ichida yoki GPS xatoligi (accuracy) doirasidagi o'z-o'zidan sakrashlarni bloklaymiz
-        const minRealMove = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+        const minRealMove = accuracy != null ? Math.min(35, Math.max(20, accuracy * 1.5)) : 20;
         if (stepDist <= minRealMove) {
           lat = prev.lat;
           lon = prev.lon;
         }
       }
+    } else if (accuracy != null && accuracy > 120) {
+      return null;
     }
 
     let event = null;
@@ -341,9 +343,9 @@ class Store extends EventEmitter {
         home = this.data.home;
       }
       const rawDist = distanceMeters(home.lat, home.lon, lat, lon);
-      const minHomeExit = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
-      // 2. Uy radiusi (0 m qoidasi): Uydan 4-5 metr ichida (yoki GPS tebranishi ichida) bo'lsa qat'iy 0 m ushlab turiladi
-      if (rawDist <= 5 || ((!prev || prev.distance === 0) && rawDist <= minHomeExit)) {
+      const minHomeExit = accuracy != null ? Math.min(35, Math.max(20, accuracy * 1.5)) : 20;
+      // 2. Uy radiusi (0 m qoidasi): Uydan 25-35 metr ichida (yoki GPS tebranishi ichida) bo'lsa qat'iy 0 m ushlab turiladi
+      if (rawDist <= 25 || ((!prev || prev.distance === 0) && rawDist <= minHomeExit)) {
         lat = home.lat;
         lon = home.lon;
         distance = 0;
