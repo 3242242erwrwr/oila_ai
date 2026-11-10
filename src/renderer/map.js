@@ -82,9 +82,8 @@ export class FamilyMap {
     this.lastShownAlertId = '';
     this.patrolRoute = [];
     this.patrolAnchorKey = '';
+    this.patrolFromCams = false;
     this.patrolState = { idx: 0, lat: null, lon: null };
-    this.lastHelperHoldUntil = 0;
-    this.lastHelperSpot = null;
     this.applyThemeUi();
     setInterval(() => this.isOpen && this.render(), 2000);
   }
@@ -779,7 +778,15 @@ export class FamilyMap {
       };
     } else {
       const drivers = this.members
-        .filter((m) => !m.isAi && m.location && isLive(m.location) && Number(m.location.speed || 0) >= 20)
+        .filter((m) => {
+          if (m.isAi || !m.location || !isLive(m.location)) return false;
+          if (Number(m.location.speed || 0) < 20) return false;
+          if (this.home) {
+            const dh = Math.hypot((m.location.lat - this.home.lat) * 111320, (m.location.lon - this.home.lon) * 85000);
+            if (dh < 700) return false; // Uy atrofida bo'lsa yordamchi uyga kelmaydi
+          }
+          return true;
+        })
         .sort((a, b) => Number(b.location.speed || 0) - Number(a.location.speed || 0));
       if (drivers.length) {
         const d = drivers[0];
@@ -789,22 +796,9 @@ export class FamilyMap {
           text: `🤖 ${d.name}: ${Math.round(d.location.speed)} km/soat`,
           warn: false,
         };
-      } else if (this.lastHelperSpot && Date.now() < this.lastHelperHoldUntil) {
-        // Haydovchi to'xtaganida ham darrov uyga qaytib ketmaydi, biroz shaharda turadi
-        target = {
-          lat: this.lastHelperSpot.lat,
-          lon: this.lastHelperSpot.lon,
-          text: "🤖 Shahar kuzatuvi: yo'llar tinch",
-          warn: false,
-        };
       } else {
         target = this.nextCityPatrolPoint();
       }
-    }
-
-    if (target && (localAlert || (this.roadAlert && Date.now() - this.roadAlert.at < 30_000) || target.text?.includes('km/soat'))) {
-      this.lastHelperSpot = { lat: target.lat, lon: target.lon };
-      this.lastHelperHoldUntil = Date.now() + 20_000;
     }
 
     if (!target || !Number.isFinite(target.lat) || !Number.isFinite(target.lon)) return;
@@ -831,10 +825,15 @@ export class FamilyMap {
     if (aKey === this.patrolAnchorKey && this.patrolRoute.length >= 3) return;
     this.patrolAnchorKey = aKey;
 
-    // Uyning o'ziga emas, atrofdagi shahar yo'llaridagi haqiqiy kamera nuqtalarini aylanma marshrut qilamiz
-    const raw = this.cameras.filter(
-      (c) => Math.abs(c.lat - anchor.lat) <= 0.08 && Math.abs(c.lon - anchor.lon) <= 0.1
-    );
+    // Uyga yaqin (< 1.2 km) nuqtalarni umuman kiritmaymiz — faqat shahar yo'llari bo'ylab yuradi
+    const raw = this.cameras.filter((c) => {
+      if (Math.abs(c.lat - anchor.lat) > 0.12 || Math.abs(c.lon - anchor.lon) > 0.14) return false;
+      if (this.home) {
+        const dHome = Math.hypot((c.lat - this.home.lat) * 111320, (c.lon - this.home.lon) * 85000);
+        if (dHome < 1200) return false;
+      }
+      return true;
+    });
     const dedup = [];
     for (const c of raw) {
       if (!dedup.some((u) => Math.hypot((u.lat - c.lat) * 111320, (u.lon - c.lon) * 85000) < 250)) {
@@ -842,9 +841,10 @@ export class FamilyMap {
       }
     }
 
+    const hadCams = this.patrolFromCams;
     if (dedup.length >= 3) {
       const ordered = [dedup.shift()];
-      while (dedup.length && ordered.length < 14) {
+      while (dedup.length && ordered.length < 16) {
         const prev = ordered[ordered.length - 1];
         let bestIdx = 0;
         let bestD = Infinity;
@@ -855,19 +855,21 @@ export class FamilyMap {
         ordered.push(dedup.splice(bestIdx, 1)[0]);
       }
       this.patrolRoute = ordered;
+      this.patrolFromCams = true;
     } else {
-      // Shahar bo'ylab keng aylanma nuqtalar
-      const baseLat = anchor.lat + 0.009;
-      const baseLon = anchor.lon + 0.008;
+      // Kameralar yuklanayotgan ilk soniyada ham shahar markazi tomonda turadi (uyga kirmaydi)
+      const baseLat = anchor.lat + 0.016;
+      const baseLon = anchor.lon - 0.009;
       this.patrolRoute = [
         { lat: baseLat, lon: baseLon },
-        { lat: baseLat + 0.012, lon: baseLon + 0.010 },
-        { lat: baseLat + 0.015, lon: baseLon - 0.012 },
-        { lat: baseLat - 0.004, lon: baseLon - 0.014 },
+        { lat: baseLat + 0.012, lon: baseLon + 0.012 },
+        { lat: baseLat + 0.020, lon: baseLon - 0.005 },
+        { lat: baseLat + 0.006, lon: baseLon - 0.016 },
       ];
+      this.patrolFromCams = false;
     }
 
-    if (this.patrolState.lat == null) {
+    if (this.patrolState.lat == null || (!hadCams && this.patrolFromCams)) {
       this.patrolState = { idx: 0, lat: this.patrolRoute[0].lat, lon: this.patrolRoute[0].lon };
     }
   }
