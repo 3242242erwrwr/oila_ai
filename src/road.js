@@ -30,6 +30,14 @@ function formatHazardLabel(kind, speedLimit) {
   return `📸 Radar/Kamera${spd}`;
 }
 
+function getSpeedPhrase(speed) {
+  const spd = Number(speed || 0);
+  if (spd >= 70) return { tier: 70, emoji: '🚨', phrase: "Ko'zingga qara, shtrafga tushasan uka!", warn: true };
+  if (spd >= 60) return { tier: 60, emoji: '⚠️', phrase: 'Sekinroq uka!', warn: true };
+  if (spd >= 50) return { tier: 50, emoji: '😎', phrase: 'Shoshilma shovvoz!', warn: false };
+  return null;
+}
+
 class RoadGuard extends EventEmitter {
   constructor() {
     super();
@@ -183,11 +191,18 @@ class RoadGuard extends EventEmitter {
     if (!member || member.isAi || !member.location) return null;
     const { lat, lon, speed } = member.location;
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    const spd = Number(speed || 0);
+    const spd = Math.round(Number(speed || 0));
+    const now = Date.now();
+    // Haydovchi sekinlashsa (< 42 km/soat), keyingi 50/60/70 ko'tarilishida yana yangidan eslatadi
+    if (spd < 42) {
+      this.cooldowns.delete(`${member.id}:spd:50`);
+      this.cooldowns.delete(`${member.id}:spd:60`);
+      this.cooldowns.delete(`${member.id}:spd:70`);
+    }
     if (spd < ALERT_MIN_SPEED) return null;
 
-    const now = Date.now();
     this.pruneExpired(false);
+    const tierInfo = getSpeedPhrase(spd);
 
     let best = null;
     let bestDist = Infinity;
@@ -210,13 +225,6 @@ class RoadGuard extends EventEmitter {
       }
     }
 
-    if (!best) return null;
-
-    const coolKey = `${member.id}:${best.id}`;
-    const lastSent = this.cooldowns.get(coolKey) || 0;
-    if (now - lastSent < ALERT_COOLDOWN_MS) return null;
-    this.cooldowns.set(coolKey, now);
-
     // Eski cooldown yozuvlarini tozalash
     if (this.cooldowns.size > 300) {
       for (const [k, ts] of this.cooldowns) {
@@ -224,29 +232,68 @@ class RoadGuard extends EventEmitter {
       }
     }
 
-    const distRounded = Math.max(20, Math.round(bestDist / 10) * 10);
-    const label = formatHazardLabel(best.kind, best.limit);
-    const alert = {
-      id: `al_${now}`,
-      at: now,
-      targetId: member.id,
-      targetName: member.name,
-      hazardId: best.id,
-      kind: best.kind,
-      label,
-      speedLimit: best.limit,
-      dist: distRounded,
-      lat: best.lat,
-      lon: best.lon,
-      driverLat: lat,
-      driverLon: lon,
-      speed: spd,
-      text: `⚠️ ${member.name}: oldinda ~${distRounded} m da ${label}!`,
-    };
-    this.latestAlert = alert;
-    this.emit('alert', alert);
-    this.emit('change');
-    return alert;
+    if (best) {
+      const coolKey = `${member.id}:${best.id}`;
+      const lastSent = this.cooldowns.get(coolKey) || 0;
+      if (now - lastSent >= ALERT_COOLDOWN_MS) {
+        this.cooldowns.set(coolKey, now);
+        const distRounded = Math.max(20, Math.round(bestDist / 10) * 10);
+        const label = formatHazardLabel(best.kind, best.limit);
+        const prefix = tierInfo ? `${tierInfo.emoji} ${member.name} (${spd} km/s): ${tierInfo.phrase} ` : `⚠️ ${member.name}: `;
+        const alert = {
+          id: `al_${now}`,
+          at: now,
+          targetId: member.id,
+          targetName: member.name,
+          hazardId: best.id,
+          kind: best.kind,
+          label,
+          speedLimit: best.limit,
+          dist: distRounded,
+          lat: best.lat,
+          lon: best.lon,
+          driverLat: lat,
+          driverLon: lon,
+          speed: spd,
+          text: `${prefix}Oldinda ~${distRounded} m da ${label}!`,
+        };
+        this.latestAlert = alert;
+        this.emit('alert', alert);
+        this.emit('change');
+        return alert;
+      }
+    }
+
+    // 50-60-70+ km/soat tezlik ogohlantirishlari (kamera bo'lmasa ham)
+    if (tierInfo) {
+      const spdKey = `${member.id}:spd:${tierInfo.tier}`;
+      const lastTierSent = this.cooldowns.get(spdKey) || 0;
+      if (now - lastTierSent >= 120_000) {
+        this.cooldowns.set(spdKey, now);
+        const alert = {
+          id: `al_${now}`,
+          at: now,
+          targetId: member.id,
+          targetName: member.name,
+          kind: 'speed',
+          tier: tierInfo.tier,
+          label: tierInfo.phrase,
+          dist: 0,
+          lat: lat + 0.00032,
+          lon: lon + 0.00032,
+          driverLat: lat,
+          driverLon: lon,
+          speed: spd,
+          text: `${tierInfo.emoji} ${member.name} (${spd} km/s): ${tierInfo.phrase}`,
+        };
+        this.latestAlert = alert;
+        this.emit('alert', alert);
+        this.emit('change');
+        return alert;
+      }
+    }
+
+    return null;
   }
 }
 

@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=69';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=70';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',

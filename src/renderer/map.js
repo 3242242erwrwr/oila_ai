@@ -699,12 +699,24 @@ export class FamilyMap {
     }
   }
 
+  getSpeedSay(speed) {
+    const spd = Math.round(Number(speed || 0));
+    if (spd >= 70) return { tier: 70, emoji: '🚨', phrase: "Ko'zingga qara, shtrafga tushasan uka!", warn: true };
+    if (spd >= 60) return { tier: 60, emoji: '⚠️', phrase: 'Sekinroq uka!', warn: true };
+    if (spd >= 50) return { tier: 50, emoji: '😎', phrase: 'Shoshilma shovvoz!', warn: false };
+    return null;
+  }
+
   checkLocalDrivingAlert() {
     const humans = this.members.filter((m) => !m.isAi && m.location && isLive(m.location));
-    const fast = humans.filter((m) => Number(m.location.speed || 0) >= 45);
+    const fast = humans
+      .filter((m) => Number(m.location.speed || 0) >= 45)
+      .sort((a, b) => Number(b.location.speed || 0) - Number(a.location.speed || 0));
     const now = Date.now();
     for (const m of fast) {
       const { lat, lon, speed } = m.location;
+      const spd = Math.round(Number(speed || 0));
+      const tierInfo = this.getSpeedSay(spd);
       const spots = [
         ...this.hazards.filter((h) => !h.expiresAt || h.expiresAt > now).map((h) => ({ id: h.id, lat: h.lat, lon: h.lon, kind: h.type, limit: h.limit })),
         ...this.cameras.filter((c) => Math.abs(c.lat - lat) <= 0.008 && Math.abs(c.lon - lon) <= 0.008),
@@ -721,7 +733,9 @@ export class FamilyMap {
       if (best) {
         const distRounded = Math.max(20, Math.round(bestDist / 10) * 10);
         const kindTxt = best.kind === 'gai' ? '🚔 GAI posti' : best.limit ? `📸 Radar (${best.limit})` : '📸 Kamera';
-        const text = `⚠️ ${m.name} (${Math.round(speed)} km/soat): ~${distRounded} m da ${kindTxt}!`;
+        const text = tierInfo
+          ? `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase} • ~${distRounded} m da ${kindTxt}!`
+          : `⚠️ ${m.name} (${spd} km/s): ~${distRounded} m da ${kindTxt}!`;
         const ck = `${m.id}:${best.id}`;
         const prev = this.localCool.get(ck) || 0;
         if (now - prev > 120_000) {
@@ -729,6 +743,16 @@ export class FamilyMap {
           this.showAlertBanner(text, true);
         }
         return { lat: best.lat, lon: best.lon, text, warn: true };
+      }
+      if (tierInfo) {
+        const text = `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase}`;
+        const ck = `${m.id}:spd:${tierInfo.tier}`;
+        const prev = this.localCool.get(ck) || 0;
+        if (now - prev > 90_000) {
+          this.localCool.set(ck, now);
+          this.showAlertBanner(text, tierInfo.warn);
+        }
+        return { lat: lat + 0.00032, lon: lon + 0.00032, text, warn: tierInfo.warn };
       }
     }
     return null;
@@ -746,7 +770,7 @@ export class FamilyMap {
         lat: this.roadAlert.lat,
         lon: this.roadAlert.lon,
         text: this.roadAlert.text,
-        warn: !this.roadAlert.isReport,
+        warn: this.roadAlert.kind === 'speed' ? (this.roadAlert.tier >= 60) : !this.roadAlert.isReport,
       };
     } else {
       const drivers = this.members
