@@ -64,10 +64,6 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
     const ev = pushEvent('member:say', p);
     broadcast('member:say', p, ev.seq);
   });
-  store.on('voice', (p) => {
-    const ev = pushEvent('member:voice', p);
-    broadcast('member:voice', p, ev.seq);
-  });
 
   const server = http.createServer((req, res) => {
     if (!publicUrl && req.headers['x-forwarded-proto'] === 'https' && req.headers.host) {
@@ -197,7 +193,7 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
     if (pathname === '/api/action' && req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => {
-        if (body.length < 5 * 1024 * 1024) body += chunk;
+        if (body.length < 8192) body += chunk;
       });
       req.on('end', async () => {
         try {

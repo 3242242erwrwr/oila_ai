@@ -37,7 +37,7 @@ const JOB_TITLE = {
 
 const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc', 'garage']);
 
-const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'), (m) => openCharModal(m, true));
+const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'));
 document.getElementById('map-btn').addEventListener('click', () => {
   pollLocationOnce(true, true);
   fmap.toggle();
@@ -47,24 +47,6 @@ document.getElementById('map-fit').addEventListener('click', () => {
   pollLocationOnce(true, true);
   fmap.fit();
 });
-
-// Telegram WebApp orqali to'g'ridan-to'g'ri xarita ochilgan bo'lsa (mode=map):
-const initUrlQuery = new URLSearchParams(window.location.search);
-if (initUrlQuery.get('mode') === 'map' || initUrlQuery.get('tab') === 'map') {
-  setTimeout(() => {
-    fmap.open();
-    try { pollLocationOnce(true, true); } catch {}
-    setTimeout(() => fmap.fit(), 350);
-  }, 250);
-}
-
-try {
-  window.Telegram?.WebApp?.BackButton?.onClick?.(() => {
-    if (fmap.isOpen) {
-      fmap.close();
-    }
-  });
-} catch {}
 
 // ---------- PWA / APK Ilova o'rnatish ----------
 const installBtn = document.getElementById('install-btn');
@@ -433,15 +415,6 @@ function createWebApi() {
     if (ch === 'member:joined') listeners.joined.forEach((fn) => fn(data));
     else if (ch === 'member:moved') listeners.moved.forEach((fn) => fn(data));
     else if (ch === 'member:say') listeners.say.forEach((fn) => fn(data));
-    else if (ch === 'member:voice') {
-      try {
-        if (data.audio) {
-          const snd = new Audio(data.audio);
-          snd.play().catch(() => {});
-        }
-      } catch {}
-      toast(`🎙️ ${data.fromName || "Oila a'zosi"} ovozli xabar yubordi!`);
-    }
   };
 
   const applyState = (s, isInitial = false) => {
@@ -554,14 +527,12 @@ const chatTargetLabel = document.getElementById('chat-target-label');
 const senderList = document.getElementById('sender-list');
 const chatForm = document.getElementById('chat-form');
 const chatInput = document.getElementById('chat-input');
-const chatSubmit = document.getElementById('chat-submit');
 const statusSection = document.getElementById('status-section');
 const statusGrid = document.getElementById('status-grid');
 
 try {
   window.Telegram?.WebApp?.ready?.();
   window.Telegram?.WebApp?.expand?.();
-  window.Telegram?.WebApp?.enableClosingConfirmation?.();
 } catch {}
 
 let activeMember = null;
@@ -754,13 +725,6 @@ const ALL_STATUSES = [
 function closeCharModal() {
   charWrap.classList.remove('open');
   activeMember = null;
-  cancelVoiceRecording();
-  if (chatInput) chatInput.style.display = 'block';
-  if (chatSubmit) chatSubmit.style.display = 'block';
-  if (btnVoice) {
-    btnVoice.textContent = '🎙️';
-    btnVoice.classList.remove('btn-voice-large');
-  }
 }
 
 document.getElementById('char-close').addEventListener('click', closeCharModal);
@@ -768,7 +732,7 @@ charWrap.addEventListener('click', (e) => {
   if (e.target === charWrap) closeCharModal();
 });
 
-function openCharModal(member, isFromMap = false) {
+function openCharModal(member) {
   const latest = lastMembers.find((m) => String(m.id) === String(member.id)) || member;
   activeMember = latest;
   const jIcon = JOB_ICON[latest.job] || '👤';
@@ -779,33 +743,6 @@ function openCharModal(member, isFromMap = false) {
 
   const humans = lastMembers.filter((m) => !m.isAi);
   const myMember = humans.find((m) => String(m.id) === String(myUid)) || humans[0] || null;
-
-  // 🗺️ Xaritadan ochilganda: MATN YO'Q, FAQAT KATTA OVOZLI XABAR TUGMASI!
-  if (isFromMap) {
-    chatForm.style.display = 'flex';
-    if (chatInput) chatInput.style.display = 'none';
-    if (chatSubmit) chatSubmit.style.display = 'none';
-    if (btnVoice) {
-      btnVoice.textContent = '🎙️ Bosing va ovozli gapiring';
-      btnVoice.classList.add('btn-voice-large');
-    }
-    if (chatTargetLabel) {
-      chatTargetLabel.textContent = `🎙️ ${latest.name}ga ovozli xabar yuborish:`;
-    }
-    senderList.replaceChildren();
-    if (statusSection) statusSection.style.display = 'none';
-    selectedTargetId = String(latest.id);
-    charWrap.classList.add('open');
-    return;
-  }
-
-  // 3D Uydan ochilganda: odatiy ko'rinish
-  if (chatInput) chatInput.style.display = 'block';
-  if (chatSubmit) chatSubmit.style.display = 'block';
-  if (btnVoice) {
-    btnVoice.textContent = '🎙️';
-    btnVoice.classList.remove('btn-voice-large');
-  }
 
   // 🤖 1. AI ROBOT USTIGA BOSILGANDA: Buyruq berish oynasi
   if (latest.job === 'robot') {
@@ -1063,129 +1000,6 @@ chatForm.addEventListener('submit', async (e) => {
     text,
   });
 });
-
-// 🎙️ Ovozli xabar yozish va yuborish (MediaRecorder)
-let mediaRecorder = null;
-let audioChunks = [];
-let recordingTimer = null;
-let recordingSeconds = 0;
-
-const btnVoice = document.getElementById('btn-voice');
-const voiceBar = document.getElementById('voice-recording-bar');
-const voiceTimer = document.getElementById('voice-timer');
-const btnVoiceCancel = document.getElementById('btn-voice-cancel');
-const btnVoiceSend = document.getElementById('btn-voice-send');
-
-async function startVoiceRecording() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-    recordingSeconds = 0;
-
-    let mimeType = '';
-    if (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-      mimeType = 'audio/webm;codecs=opus';
-    } else if (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-      mimeType = 'audio/ogg;codecs=opus';
-    } else if (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/mp4')) {
-      mimeType = 'audio/mp4';
-    }
-
-    mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) audioChunks.push(e.data);
-    };
-
-    mediaRecorder.start(100);
-    chatForm.style.display = 'none';
-    if (voiceBar) voiceBar.style.display = 'flex';
-    if (voiceTimer) voiceTimer.textContent = '0:00';
-
-    recordingTimer = setInterval(() => {
-      recordingSeconds++;
-      const m = Math.floor(recordingSeconds / 60);
-      const s = recordingSeconds % 60;
-      if (voiceTimer) voiceTimer.textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
-      if (recordingSeconds >= 60) {
-        stopAndSendVoice();
-      }
-    }, 1000);
-  } catch (err) {
-    console.error('Mikrafon ruxsati xatosi:', err);
-    toast("❌ Mikrafondan foydalanishga ruxsat berilmadi!");
-  }
-}
-
-function cancelVoiceRecording() {
-  if (recordingTimer) clearInterval(recordingTimer);
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    try {
-      mediaRecorder.stop();
-      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
-    } catch {}
-  }
-  audioChunks = [];
-  if (voiceBar) voiceBar.style.display = 'none';
-  if (chatForm) chatForm.style.display = 'flex';
-}
-
-async function stopAndSendVoice() {
-  if (recordingTimer) clearInterval(recordingTimer);
-  if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
-
-  mediaRecorder.onstop = () => {
-    try {
-      mediaRecorder.stream.getTracks().forEach((t) => t.stop());
-    } catch {}
-    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/ogg' });
-    if (audioBlob.size < 500) {
-      toast("⚠️ Ovoz juda qisqa yozildi");
-      cancelVoiceRecording();
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64Audio = reader.result;
-      const humans = lastMembers.filter((m) => !m.isAi);
-      const myMember = humans.find((m) => String(m.id) === String(myUid)) || humans[0] || null;
-      if (!myMember) {
-        cancelVoiceRecording();
-        return;
-      }
-
-      const fromId = myMember.id;
-      const others = lastMembers.filter((m) => String(m.id) !== String(fromId));
-      const toId = String(activeMember?.id) !== String(fromId)
-        ? activeMember?.id
-        : (selectedTargetId || (others[0]?.id ?? null));
-
-      cancelVoiceRecording();
-      closeCharModal();
-
-      const targetObj = lastMembers.find((m) => String(m.id) === String(toId));
-      toast(`🎙️ Ovozli xabar ${targetObj ? targetObj.name + 'ga' : ''} yuborilmoqda...`);
-
-      await api.sendRoomAction({
-        type: 'voice',
-        fromId,
-        toId,
-        audio: base64Audio,
-      });
-
-      toast(`✅ Ovozli xabar ${targetObj ? targetObj.name + 'ning Telegramiga' : ''} yetkazildi! 🎙️🚀`);
-    };
-    reader.readAsDataURL(audioBlob);
-  };
-
-  try {
-    mediaRecorder.stop();
-  } catch {}
-}
-
-btnVoice?.addEventListener('click', startVoiceRecording);
-btnVoiceCancel?.addEventListener('click', cancelVoiceRecording);
-btnVoiceSend?.addEventListener('click', stopAndSendVoice);
 
 // 3D sahnada personaj ustiga bosishni aniqlash (Raycaster)
 const raycaster = new THREE.Raycaster();

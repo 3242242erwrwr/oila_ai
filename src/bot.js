@@ -32,9 +32,6 @@ const BTN_PHOTO = '📸 Rasm yuklash';
 const BTN_BACK = '🔙 Orqaga';
 const LOCATION_BUTTON = '📍 Joylashuvni yuborish';
 
-// Xonadan yoki botdan qilingan suhbat nishonlari
-const activeChatTarget = new Map();
-
 // Yangi foydalanuvchi /start bosganda chiqadigan tugma
 function joinKeyboard() {
   return new Keyboard()
@@ -43,26 +40,13 @@ function joinKeyboard() {
     .persistent();
 }
 
-// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (1-bosishda WebApp orqali to'g'ridan-to'g'ri ochiladi!)
-function mainKeyboard(uid) {
-  const baseUrl = getPublicUrlFn();
-  const isHttps = typeof baseUrl === 'string' && baseUrl.startsWith('https://');
-
-  const kb = new Keyboard();
-  if (isHttps) {
-    const mapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map${uid ? `&uid=${uid}` : ''}&v=50`;
-    const roomUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid || ''}&v=50`;
-    kb.webApp("🗺️ Jonli Xarita", mapUrl)
-      .webApp("🏠 3D Uy", roomUrl)
-      .row();
-  } else {
-    kb.text(BTN_ROOM).row();
-  }
-  kb.text(BTN_STATUS).text(BTN_CHAT).row()
-    .text(BTN_PHOTO)
+// Ro'yxatdan o'tgandan keyin DOIM turadigan asosiy tugmalar (hech qanday joylashuv so'rovisiz!)
+function mainKeyboard() {
+  return new Keyboard()
+    .text(BTN_STATUS).text(BTN_ROOM).row()
+    .text(BTN_CHAT).text(BTN_PHOTO)
     .resized()
     .persistent();
-  return kb;
 }
 
 // Guruhda FAQAT "🏠 3D Uyni ochish" tugmasi chiqadi
@@ -209,27 +193,24 @@ async function sendRoomLink(ctx) {
     return;
   }
 
-  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=50`;
-  const personalMapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map&uid=${uid}&v=50`;
+  const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${uid}&v=41`;
   const isHttps = baseUrl.startsWith('https://');
 
   if (isHttps) {
     if (isPrivate) {
       const ikb = new InlineKeyboard()
-        .webApp("🗺️ Jonli Xarita", personalMapUrl)
         .webApp("🏠 3D Uyni ochish", personalUrl)
         .row()
         .text("📲 Fon GPS datchigi (.apk)", 'install_apk');
       await ctx.reply(
-        `🗺️ *Oilaviy Jonli Xarita va 3D Uy*\n\n` +
-        `• Xaritani ochish: *🗺️ Jonli Xarita*\n` +
+        `🏠 *Oilaviy 3D Uy*\n\n` +
         `• 3D Uyga kirish: *🏠 3D Uyni ochish*\n` +
         `• 24/7 fon joylashuvi uchun: *📲 Fon GPS datchigi (.apk)*`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await ctx.reply(
         `Pastdagi doimiy menyudan ham foydalanishingiz mumkin:`,
-        { reply_markup: mainKeyboard(uid) }
+        { reply_markup: mainKeyboard() }
       );
     } else {
       const botUsername = bot?.botInfo?.username || 'HomeChat_3d_bot';
@@ -259,6 +240,7 @@ async function startBot(token, onStatus, options = {}) {
   bot = new Bot(token);
   const wizard = new Map();
   const awaitingHome = new Set();
+  const activeChatTarget = new Map();
 
   // Guruh tekshiruvi: faqat "Oila_3d_room" guruhida qoladi
   bot.use(async (ctx, next) => {
@@ -356,7 +338,7 @@ async function startBot(token, onStatus, options = {}) {
           { parse_mode: 'Markdown', reply_markup: ikb }
         );
         await ctx.reply(`Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`, {
-          reply_markup: mainKeyboard(id),
+          reply_markup: mainKeyboard(),
         });
         return;
       } else {
@@ -374,20 +356,18 @@ async function startBot(token, onStatus, options = {}) {
     // 1. Agar a'zo bo'lgan va ilovani o'rnatgan bo'lsa: darhol uyga kirish tugmasi chiqadi
     if (m && m.apkInstalled) {
       const baseUrl = getPublicUrlFn();
-      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=50`;
-      const personalMapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map&uid=${m.id}&v=50`;
-      const ikb = new InlineKeyboard()
-        .webApp("🗺️ Jonli Xarita", personalMapUrl)
-        .webApp("🏠 3D Uyga kirish", personalUrl);
+      const personalUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}uid=${m.id}&v=45`;
+      const ikb = new InlineKeyboard().webApp("🏠 3D Uyga kirish", personalUrl);
       await ctx.reply(
-        `✅ *Xush kelibsiz, ${m.name}!* (${JOBS[m.job]?.label || m.job})\n\n` +
+        `✅ *Hammasini bajardingiz! Endi uyga kirishingiz mumkin.*\n\n` +
+        `👤 *${m.name}* (${JOBS[m.job]?.label || m.job})\n` +
         `🟢 Fon GPS datchigi faol ishlamoqda.\n\n` +
-        `Telegram ichida ochish uchun quyidagi tugmalarni bosing:`,
+        `🏠 3D Uyga kirish uchun pastdagi tugmani bosing:`,
         { parse_mode: 'Markdown', reply_markup: ikb }
       );
       await ctx.reply(
         `Pastdagi doimiy menyu tugmalaridan ham foydalanishingiz mumkin:`,
-        { reply_markup: mainKeyboard(m.id) }
+        { reply_markup: mainKeyboard() }
       );
       return;
     }
@@ -589,51 +569,6 @@ async function startBot(token, onStatus, options = {}) {
         "❌ Rasmni yuklab olishda xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.",
         { reply_markup: mainKeyboard(id) }
       );
-    }
-  });
-
-  // Telegramdan a'zo ovozli xabar (voice note) yuborganida
-  bot.on('message:voice', async (ctx) => {
-    const id = ctx.from.id;
-    const m = store.get(id);
-    if (!m) return;
-
-    let targetId = activeChatTarget.get(id);
-    const others = store.all().filter((x) => x.id !== id && !x.isAi);
-    let target = targetId && others.find((x) => x.id === targetId);
-    if (!target && others.length === 1) target = others[0];
-
-    try {
-      const voice = ctx.message.voice;
-      const file = await ctx.api.getFile(voice.file_id);
-      const fileUrl = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
-      const res = await fetch(fileUrl);
-      const arrayBuffer = await res.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const base64 = buffer.toString('base64');
-      const audioDataUrl = `data:audio/ogg;base64,${base64}`;
-
-      store.say(id, "🎙️ [Ovozli xabar]", target?.id || null);
-      store.emit('voice', {
-        fromId: id,
-        fromName: m.name,
-        toId: target?.id || null,
-        audio: audioDataUrl,
-      });
-
-      if (target && target.id !== id) {
-        await ctx.api.sendVoice(target.id, voice.file_id, {
-          caption: `🎙️ *${m.name} sizga ovozli xabar yubordi!*`,
-          parse_mode: 'Markdown',
-          reply_markup: mainKeyboard(target.id),
-        }).catch(() => {});
-      }
-
-      await ctx.reply(`✅ Ovozli xabaringiz ${target ? target.name + 'ga' : 'uyga'} yetkazildi! 🎙️`, {
-        reply_markup: mainKeyboard(id),
-      });
-    } catch (err) {
-      console.error('Telegram voice qabul qilishda xatolik:', err);
     }
   });
 
@@ -963,22 +898,9 @@ async function startBot(token, onStatus, options = {}) {
   bot.catch((err) => console.error('Bot xatosi:', err.error || err));
 
   await bot.init();
-  const baseUrl = getPublicUrlFn();
-  const isHttps = typeof baseUrl === 'string' && baseUrl.startsWith('https://');
-  if (isHttps) {
-    const defaultMapUrl = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}mode=map&v=50`;
-    await bot.api.setChatMenuButton({
-      menu_button: {
-        type: 'web_app',
-        text: '🗺️ Jonli Xarita',
-        web_app: { url: defaultMapUrl },
-      },
-    }).catch((err) => console.warn('setChatMenuButton xatosi:', err.message));
-  } else {
-    await bot.api.setChatMenuButton({
-      menu_button: { type: 'commands' },
-    }).catch(() => {});
-  }
+  await bot.api.setChatMenuButton({
+    menu_button: { type: 'commands' },
+  }).catch(() => {});
   await bot.api.setMyCommands([
     { command: 'start', description: "A'zo bo'lish va tugmalar" },
     { command: 'xona', description: "3D Uyni telefonda / PC'da ochish" },
@@ -1144,61 +1066,6 @@ async function handleRoomAction(payload) {
         `💬 *[Mehmonxona] ${from.name} sizga yozdi:*\n${text}`,
         { parse_mode: 'Markdown', reply_markup: mainKeyboard(to.id) }
       ).catch((err) => console.error('3D xonadan xabar yuborishda xatolik:', err?.description || err?.message));
-    }
-  }
-
-  // 3D Uydan yoki Xaritadan ovozli xabar yuborilganda:
-  if (payload.type === 'voice') {
-    const fromId = Number(payload.fromId);
-    const toId = payload.toId ? Number(payload.toId) : null;
-    const from = store.get(fromId);
-    let to = toId ? store.get(toId) : null;
-    if (!from || !payload.audio) return;
-
-    const others = store.all().filter((x) => x.id !== from.id);
-    const otherHumans = others.filter((x) => !x.isAi);
-    if (!to && otherHumans.length === 1) {
-      to = otherHumans[0];
-    }
-
-    // 3D uyda personaj ustida ovoz belgisi
-    store.say(from.id, "🎙️ [Ovozli xabar]", to?.id || null);
-    store.emit('voice', {
-      fromId: from.id,
-      fromName: from.name,
-      toId: to?.id || null,
-      audio: payload.audio,
-    });
-
-    // Qabul qiluvchining Telegram lichkasiga real sendVoice yuborish
-    if (to && !to.isAi && to.id !== from.id && bot) {
-      activeChatTarget.set(to.id, from.id);
-      activeChatTarget.set(from.id, to.id);
-
-      try {
-        const base64Data = payload.audio.includes(',') ? payload.audio.split(',')[1] : payload.audio;
-        const audioBuffer = Buffer.from(base64Data, 'base64');
-        const inputFile = new InputFile(audioBuffer, 'voice.ogg');
-
-        await bot.api.sendVoice(to.id, inputFile, {
-          caption: `🎙️ *${from.name} sizga ovozli xabar yubordi!*`,
-          parse_mode: 'Markdown',
-          reply_markup: mainKeyboard(to.id),
-        });
-      } catch (err) {
-        console.error('sendVoice error:', err?.description || err?.message || err);
-        try {
-          const base64Data = payload.audio.includes(',') ? payload.audio.split(',')[1] : payload.audio;
-          const audioBuffer = Buffer.from(base64Data, 'base64');
-          await bot.api.sendAudio(to.id, new InputFile(audioBuffer, 'voice.mp3'), {
-            caption: `🎙️ *${from.name} sizga ovozli xabar yubordi!*`,
-            parse_mode: 'Markdown',
-            reply_markup: mainKeyboard(to.id),
-          });
-        } catch (e2) {
-          console.error('sendAudio fallback error:', e2?.message);
-        }
-      }
     }
   }
 }
