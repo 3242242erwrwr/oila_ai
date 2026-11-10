@@ -80,6 +80,11 @@ export class FamilyMap {
     this.alertTimer = null;
     this.localCool = new Map();
     this.lastShownAlertId = '';
+    this.patrolRoute = [];
+    this.patrolAnchorKey = '';
+    this.patrolState = { idx: 0, lat: null, lon: null };
+    this.lastHelperHoldUntil = 0;
+    this.lastHelperSpot = null;
     this.applyThemeUi();
     setInterval(() => this.isOpen && this.render(), 2000);
   }
@@ -784,15 +789,22 @@ export class FamilyMap {
           text: `🤖 ${d.name}: ${Math.round(d.location.speed)} km/soat`,
           warn: false,
         };
-      } else if (this.home) {
-        const ang = (Date.now() / 12000) % (Math.PI * 2);
+      } else if (this.lastHelperSpot && Date.now() < this.lastHelperHoldUntil) {
+        // Haydovchi to'xtaganida ham darrov uyga qaytib ketmaydi, biroz shaharda turadi
         target = {
-          lat: this.home.lat + Math.sin(ang) * 0.00028,
-          lon: this.home.lon + Math.cos(ang) * 0.00035,
-          text: "🤖 Yordamchi: Yo'llar tinch",
+          lat: this.lastHelperSpot.lat,
+          lon: this.lastHelperSpot.lon,
+          text: "🤖 Shahar kuzatuvi: yo'llar tinch",
           warn: false,
         };
+      } else {
+        target = this.nextCityPatrolPoint();
       }
+    }
+
+    if (target && (localAlert || (this.roadAlert && Date.now() - this.roadAlert.at < 30_000) || target.text?.includes('km/soat'))) {
+      this.lastHelperSpot = { lat: target.lat, lon: target.lon };
+      this.lastHelperHoldUntil = Date.now() + 20_000;
     }
 
     if (!target || !Number.isFinite(target.lat) || !Number.isFinite(target.lon)) return;
@@ -802,7 +814,7 @@ export class FamilyMap {
 
     if (!this.helperMarker) {
       this.helperMarker = L.marker([target.lat, target.lon], { icon, zIndexOffset: 80 }).addTo(this.map);
-      this.helperMarker.bindPopup('<b>🤖 Yo\'l Yordamchisi</b><br/>50-60-70+ km/soat da haqiqiy kamera, radar va GAI dan ogohlantiradi.');
+      this.helperMarker.bindPopup('<b>🤖 Yo\'l Yordamchisi</b><br/>Shahar bo\'ylab yuradi, 50-60-70+ km/soat da kamera, radar va GAI dan ogohlantiradi.');
       this.helperIconKey = key;
     } else {
       this.animateMarkerTo('__helper__', this.helperMarker, target.lat, target.lon);
@@ -811,6 +823,86 @@ export class FamilyMap {
         this.helperIconKey = key;
       }
     }
+  }
+
+  ensurePatrolRoute() {
+    const anchor = this.home || this.members.find((m) => !m.isAi && m.location)?.location || { lat: DEFAULT_VIEW[0], lon: DEFAULT_VIEW[1] };
+    const aKey = `${Number(anchor.lat).toFixed(3)}|${Number(anchor.lon).toFixed(3)}|${this.cameras.length}`;
+    if (aKey === this.patrolAnchorKey && this.patrolRoute.length >= 3) return;
+    this.patrolAnchorKey = aKey;
+
+    // Uyning o'ziga emas, atrofdagi shahar yo'llaridagi haqiqiy kamera nuqtalarini aylanma marshrut qilamiz
+    const raw = this.cameras.filter(
+      (c) => Math.abs(c.lat - anchor.lat) <= 0.08 && Math.abs(c.lon - anchor.lon) <= 0.1
+    );
+    const dedup = [];
+    for (const c of raw) {
+      if (!dedup.some((u) => Math.hypot((u.lat - c.lat) * 111320, (u.lon - c.lon) * 85000) < 250)) {
+        dedup.push({ lat: c.lat, lon: c.lon });
+      }
+    }
+
+    if (dedup.length >= 3) {
+      const ordered = [dedup.shift()];
+      while (dedup.length && ordered.length < 14) {
+        const prev = ordered[ordered.length - 1];
+        let bestIdx = 0;
+        let bestD = Infinity;
+        for (let i = 0; i < dedup.length; i++) {
+          const d = Math.hypot(dedup[i].lat - prev.lat, dedup[i].lon - prev.lon);
+          if (d < bestD) { bestD = d; bestIdx = i; }
+        }
+        ordered.push(dedup.splice(bestIdx, 1)[0]);
+      }
+      this.patrolRoute = ordered;
+    } else {
+      // Shahar bo'ylab keng aylanma nuqtalar
+      const baseLat = anchor.lat + 0.009;
+      const baseLon = anchor.lon + 0.008;
+      this.patrolRoute = [
+        { lat: baseLat, lon: baseLon },
+        { lat: baseLat + 0.012, lon: baseLon + 0.010 },
+        { lat: baseLat + 0.015, lon: baseLon - 0.012 },
+        { lat: baseLat - 0.004, lon: baseLon - 0.014 },
+      ];
+    }
+
+    if (this.patrolState.lat == null) {
+      this.patrolState = { idx: 0, lat: this.patrolRoute[0].lat, lon: this.patrolRoute[0].lon };
+    }
+  }
+
+  nextCityPatrolPoint() {
+    this.ensurePatrolRoute();
+    const route = this.patrolRoute;
+    if (!route.length) return null;
+
+    if (this.patrolState.lat == null) {
+      this.patrolState = { idx: 0, lat: route[0].lat, lon: route[0].lon };
+    }
+
+    const wp = route[this.patrolState.idx % route.length];
+    const dLat = wp.lat - this.patrolState.lat;
+    const dLon = wp.lon - this.patrolState.lon;
+    const distM = Math.hypot(dLat * 111320, dLon * 85000);
+    const stepM = 48; // Har 2 soniyada ~48 m (~85 km/soat shahar bo'ylab silliq yurish)
+
+    if (distM <= stepM) {
+      this.patrolState.lat = wp.lat;
+      this.patrolState.lon = wp.lon;
+      this.patrolState.idx = (this.patrolState.idx + 1) % route.length;
+    } else {
+      const k = stepM / distM;
+      this.patrolState.lat += dLat * k;
+      this.patrolState.lon += dLon * k;
+    }
+
+    return {
+      lat: this.patrolState.lat,
+      lon: this.patrolState.lon,
+      text: "🤖 Shahar patruli: yo'llar tinch",
+      warn: false,
+    };
   }
 
   fit() {
