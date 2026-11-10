@@ -467,11 +467,31 @@ function createWebApi() {
       .then((s) => applyState(s, false))
       .catch(() => {});
 
-  // Cloudflare tunnel ba'zan SSE oqimini buferlagani uchun har 1.2 soniyada holatni tekshirib turamiz
-  setInterval(pollState, 800);
-
+  let lastSseAt = 0;
+  let lastPollAt = 0;
   const es = new EventSource('/api/events');
+  es.onopen = () => { lastSseAt = Date.now(); };
+
+  // Oyna yashiringanda so'rov yubormaymiz; SSE ishlayotganida faqat 12 soniyada zaxira tekshiruv
+  setInterval(() => {
+    if (document.hidden) return;
+    const now = Date.now();
+    const sseHealthy = es.readyState === 1 && now - lastSseAt < 12000;
+    const minGap = sseHealthy ? 12000 : 2500;
+    if (now - lastPollAt < minGap) return;
+    lastPollAt = now;
+    pollState();
+  }, 1500);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      lastPollAt = Date.now();
+      pollState();
+    }
+  });
+
   es.onmessage = (ev) => {
+    lastSseAt = Date.now();
     try {
       const { ch, data, seq } = JSON.parse(ev.data);
       if (ch === 'members:update') {

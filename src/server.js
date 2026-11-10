@@ -2,6 +2,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const zlib = require('zlib');
 const { spawn } = require('child_process');
 const store = require('./store');
 
@@ -36,8 +37,44 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
     return item;
   };
 
+  const liteMembers = () =>
+    store.all().map((m) => {
+      if (!m.photo) return m;
+      const copy = { ...m };
+      const tag = `${copy.photo.length}-${copy.photo.slice(-6).replace(/[^a-zA-Z0-9]/g, '')}`;
+      copy.photoUrl = `/api/photo/${copy.id}?v=${tag}`;
+      delete copy.photo;
+      return copy;
+    });
+
+  const sendCompressed = (req, res, statusCode, headers, body) => {
+    const buf = Buffer.isBuffer(body) ? body : Buffer.from(body);
+    const accept = String(req.headers['accept-encoding'] || '');
+    const ct = String(headers['Content-Type'] || '');
+    const isText = ct.startsWith('text/') || ct.includes('json') || ct.includes('javascript');
+    if (isText && buf.length >= 512 && accept.includes('gzip')) {
+      zlib.gzip(buf, (err, gz) => {
+        if (err) {
+          res.writeHead(statusCode, headers);
+          res.end(buf);
+          return;
+        }
+        res.writeHead(statusCode, {
+          ...headers,
+          'Content-Encoding': 'gzip',
+          'Content-Length': gz.length,
+          Vary: 'Accept-Encoding',
+        });
+        res.end(gz);
+      });
+      return;
+    }
+    res.writeHead(statusCode, { ...headers, 'Content-Length': buf.length });
+    res.end(buf);
+  };
+
   const broadcast = (ch, data, seq = null) => {
-    const pad = ':' + ' '.repeat(2048) + '\n';
+    const pad = process.env.RENDER ? '' : ':' + ' '.repeat(2048) + '\n';
     const msg = `data: ${JSON.stringify({ ch, data, seq })}\n\n${pad}`;
     for (const res of clients) {
       try {
@@ -49,7 +86,7 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
   };
 
   store.on('change', () => {
-    broadcast('members:update', store.all());
+    broadcast('members:update', liteMembers());
     broadcast('home:update', store.getHome());
   });
   store.on('joined', (m) => {
@@ -82,7 +119,7 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
         'Access-Control-Allow-Origin': '*',
       });
       res.write(':' + ' '.repeat(2048) + '\n\n');
-      res.write(`data: ${JSON.stringify({ ch: 'members:update', data: store.all() })}\n\n`);
+      res.write(`data: ${JSON.stringify({ ch: 'members:update', data: liteMembers() })}\n\n`);
       res.write(`data: ${JSON.stringify({ ch: 'home:update', data: store.getHome() })}\n\n`);
       res.write(`data: ${JSON.stringify({ ch: 'bot:status', data: getBotStatus() })}\n\n`);
       clients.add(res);
@@ -90,21 +127,54 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
+    // 1.5 Keshlangan profil rasmlari (base64 ni har /api/state da qayta jo'natmaslik uchun)
+    const photoMatch = pathname.match(/^\/api\/photo\/(-?\d+)$/);
+    if (photoMatch && req.method === 'GET') {
+      const id = photoMatch[1];
+      const m = store.get(id);
+      if (m && typeof m.photo === 'string' && m.photo.startsWith('data:')) {
+        const comma = m.photo.indexOf(',');
+        const meta = comma > 5 ? m.photo.slice(5, comma) : '';
+        const mime = meta.split(';')[0] || 'image/jpeg';
+        const buf = Buffer.from(m.photo.slice(comma + 1), 'base64');
+        res.writeHead(200, {
+          'Content-Type': mime,
+          'Content-Length': buf.length,
+          'Cache-Control': 'public, max-age=86400',
+        });
+        res.end(buf);
+        return;
+      }
+      const diskPhoto = path.join(ROOT, 'data', 'photos', `${id}.jpg`);
+      fs.readFile(diskPhoto, (err, data) => {
+        if (err) {
+          res.writeHead(404);
+          res.end('Not found');
+          return;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': data.length,
+          'Cache-Control': 'public, max-age=86400',
+        });
+        res.end(data);
+      });
+      return;
+    }
+
     // 2. Holat ma'lumotlari
     if (pathname === '/api/state' && req.method === 'GET') {
-      res.writeHead(200, {
+      const payload = JSON.stringify({
+        members: liteMembers(),
+        home: store.getHome(),
+        bot: getBotStatus(),
+        publicUrl,
+        events: recentEvents,
+      });
+      sendCompressed(req, res, 200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store, no-cache, must-revalidate',
-      });
-      res.end(
-        JSON.stringify({
-          members: store.all(),
-          home: store.getHome(),
-          bot: getBotStatus(),
-          publicUrl,
-          events: recentEvents,
-        })
-      );
+      }, payload);
       return;
     }
 
@@ -241,13 +311,13 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
         return;
       }
       const ext = path.extname(resolved).toLowerCase();
-      res.writeHead(200, {
+      const cacheControl = (pathname.startsWith('/node_modules/') || (u.searchParams.has('v') && ext !== '.html'))
+        ? 'public, max-age=86400'
+        : 'no-store, no-cache, must-revalidate, max-age=0';
+      sendCompressed(req, res, 200, {
         'Content-Type': MIME[ext] || 'application/octet-stream',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        Pragma: 'no-cache',
-        Expires: '0',
-      });
-      res.end(data);
+        'Cache-Control': cacheControl,
+      }, data);
     });
   });
 
