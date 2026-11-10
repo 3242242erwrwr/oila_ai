@@ -328,7 +328,7 @@ class Store extends EventEmitter {
         const dtSec = prev.at ? Math.max(1, (Date.now() - new Date(prev.at).getTime()) / 1000) : 10;
         const spd = loc.speed != null ? Number(loc.speed) : 0;
         const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 22 && (spd >= 3 || stepDist >= 8);
-        const minRealMove = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+        const minRealMove = accuracy != null && accuracy <= 15 ? 3.5 : (accuracy != null ? Math.min(16, Math.max(5, accuracy * 0.6)) : 5);
         if ((stepDist / dtSec > 75 && (accuracy == null || accuracy > 12)) || stepDist <= minRealMove) {
           lat = prev.lat;
           lon = prev.lon;
@@ -348,7 +348,7 @@ class Store extends EventEmitter {
         home = this.data.home;
       }
       const rawDist = distanceMeters(home.lat, home.lon, lat, lon);
-      const minHomeExit = accuracy != null ? Math.min(18, Math.max(5, accuracy * 0.65)) : 5;
+      const minHomeExit = accuracy != null && accuracy <= 15 ? 4 : (accuracy != null ? Math.min(16, Math.max(5, accuracy * 0.6)) : 5);
       // 2. Uy radiusi (0 m qoidasi): Uydan 25-35 metr ichida (yoki GPS tebranishi ichida) bo'lsa qat'iy 0 m ushlab turiladi
       if (rawDist <= 5 || ((!prev || prev.distance === 0) && rawDist <= minHomeExit)) {
         lat = home.lat;

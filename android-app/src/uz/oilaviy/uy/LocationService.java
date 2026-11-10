@@ -45,12 +45,13 @@ public class LocationService extends Service implements LocationListener {
     private float lastSentAcc = 15f;
     private volatile long lastSentAt = 0;
     private long lastLocationFixTime = 0;
+    private long lastGpsFixAt = 0;
 
     private final Runnable periodicTask = new Runnable() {
         @Override
         public void run() {
             pollAndSend();
-            handler.postDelayed(this, 6000);
+            handler.postDelayed(this, 3000);
         }
     };
 
@@ -61,7 +62,7 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndSend();
-        handler.postDelayed(periodicTask, 6000);
+        handler.postDelayed(periodicTask, 3000);
     }
 
     @Override
@@ -111,7 +112,7 @@ public class LocationService extends Service implements LocationListener {
                     : new Notification.Builder(this);
 
             nb.setContentTitle("🏠 Oilaviy Uy")
-              .setContentText("📍 24/7 Real-Time joylashuv ishlayapti")
+              .setContentText("📍 24/7 Tezkor Real-Time GPS faol")
               .setSmallIcon(R.drawable.ic_launcher)
               .setContentIntent(pi)
               .setOngoing(true);
@@ -135,7 +136,7 @@ public class LocationService extends Service implements LocationListener {
             if (locationManager == null) return;
             try {
                 if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 4000L, 0f, this, Looper.getMainLooper());
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1500L, 0f, this, Looper.getMainLooper());
                 }
             } catch (Exception ignored) {}
             try {
@@ -183,18 +184,40 @@ public class LocationService extends Service implements LocationListener {
     private Location pickBetter(Location a, Location b) {
         if (a == null) return b;
         if (b == null) return a;
-        // 3 soniya (20 soniya emas!) — eski nuqta hech qachon yangisini orqaga tortmaydi
-        long timeDelta = b.getTime() - a.getTime();
-        if (timeDelta > 3000) return b;
-        if (timeDelta < -3000) return a;
+
+        boolean aIsGps = LocationManager.GPS_PROVIDER.equals(a.getProvider());
+        boolean bIsGps = LocationManager.GPS_PROVIDER.equals(b.getProvider());
         float accA = a.hasAccuracy() ? a.getAccuracy() : 20f;
         float accB = b.hasAccuracy() ? b.getAccuracy() : 20f;
+        long timeDelta = b.getTime() - a.getTime();
+
+        // Agar ikkalasidan biri toza GPS (<=25m) bo'lsa va 20 soniyadan eski bo'lmasa, NETWORK ni ustun qo'ymaymiz
+        if (aIsGps && !bIsGps && accA <= 25f && (b.getTime() - a.getTime()) < 20000L) {
+            return a;
+        }
+        if (bIsGps && !aIsGps && accB <= 25f && (a.getTime() - b.getTime()) < 20000L) {
+            return b;
+        }
+
+        if (timeDelta > 2000) return b;
+        if (timeDelta < -2000) return a;
         return accB <= accA ? b : a;
     }
 
     @Override
     public void onLocationChanged(Location loc) {
         if (loc == null) return;
+        final long now = System.currentTimeMillis();
+        final boolean isGps = LocationManager.GPS_PROVIDER.equals(loc.getProvider());
+        final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
+
+        if (isGps && acc <= 35f) {
+            lastGpsFixAt = now;
+        } else if (!isGps && (now - lastGpsFixAt) < 20000L) {
+            // Toza GPS yaqinda kelgan bo'lsa, NETWORK nuqtasini o'tkazib yuboramiz
+            return;
+        }
+
         if (loc.getTime() > 0 && lastLocationFixTime > 0 && loc.getTime() + 1500L < lastLocationFixTime) {
             return;
         }
@@ -220,7 +243,7 @@ public class LocationService extends Service implements LocationListener {
 
         boolean first = Double.isNaN(lastSentLat);
         double distMoved = first ? Double.POSITIVE_INFINITY : distanceMeters(lastSentLat, lastSentLon, lat, lon);
-        double minRealMove = Math.min(18.0, Math.max(5.0, acc * 0.65));
+        double minRealMove = acc <= 15f ? 3.5 : Math.min(15.0, Math.max(5.0, acc * 0.6));
 
         final double sendLat;
         final double sendLon;
@@ -228,6 +251,9 @@ public class LocationService extends Service implements LocationListener {
         final String sendProv;
 
         if (first || (acc <= 65f && distMoved >= minRealMove)) {
+            if (!first && (now - lastSentAt) < 1200L) {
+                return;
+            }
             sendLat = lat;
             sendLon = lon;
             sendSpeed = speedKmh;

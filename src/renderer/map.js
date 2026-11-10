@@ -60,7 +60,7 @@ export class FamilyMap {
     this.homeKey = '';
     this.members = [];
     this.home = null;
-    setInterval(() => this.isOpen && this.render(), 5000);
+    setInterval(() => this.isOpen && this.render(), 3000);
   }
 
   get isOpen() {
@@ -223,7 +223,7 @@ export class FamilyMap {
     const fromLat = cur.lat;
     const fromLon = cur.lng;
     const start = performance.now();
-    const duration = 2400;
+    const duration = 900;
 
     const step = (now) => {
       const t = Math.min(1, (now - start) / duration);
