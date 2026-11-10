@@ -406,6 +406,7 @@ class Store extends EventEmitter {
     this.scheduleSave();
     if (event) this.emit('moved', { id, name: m.name, event });
     this.emit('change');
+    this.emit('location', m);
 
     if (!sameSpot || !m.location.address) {
       this.resolveAddress(id, lat, lon).catch(() => {});

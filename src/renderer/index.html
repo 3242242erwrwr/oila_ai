@@ -13,7 +13,7 @@
   <title>Oilaviy Uy</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="../../node_modules/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=14" />
+  <link rel="stylesheet" href="style.css?v=15" />
   <script type="importmap">
     {
       "imports": {
@@ -44,12 +44,26 @@
         <div class="map-actions">
           <button id="map-dark" class="btn small">🌙 Tungi</button>
           <button id="map-traffic" class="btn small">🚦 Probka</button>
+          <button id="map-radars" class="btn small">📸 Radar</button>
           <button id="map-follow" class="btn small">🧭 Kuzatish</button>
           <button id="map-fit" class="btn small">🎯 Hammani ko'rsat</button>
           <button id="map-close" class="btn small">✖ Yopish</button>
         </div>
       </div>
-      <div id="map" class="map"></div>
+      <div class="map-stage">
+        <div id="map" class="map"></div>
+        <div id="map-alert" class="map-alert"></div>
+        <div id="map-report-bar" class="map-report-bar">
+          <button id="map-add-gai" type="button" class="map-fab">🚔 + GAI / Radar</button>
+          <div id="map-report-menu" class="map-report-menu">
+            <button type="button" class="btn small" data-hz="gai">🚔 GAI (2 soat)</button>
+            <button type="button" class="btn small" data-hz="radar">📡 Radar (2 soat)</button>
+            <button type="button" class="btn small" data-hz="camera">📸 Doimiy kamera</button>
+            <button type="button" class="btn small" id="map-hz-cancel">✖</button>
+          </div>
+          <div id="map-report-hint" class="map-report-hint"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -109,6 +123,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=68"></script>
+  <script type="module" src="app.js?v=69"></script>
 </body>
 </html>

@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=68';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=69';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -45,6 +45,16 @@ document.getElementById('map-btn').addEventListener('click', () => {
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
 document.getElementById('map-dark')?.addEventListener('click', () => fmap.toggleDark());
 document.getElementById('map-traffic')?.addEventListener('click', () => fmap.toggleTraffic());
+document.getElementById('map-radars')?.addEventListener('click', () => fmap.toggleRadars());
+const reportMenu = document.getElementById('map-report-menu');
+document.getElementById('map-add-gai')?.addEventListener('click', () => {
+  if (fmap.reportMode) fmap.setReportMode(null);
+  else reportMenu?.classList.toggle('open');
+});
+document.getElementById('map-hz-cancel')?.addEventListener('click', () => fmap.setReportMode(null));
+reportMenu?.querySelectorAll('[data-hz]').forEach((btn) => {
+  btn.addEventListener('click', () => fmap.setReportMode(btn.dataset.hz));
+});
 document.getElementById('map-follow')?.addEventListener('click', () => fmap.toggleFollowMe());
 document.getElementById('map-fit').addEventListener('click', () => {
   fmap.stopFollow();
@@ -405,6 +415,8 @@ function createWebApi() {
     joined: [],
     moved: [],
     say: [],
+    road: [],
+    roadAlert: [],
   };
   let lastMembersJson = '';
   let lastHomeJson = '';
@@ -419,6 +431,7 @@ function createWebApi() {
     if (ch === 'member:joined') listeners.joined.forEach((fn) => fn(data));
     else if (ch === 'member:moved') listeners.moved.forEach((fn) => fn(data));
     else if (ch === 'member:say') listeners.say.forEach((fn) => fn(data));
+    else if (ch === 'road:alert') listeners.roadAlert.forEach((fn) => fn(data));
   };
 
   const applyState = (s, isInitial = false) => {
@@ -452,6 +465,9 @@ function createWebApi() {
         lastBotJson = bj;
         if (!isInitial) listeners.bot.forEach((fn) => fn(s.bot));
       }
+    }
+    if (s.hazards !== undefined || s.roadAlert !== undefined) {
+      listeners.road.forEach((fn) => fn({ hazards: s.hazards || [], roadAlert: s.roadAlert || null }));
     }
   };
 
@@ -508,6 +524,8 @@ function createWebApi() {
           lastBotJson = bj;
           listeners.bot.forEach((fn) => fn(data));
         }
+      } else if (ch === 'road:update') {
+        listeners.road.forEach((fn) => fn(data));
       } else {
         dispatchTransient(ch, data, seq);
       }
@@ -591,6 +609,8 @@ function createWebApi() {
     onJoined: (cb) => listeners.joined.push(cb),
     onMoved: (cb) => listeners.moved.push(cb),
     onSay: (cb) => listeners.say.push(cb),
+    onRoad: (cb) => listeners.road.push(cb),
+    onRoadAlert: (cb) => listeners.roadAlert.push(cb),
     sendRoomAction: (payload) =>
       fetch('/api/action', {
         method: 'POST',
@@ -1134,6 +1154,13 @@ if (api) {
   api.onMembers((m) => sync(m, true));
   api.onHome(setHome);
   api.onBotStatus(showBotStatus);
+  api.onRoad?.(({ hazards, roadAlert }) => fmap.setRoadData(hazards, roadAlert));
+  api.onRoadAlert?.((al) => {
+    if (al?.text) {
+      toast(`🤖 ${al.text}`);
+      fmap.setRoadData(undefined, al);
+    }
+  });
   api.onJoined((m) => toast(`🎉 ${m.name} (${m.age} yosh) oilaga qo'shildi!`));
   api.onMoved(({ name, event }) => {
     toast(event === 'arrived' ? `🏠 ${name} uyga keldi!` : `👋 ${name} uydan chiqdi`);

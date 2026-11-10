@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { Bot, Keyboard, InlineKeyboard, InputFile } = require('grammy');
 const store = require('./store');
+const road = require('./road');
 const { JOBS } = store;
 const { handleRobotCommand, handlePetCommand, AI_IDS } = require('./ai');
 
@@ -29,6 +30,8 @@ const BTN_STATUS = "🎭 Holatni o'zgartirish";
 const BTN_ROOM = '🏠 3D Uyni ochish';
 const BTN_CHAT = '💬 Suhbat';
 const BTN_PHOTO = '📸 Rasm yuklash';
+const BTN_GAI = '🚔 GAI bor';
+const BTN_RADAR = '📸 Radar / Kamera';
 const BTN_BACK = '🔙 Orqaga';
 const LOCATION_BUTTON = '📍 Joylashuvni yuborish';
 
@@ -44,7 +47,8 @@ function joinKeyboard() {
 function mainKeyboard() {
   return new Keyboard()
     .text(BTN_STATUS).text(BTN_ROOM).row()
-    .text(BTN_CHAT).text(BTN_PHOTO)
+    .text(BTN_CHAT).text(BTN_PHOTO).row()
+    .text(BTN_GAI).text(BTN_RADAR)
     .resized()
     .persistent();
 }
@@ -240,7 +244,19 @@ async function startBot(token, onStatus, options = {}) {
   bot = new Bot(token);
   const wizard = new Map();
   const awaitingHome = new Set();
+  const pendingHazard = new Map();
   const activeChatTarget = new Map();
+  let lastGaiHintAt = 0;
+
+  road.removeAllListeners('alert');
+  road.on('alert', (al) => {
+    if (!al || al.isReport || !al.targetId || !bot) return;
+    bot.api.sendMessage(
+      al.targetId,
+      `🤖 *Yo'l Yordamchisi:*\n⚠️ Oldinda ~${al.dist} m da *${al.label}*!`,
+      { parse_mode: 'Markdown' }
+    ).catch(() => {});
+  });
 
   // Guruh tekshiruvi: faqat "Oila_3d_room" guruhida qoladi
   bot.use(async (ctx, next) => {
@@ -430,6 +446,25 @@ async function startBot(token, onStatus, options = {}) {
     }
   });
 
+  bot.callbackQuery(/^save_cam:(.+)$/, async (ctx) => {
+    const hzId = ctx.match?.[1];
+    const existing = road.getActiveHazards().find((h) => h.id === hzId);
+    if (existing) {
+      road.addHazard({
+        type: 'camera',
+        lat: existing.lat,
+        lon: existing.lon,
+        speedLimit: existing.limit,
+        reportedBy: ctx.from?.id,
+        reportedByName: store.get(ctx.from?.id)?.name || 'Haydovchi',
+      });
+      await ctx.answerCallbackQuery({ text: '📌 Doimiy kamera sifatida saqlandi!' }).catch(() => {});
+      await ctx.editMessageText('✅ *Doimiy kamera sifatida xaritaga saqlandi!*', { parse_mode: 'Markdown' }).catch(() => {});
+    } else {
+      await ctx.answerCallbackQuery({ text: 'Belgi topilmadi' }).catch(() => {});
+    }
+  });
+
   bot.command('profil', async (ctx) => {
     if (ctx.chat?.type !== 'private') return;
     await beginWizard(ctx, Boolean(store.get(ctx.from.id)));
@@ -476,14 +511,35 @@ async function startBot(token, onStatus, options = {}) {
   });
 
   const handleLocation = async (ctx, msg, edited) => {
-    if (ctx.chat?.type !== 'private') return;
+    const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
     const id = ctx.from?.id;
     const m = id && store.get(id);
+    const { latitude: lat, longitude: lon, live_period: livePeriod, horizontal_accuracy: accuracy } = msg.location;
+
+    if (isGroup) {
+      if (!edited && Date.now() - lastGaiHintAt < 120_000) {
+        road.addHazard({ type: 'gai', lat, lon, reportedBy: id, reportedByName: m?.name || ctx.from?.first_name || 'Guruh' });
+        await ctx.reply(`✅ ${m?.name || ctx.from?.first_name || 'Haydovchi'} yuborgan 🚔 GAI nuqtasi xaritaga qo'shildi (2 soat)!`).catch(() => {});
+      }
+      return;
+    }
+    if (ctx.chat?.type !== 'private') return;
     if (!m) {
       if (!edited) await ctx.reply("Siz hali a'zo emassiz. /start bosing.");
       return;
     }
-    const { latitude: lat, longitude: lon, live_period: livePeriod, horizontal_accuracy: accuracy } = msg.location;
+
+    if (!edited && pendingHazard.has(id)) {
+      const hType = pendingHazard.get(id);
+      pendingHazard.delete(id);
+      const hz = road.addHazard({ type: hType, lat, lon, reportedBy: id, reportedByName: m.name });
+      const label = hType === 'gai' ? '🚔 GAI posti (2 soat)' : '📡 Radar (2 soat)';
+      const extra = hType === 'radar' && hz
+        ? { parse_mode: 'Markdown', reply_markup: new InlineKeyboard().text('📌 Doimiy kamera qilib saqlash', `save_cam:${hz.id}`) }
+        : { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) };
+      await ctx.reply(`✅ *Rahmat! ${label} xaritaga qo'shildi.*\n50-60-70+ da yaqinlashgan haydovchilarni Yordamchi bot ogohlantiradi.`, extra);
+      return;
+    }
 
     if (!edited && awaitingHome.has(id)) {
       awaitingHome.delete(id);
@@ -586,8 +642,20 @@ async function startBot(token, onStatus, options = {}) {
       return;
     }
 
-    // Guruhda boshqa hech qanday bot funksiyasi ishlamaydi (faqat 3D Uyni ochish!)
-    if (!isPrivate) return;
+    // Guruhda GAI/radar haqida yozib joylashuv tashlansa xaritaga qo'shiladi; boshqa buyruqlar yopiq
+    if (!isPrivate) {
+      if (/\b(gayi|gai|radar|kamera|kamra)\b/i.test(text)) {
+        lastGaiHintAt = Date.now();
+        const mG = store.get(id);
+        const locFresh = mG?.location && Number.isFinite(mG.location.lat) && mG.location.at && (Date.now() - new Date(mG.location.at).getTime() < 120_000);
+        if (locFresh) {
+          const hType = /radar|kamera|kamra/i.test(text) ? 'radar' : 'gai';
+          road.addHazard({ type: hType, lat: mG.location.lat, lon: mG.location.lon, reportedBy: id, reportedByName: mG.name });
+          await ctx.reply(`✅ ${mG.name} turgan joyda ${hType === 'gai' ? '🚔 GAI' : '📡 Radar'} xaritaga qo'shildi (2 soat)!`).catch(() => {});
+        }
+      }
+      return;
+    }
 
     // "📸 Rasm yuklash" tugmasi bosilganda yo'riqnoma berish
     if (text === BTN_PHOTO) {
@@ -730,6 +798,33 @@ async function startBot(token, onStatus, options = {}) {
         { parse_mode: 'Markdown' }
       );
       await sendApkToChat(id);
+      return;
+    }
+
+    if (text === BTN_GAI || text === BTN_RADAR) {
+      const hType = text === BTN_GAI ? 'gai' : 'radar';
+      const label = hType === 'gai' ? '🚔 GAI posti (2 soat)' : '📡 Radar (2 soat)';
+      const fresh = m.location && Number.isFinite(m.location.lat) && m.location.at && (Date.now() - new Date(m.location.at).getTime() < 120_000);
+      if (fresh) {
+        const hz = road.addHazard({ type: hType, lat: m.location.lat, lon: m.location.lon, reportedBy: id, reportedByName: m.name });
+        if (hType === 'radar' && hz) {
+          await ctx.reply(
+            `✅ *${label} xaritaga qo'shildi!*\n50-60-70+ da yaqinlashganlarni Yordamchi bot ogohlantiradi.`,
+            { parse_mode: 'Markdown', reply_markup: new InlineKeyboard().text('📌 Doimiy kamera qilib saqlash', `save_cam:${hz.id}`) }
+          );
+        } else {
+          await ctx.reply(
+            `✅ *${label} xaritaga qo'shildi!*\n50-60-70+ da yaqinlashgan haydovchilarni Yordamchi bot ogohlantiradi.`,
+            { parse_mode: 'Markdown', reply_markup: mainKeyboard(id) }
+          );
+        }
+      } else {
+        pendingHazard.set(id, hType);
+        await ctx.reply(
+          `📍 *${label} ni belgilash uchun joylashuvingizni yuboring* (yoki xaritadan belgilang):`,
+          { parse_mode: 'Markdown', reply_markup: statusKeyboard() }
+        );
+      }
       return;
     }
 

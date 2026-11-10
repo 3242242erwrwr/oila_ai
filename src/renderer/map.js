@@ -65,8 +65,21 @@ export class FamilyMap {
     this.myUid = null;
     this.isDark = (() => { try { return localStorage.getItem('familyMapDark') === '1'; } catch { return false; } })();
     this.showTraffic = (() => { try { return localStorage.getItem('familyMapTraffic') === '1'; } catch { return false; } })();
+    this.showRadars = (() => { try { return localStorage.getItem('familyMapRadars') !== '0'; } catch { return true; } })();
     this.activeBaseName = '';
     this.trafficLayer = null;
+    this.cameras = [];
+    this.camerasLoaded = false;
+    this.hazards = [];
+    this.roadAlert = null;
+    this.cameraLayer = null;
+    this.hazardLayer = null;
+    this.helperMarker = null;
+    this.helperIconKey = '';
+    this.reportMode = null;
+    this.alertTimer = null;
+    this.localCool = new Map();
+    this.lastShownAlertId = '';
     this.applyThemeUi();
     setInterval(() => this.isOpen && this.render(), 2000);
   }
@@ -84,6 +97,77 @@ export class FamilyMap {
     if (trBtn) {
       trBtn.classList.toggle('traffic-on', this.showTraffic);
       trBtn.textContent = this.showTraffic ? '🚦 Probka ✓' : '🚦 Probka';
+    }
+    const radBtn = document.getElementById('map-radars');
+    if (radBtn) {
+      radBtn.classList.toggle('radar-on', this.showRadars);
+      radBtn.textContent = this.showRadars ? '📸 Radar ✓' : '📸 Radar';
+    }
+  }
+
+  toggleRadars() {
+    this.showRadars = !this.showRadars;
+    try { localStorage.setItem('familyMapRadars', this.showRadars ? '1' : '0'); } catch {}
+    this.applyThemeUi();
+    this.renderCameras();
+    this.renderHazards();
+  }
+
+  setRoadData(hazards, roadAlert) {
+    if (Array.isArray(hazards)) this.hazards = hazards;
+    if (roadAlert !== undefined) {
+      this.roadAlert = roadAlert;
+      if (roadAlert && roadAlert.id && roadAlert.id !== this.lastShownAlertId && Date.now() - roadAlert.at < 35000) {
+        this.lastShownAlertId = roadAlert.id;
+        this.showAlertBanner(roadAlert.text, !roadAlert.isReport);
+      }
+    }
+    if (this.map && this.isOpen) {
+      this.renderHazards();
+      this.updateHelperBot();
+    }
+  }
+
+  showAlertBanner(text, isWarn = true) {
+    const elBox = document.getElementById('map-alert');
+    if (!elBox || !text) return;
+    elBox.textContent = `🤖 ${text}`;
+    elBox.classList.toggle('info', !isWarn);
+    elBox.classList.add('show');
+    if (this.alertTimer) clearTimeout(this.alertTimer);
+    this.alertTimer = setTimeout(() => elBox.classList.remove('show'), 8500);
+  }
+
+  setReportMode(mode) {
+    this.reportMode = mode || null;
+    const hint = document.getElementById('map-report-hint');
+    const menu = document.getElementById('map-report-menu');
+    if (menu) menu.classList.remove('open');
+    if (hint) {
+      if (this.reportMode) {
+        const lbl = this.reportMode === 'gai' ? '🚔 GAI' : this.reportMode === 'radar' ? '📡 Radar' : '📸 Doimiy kamera';
+        hint.textContent = `👇 Xaritada ${lbl} joyini bosing!`;
+        hint.classList.add('show');
+      } else {
+        hint.classList.remove('show');
+      }
+    }
+  }
+
+  async loadCameras() {
+    if (this.camerasLoaded) return;
+    this.camerasLoaded = true;
+    try {
+      const r = await fetch('/api/cameras');
+      if (r.ok) {
+        this.cameras = await r.json();
+        if (this.map) {
+          this.renderCameras();
+          this.updateHelperBot();
+        }
+      }
+    } catch {
+      this.camerasLoaded = false;
     }
   }
 
@@ -258,8 +342,42 @@ export class FamilyMap {
       }
     });
 
+    this.cameraLayer = L.layerGroup().addTo(this.map);
+    this.hazardLayer = L.layerGroup().addTo(this.map);
+    this.map.on('moveend zoomend', () => {
+      this.renderCameras();
+    });
+    this.map.on('click', async (e) => {
+      if (!this.reportMode) return;
+      const mode = this.reportMode;
+      this.setReportMode(null);
+      const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
+      try {
+        const res = await fetch('/api/hazard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: mode,
+            lat: e.latlng.lat,
+            lon: e.latlng.lng,
+            reportedBy: this.myUid || null,
+            reportedByName: me?.name || 'Haydovchi',
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.hazard) {
+            this.hazards = [...this.hazards.filter((h) => h.id !== data.hazard.id), data.hazard];
+            this.renderHazards();
+            this.showAlertBanner('✅ Belgilandi va xaritaga chiqarildi!', false);
+          }
+        }
+      } catch {}
+    });
+
     this.updateFollowUi();
     this.applyThemeUi();
+    this.loadCameras();
     this.render();
   }
 
@@ -538,6 +656,135 @@ export class FamilyMap {
             zIndexOffset: -100,
           }).bindPopup('🏠 Oilaviy Uy'),
         ]).addTo(this.map);
+      }
+    }
+
+    this.renderCameras();
+    this.renderHazards();
+    this.updateHelperBot();
+  }
+
+  renderCameras() {
+    if (!this.cameraLayer || !this.map) return;
+    this.cameraLayer.clearLayers();
+    if (!this.showRadars || !this.cameras.length || this.map.getZoom() < 11) return;
+    const bounds = this.map.getBounds().pad(0.25);
+    let shown = 0;
+    for (const c of this.cameras) {
+      if (!bounds.contains([c.lat, c.lon])) continue;
+      if (shown >= 160) break;
+      shown += 1;
+      const label = c.limit ? `📸 ${c.limit}` : '📸';
+      const icon = L.divIcon({ html: `<div class="cam-pin">${label}</div>`, className: 'pin-icon', iconSize: [46, 22], iconAnchor: [23, 11] });
+      const title = c.type === 'alpr' ? '📸 Raqam o\'qish kamerasi' : c.type === 'traffic_camera' ? '📸 Chorraha kamerasi' : '📡 Tezlik radari';
+      const info = [title, c.limit ? `Cheklov: ${c.limit} km/soat` : '', c.road ? `Yo'l: ${c.road}` : ''].filter(Boolean).join('<br/>');
+      L.marker([c.lat, c.lon], { icon, zIndexOffset: -40 }).bindPopup(info).addTo(this.cameraLayer);
+    }
+  }
+
+  renderHazards() {
+    if (!this.hazardLayer || !this.map) return;
+    this.hazardLayer.clearLayers();
+    if (!this.showRadars || !this.hazards.length) return;
+    const now = Date.now();
+    for (const h of this.hazards) {
+      if (h.expiresAt && h.expiresAt <= now) continue;
+      const cls = h.type === 'radar' ? 'hz-pin radar' : h.type === 'camera' ? 'hz-pin camera' : 'hz-pin';
+      const lbl = h.type === 'radar' ? '📡 Radar' : h.type === 'camera' ? '📸 Kamera' : '🚔 GAI';
+      const icon = L.divIcon({ html: `<div class="${cls}">${lbl}</div>`, className: 'pin-icon', iconSize: [68, 24], iconAnchor: [34, 12] });
+      const rem = h.expiresAt ? `⏳ ${Math.max(1, Math.round((h.expiresAt - now) / 60000))} daqiqa qoldi` : '📌 Doimiy belgi';
+      const who = h.reportedByName ? `Belgiladi: ${h.reportedByName}` : '';
+      const info = [`<b>${lbl}</b>`, rem, who].filter(Boolean).join('<br/>');
+      L.marker([h.lat, h.lon], { icon, zIndexOffset: 20 }).bindPopup(info).addTo(this.hazardLayer);
+    }
+  }
+
+  checkLocalDrivingAlert() {
+    const humans = this.members.filter((m) => !m.isAi && m.location && isLive(m.location));
+    const fast = humans.filter((m) => Number(m.location.speed || 0) >= 45);
+    const now = Date.now();
+    for (const m of fast) {
+      const { lat, lon, speed } = m.location;
+      const spots = [
+        ...this.hazards.filter((h) => !h.expiresAt || h.expiresAt > now).map((h) => ({ id: h.id, lat: h.lat, lon: h.lon, kind: h.type, limit: h.limit })),
+        ...this.cameras.filter((c) => Math.abs(c.lat - lat) <= 0.008 && Math.abs(c.lon - lon) <= 0.008),
+      ];
+      let best = null;
+      let bestDist = Infinity;
+      for (const s of spots) {
+        const d = Math.hypot((s.lat - lat) * 111320, (s.lon - lon) * 85000);
+        if (d <= 450 && d < bestDist) {
+          bestDist = d;
+          best = s;
+        }
+      }
+      if (best) {
+        const distRounded = Math.max(20, Math.round(bestDist / 10) * 10);
+        const kindTxt = best.kind === 'gai' ? '🚔 GAI posti' : best.limit ? `📸 Radar (${best.limit})` : '📸 Kamera';
+        const text = `⚠️ ${m.name} (${Math.round(speed)} km/soat): ~${distRounded} m da ${kindTxt}!`;
+        const ck = `${m.id}:${best.id}`;
+        const prev = this.localCool.get(ck) || 0;
+        if (now - prev > 120_000) {
+          this.localCool.set(ck, now);
+          this.showAlertBanner(text, true);
+        }
+        return { lat: best.lat, lon: best.lon, text, warn: true };
+      }
+    }
+    return null;
+  }
+
+  updateHelperBot() {
+    if (!this.map) return;
+    let target = null;
+    const localAlert = this.checkLocalDrivingAlert();
+
+    if (localAlert) {
+      target = localAlert;
+    } else if (this.roadAlert && Date.now() - this.roadAlert.at < 30_000) {
+      target = {
+        lat: this.roadAlert.lat,
+        lon: this.roadAlert.lon,
+        text: this.roadAlert.text,
+        warn: !this.roadAlert.isReport,
+      };
+    } else {
+      const drivers = this.members
+        .filter((m) => !m.isAi && m.location && isLive(m.location) && Number(m.location.speed || 0) >= 20)
+        .sort((a, b) => Number(b.location.speed || 0) - Number(a.location.speed || 0));
+      if (drivers.length) {
+        const d = drivers[0];
+        target = {
+          lat: d.location.lat + 0.00032,
+          lon: d.location.lon + 0.00032,
+          text: `🤖 ${d.name}: ${Math.round(d.location.speed)} km/soat`,
+          warn: false,
+        };
+      } else if (this.home) {
+        const ang = (Date.now() / 12000) % (Math.PI * 2);
+        target = {
+          lat: this.home.lat + Math.sin(ang) * 0.00028,
+          lon: this.home.lon + Math.cos(ang) * 0.00035,
+          text: "🤖 Yordamchi: Yo'llar tinch",
+          warn: false,
+        };
+      }
+    }
+
+    if (!target || !Number.isFinite(target.lat) || !Number.isFinite(target.lon)) return;
+    const key = `${target.warn ? 1 : 0}|${target.text}`;
+    const html = `<div class="helper-wrap"><div class="helper-bubble${target.warn ? ' warn' : ''}">${target.text}</div><div class="helper-pin">🤖</div></div>`;
+    const icon = L.divIcon({ html, className: 'pin-icon', iconSize: [180, 62], iconAnchor: [90, 45] });
+
+    if (!this.helperMarker) {
+      this.helperMarker = L.marker([target.lat, target.lon], { icon, zIndexOffset: 80 }).addTo(this.map);
+      this.helperMarker.bindPopup('<b>🤖 Yo\'l Yordamchisi</b><br/>50-60-70+ km/soat da haqiqiy kamera, radar va GAI dan ogohlantiradi.');
+      this.helperIconKey = key;
+    } else {
+      this.animateMarkerTo('__helper__', this.helperMarker, target.lat, target.lon);
+      if (this.helperIconKey !== key) {
+        this.helperMarker.setIcon(icon);
+        this.helperIconKey = key;
       }
     }
   }

@@ -5,6 +5,7 @@ const path = require('path');
 const zlib = require('zlib');
 const { spawn } = require('child_process');
 const store = require('./store');
+const road = require('./road');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -24,6 +25,7 @@ const ROOT = path.join(__dirname, '..');
 const RENDERER = path.join(__dirname, 'renderer');
 
 function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.PORT) || 3847 }) {
+  road.attachStore(store);
   const clients = new Set();
   let publicUrl = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL || null;
   let eventSeq = 0;
@@ -101,6 +103,13 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
     const ev = pushEvent('member:say', p);
     broadcast('member:say', p, ev.seq);
   });
+  road.on('change', () => {
+    broadcast('road:update', { hazards: road.getActiveHazards(), roadAlert: road.getLatestAlert() });
+  });
+  road.on('alert', (al) => {
+    const ev = pushEvent('road:alert', al);
+    broadcast('road:alert', al, ev.seq);
+  });
 
   const server = http.createServer((req, res) => {
     if (!publicUrl && req.headers['x-forwarded-proto'] === 'https' && req.headers.host) {
@@ -122,6 +131,7 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       res.write(`data: ${JSON.stringify({ ch: 'members:update', data: liteMembers() })}\n\n`);
       res.write(`data: ${JSON.stringify({ ch: 'home:update', data: store.getHome() })}\n\n`);
       res.write(`data: ${JSON.stringify({ ch: 'bot:status', data: getBotStatus() })}\n\n`);
+      res.write(`data: ${JSON.stringify({ ch: 'road:update', data: { hazards: road.getActiveHazards(), roadAlert: road.getLatestAlert() } })}\n\n`);
       clients.add(res);
       req.on('close', () => clients.delete(res));
       return;
@@ -162,6 +172,42 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
+    // 1.7 Statik kamera/radarlar bazasi (kuniga 1 marta gzip bilan keshlanadi)
+    if (pathname === '/api/cameras' && req.method === 'GET') {
+      sendCompressed(req, res, 200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+      }, JSON.stringify(road.getCameras()));
+      return;
+    }
+
+    // 1.8 Xaritadan GAI / Radar / Kamera belgilash
+    if (pathname === '/api/hazard' && req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => { if (body.length < 4096) body += chunk; });
+      req.on('end', () => {
+        try {
+          const p = JSON.parse(body || '{}');
+          const reporter = p.reportedBy ? store.get(p.reportedBy) : null;
+          const hz = road.addHazard({
+            type: p.type,
+            lat: p.lat,
+            lon: p.lon,
+            speedLimit: p.speedLimit,
+            reportedBy: reporter ? reporter.id : (p.reportedBy || null),
+            reportedByName: reporter?.name || p.reportedByName || 'Haydovchi',
+          });
+          if (!hz) throw new Error('Koordinata xato');
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: true, hazard: hz }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+        }
+      });
+      return;
+    }
+
     // 2. Holat ma'lumotlari
     if (pathname === '/api/state' && req.method === 'GET') {
       const payload = JSON.stringify({
@@ -170,6 +216,8 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
         bot: getBotStatus(),
         publicUrl,
         events: recentEvents,
+        hazards: road.getActiveHazards(),
+        roadAlert: road.getLatestAlert(),
       });
       sendCompressed(req, res, 200, {
         'Content-Type': 'application/json; charset=utf-8',
