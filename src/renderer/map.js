@@ -66,6 +66,10 @@ export class FamilyMap {
     this.isDark = (() => { try { return localStorage.getItem('familyMapDark') === '1'; } catch { return false; } })();
     this.showTraffic = (() => { try { return localStorage.getItem('familyMapTraffic') === '1'; } catch { return false; } })();
     this.showRadars = (() => { try { return localStorage.getItem('familyMapRadars') !== '0'; } catch { return true; } })();
+    this.voiceEnabled = (() => { try { return localStorage.getItem('familyMapVoice') !== '0'; } catch { return true; } })();
+    this.voicePlayer = typeof Audio !== 'undefined' ? new Audio() : null;
+    this.audioUnlocked = false;
+    this.lastVoiceAt = 0;
     this.activeBaseName = '';
     this.trafficLayer = null;
     this.cameras = [];
@@ -104,6 +108,55 @@ export class FamilyMap {
       radBtn.classList.toggle('radar-on', this.showRadars);
       radBtn.textContent = this.showRadars ? '📸 Radar ✓' : '📸 Radar';
     }
+    const vBtn = document.getElementById('map-voice');
+    if (vBtn) {
+      vBtn.classList.toggle('voice-on', this.voiceEnabled);
+      vBtn.textContent = this.voiceEnabled ? '🔊 Ovoz ✓' : '🔇 Jim';
+    }
+  }
+
+  unlockAudio() {
+    if (this.audioUnlocked || !this.voicePlayer) return;
+    this.audioUnlocked = true;
+    try {
+      this.voicePlayer.muted = true;
+      this.voicePlayer.src = '/voice/spd50.mp3';
+      const p = this.voicePlayer.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          this.voicePlayer.pause();
+          this.voicePlayer.currentTime = 0;
+          this.voicePlayer.muted = false;
+        }).catch(() => {
+          this.voicePlayer.muted = false;
+          this.audioUnlocked = false;
+        });
+      } else {
+        this.voicePlayer.muted = false;
+      }
+    } catch {
+      this.audioUnlocked = false;
+    }
+  }
+
+  toggleVoice() {
+    this.voiceEnabled = !this.voiceEnabled;
+    try { localStorage.setItem('familyMapVoice', this.voiceEnabled ? '1' : '0'); } catch {}
+    if (this.voiceEnabled) this.unlockAudio();
+    this.applyThemeUi();
+  }
+
+  playVoice(key) {
+    if (!this.voiceEnabled || !this.voicePlayer || !this.isOpen) return;
+    const now = Date.now();
+    if (now - this.lastVoiceAt < 7000) return;
+    this.lastVoiceAt = now;
+    try {
+      this.voicePlayer.muted = false;
+      this.voicePlayer.src = `/voice/${key}.mp3`;
+      this.voicePlayer.currentTime = 0;
+      this.voicePlayer.play().catch(() => {});
+    } catch {}
   }
 
   toggleRadars() {
@@ -121,6 +174,14 @@ export class FamilyMap {
       if (roadAlert && roadAlert.id && roadAlert.id !== this.lastShownAlertId && Date.now() - roadAlert.at < 35000) {
         this.lastShownAlertId = roadAlert.id;
         this.showAlertBanner(roadAlert.text, !roadAlert.isReport);
+        if (!roadAlert.isReport) {
+          const vk = roadAlert.kind === 'gai'
+            ? 'gai'
+            : roadAlert.kind === 'speed'
+              ? `spd${roadAlert.tier || 50}`
+              : 'radar';
+          this.playVoice(vk);
+        }
       }
     }
     if (this.map && this.isOpen) {
@@ -762,6 +823,7 @@ export class FamilyMap {
         if (now - (this.localCool.get(ck) || 0) > 120_000) {
           this.localCool.set(ck, now);
           this.showAlertBanner(text, true);
+          this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
         }
       } else if (tierInfo) {
         text = `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase}`;
@@ -770,6 +832,7 @@ export class FamilyMap {
         if (now - (this.localCool.get(ck) || 0) > 90_000) {
           this.localCool.set(ck, now);
           this.showAlertBanner(text, warn);
+          this.playVoice(`spd${tierInfo.tier}`);
         }
       } else {
         text = `🤖 ${m.name}: ${spd} km/soat`;

@@ -18,6 +18,7 @@ const MIME = {
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
+  '.mp3': 'audio/mpeg',
   '.apk': 'application/vnd.android.package-archive',
 };
 
@@ -359,7 +360,7 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
         return;
       }
       const ext = path.extname(resolved).toLowerCase();
-      const cacheControl = (pathname.startsWith('/node_modules/') || (u.searchParams.has('v') && ext !== '.html'))
+      const cacheControl = (pathname.startsWith('/node_modules/') || pathname.startsWith('/voice/') || (u.searchParams.has('v') && ext !== '.html'))
         ? 'public, max-age=86400'
         : 'no-store, no-cache, must-revalidate, max-age=0';
       sendCompressed(req, res, 200, {

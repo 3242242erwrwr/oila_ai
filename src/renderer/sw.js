@@ -1,9 +1,10 @@
-const CACHE_NAME = 'oila-uy-v1';
+const CACHE_NAME = 'oila-uy-v2';
 
 const isImmutableStatic = (url) => {
   const p = url.pathname;
   if (p.startsWith('/node_modules/')) return true;
   if (p.startsWith('/api/photo/')) return true;
+  if (p.startsWith('/voice/')) return true;
   if (url.searchParams.has('v') && /\.(js|mjs|css|svg|png|jpg|webp)$/i.test(p)) return true;
   if (p === '/icon.svg' || p === '/manifest.json') return true;
   return false;

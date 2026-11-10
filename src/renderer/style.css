@@ -253,6 +253,11 @@ html, body {
   color: #fff !important;
   box-shadow: 0 2px 0 #1e3a8a !important;
 }
+.btn.voice-on {
+  background: #0d9488 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 0 #115e59 !important;
+}
 .map-alert {
   position: absolute;
   top: 10px;

@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=73';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=74';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -39,13 +39,16 @@ const INDOOR = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc
 
 const fmap = new FamilyMap(document.getElementById('map-wrap'), document.getElementById('map'));
 document.getElementById('map-btn').addEventListener('click', () => {
+  fmap.unlockAudio();
   pollLocationOnce(true, true);
   fmap.toggle();
 });
+document.addEventListener('pointerdown', () => fmap.unlockAudio(), { once: true });
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
 document.getElementById('map-dark')?.addEventListener('click', () => fmap.toggleDark());
 document.getElementById('map-traffic')?.addEventListener('click', () => fmap.toggleTraffic());
 document.getElementById('map-radars')?.addEventListener('click', () => fmap.toggleRadars());
+document.getElementById('map-voice')?.addEventListener('click', () => fmap.toggleVoice());
 const reportMenu = document.getElementById('map-report-menu');
 document.getElementById('map-add-gai')?.addEventListener('click', () => {
   if (fmap.reportMode) fmap.setReportMode(null);
