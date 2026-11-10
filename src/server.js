@@ -19,6 +19,7 @@ const MIME = {
   '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
   '.apk': 'application/vnd.android.package-archive',
 };
 

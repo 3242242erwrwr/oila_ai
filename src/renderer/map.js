@@ -120,7 +120,7 @@ export class FamilyMap {
     this.audioUnlocked = true;
     try {
       this.voicePlayer.muted = true;
-      this.voicePlayer.src = '/voice/spd50.mp3';
+      this.voicePlayer.src = '/voice/spd50.wav';
       const p = this.voicePlayer.play();
       if (p && typeof p.then === 'function') {
         p.then(() => {
@@ -153,7 +153,7 @@ export class FamilyMap {
     this.lastVoiceAt = now;
     try {
       this.voicePlayer.muted = false;
-      this.voicePlayer.src = `/voice/${key}.mp3`;
+      this.voicePlayer.src = `/voice/${key}.wav`;
       this.voicePlayer.currentTime = 0;
       this.voicePlayer.play().catch(() => {});
     } catch {}
