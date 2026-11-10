@@ -74,16 +74,13 @@ export class FamilyMap {
     this.roadAlert = null;
     this.cameraLayer = null;
     this.hazardLayer = null;
-    this.helperMarker = null;
-    this.helperIconKey = '';
+    this.helperMarkers = new Map();
+    this.helperIconKeys = new Map();
+    this.helperVisibleUntil = new Map();
     this.reportMode = null;
     this.alertTimer = null;
     this.localCool = new Map();
     this.lastShownAlertId = '';
-    this.patrolRoute = [];
-    this.patrolAnchorKey = '';
-    this.patrolFromCams = false;
-    this.patrolState = { idx: 0, lat: null, lon: null };
     this.applyThemeUi();
     setInterval(() => this.isOpen && this.render(), 2000);
   }
@@ -711,200 +708,107 @@ export class FamilyMap {
     return null;
   }
 
-  checkLocalDrivingAlert() {
-    const humans = this.members.filter((m) => !m.isAi && m.location && isLive(m.location));
-    const fast = humans
-      .filter((m) => Number(m.location.speed || 0) >= 45)
-      .sort((a, b) => Number(b.location.speed || 0) - Number(a.location.speed || 0));
-    const now = Date.now();
-    for (const m of fast) {
-      const { lat, lon, speed } = m.location;
-      const spd = Math.round(Number(speed || 0));
-      const tierInfo = this.getSpeedSay(spd);
-      const spots = [
-        ...this.hazards.filter((h) => !h.expiresAt || h.expiresAt > now).map((h) => ({ id: h.id, lat: h.lat, lon: h.lon, kind: h.type, limit: h.limit })),
-        ...this.cameras.filter((c) => Math.abs(c.lat - lat) <= 0.008 && Math.abs(c.lon - lon) <= 0.008),
-      ];
-      let best = null;
-      let bestDist = Infinity;
-      for (const s of spots) {
-        const d = Math.hypot((s.lat - lat) * 111320, (s.lon - lon) * 85000);
-        if (d <= 450 && d < bestDist) {
-          bestDist = d;
-          best = s;
-        }
-      }
-      if (best) {
-        const distRounded = Math.max(20, Math.round(bestDist / 10) * 10);
-        const kindTxt = best.kind === 'gai' ? '🚔 GAI posti' : best.limit ? `📸 Radar (${best.limit})` : '📸 Kamera';
-        const text = tierInfo
-          ? `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase} • ~${distRounded} m da ${kindTxt}!`
-          : `⚠️ ${m.name} (${spd} km/s): ~${distRounded} m da ${kindTxt}!`;
-        const ck = `${m.id}:${best.id}`;
-        const prev = this.localCool.get(ck) || 0;
-        if (now - prev > 120_000) {
-          this.localCool.set(ck, now);
-          this.showAlertBanner(text, true);
-        }
-        return { lat: best.lat, lon: best.lon, text, warn: true };
-      }
-      if (tierInfo) {
-        const text = `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase}`;
-        const ck = `${m.id}:spd:${tierInfo.tier}`;
-        const prev = this.localCool.get(ck) || 0;
-        if (now - prev > 90_000) {
-          this.localCool.set(ck, now);
-          this.showAlertBanner(text, tierInfo.warn);
-        }
-        return { lat: lat + 0.00032, lon: lon + 0.00032, text, warn: tierInfo.warn };
+  findNearestHazard(lat, lon, now) {
+    const spots = [
+      ...this.hazards.filter((h) => !h.expiresAt || h.expiresAt > now).map((h) => ({ id: h.id, lat: h.lat, lon: h.lon, kind: h.type, limit: h.limit })),
+      ...this.cameras.filter((c) => Math.abs(c.lat - lat) <= 0.008 && Math.abs(c.lon - lon) <= 0.008),
+    ];
+    let best = null;
+    let bestDist = Infinity;
+    for (const s of spots) {
+      const d = Math.hypot((s.lat - lat) * 111320, (s.lon - lon) * 85000);
+      if (d <= 450 && d < bestDist) {
+        bestDist = d;
+        best = { ...s, dist: bestDist };
       }
     }
-    return null;
+    return best;
   }
 
   updateHelperBot() {
     if (!this.map) return;
-    let target = null;
-    const localAlert = this.checkLocalDrivingAlert();
+    const now = Date.now();
+    const seen = new Set();
+    const humans = this.members.filter((m) => !m.isAi && m.location && isLive(m.location));
 
-    if (localAlert) {
-      target = localAlert;
-    } else if (this.roadAlert && Date.now() - this.roadAlert.at < 30_000) {
-      target = {
-        lat: this.roadAlert.lat,
-        lon: this.roadAlert.lon,
-        text: this.roadAlert.text,
-        warn: this.roadAlert.kind === 'speed' ? (this.roadAlert.tier >= 60) : !this.roadAlert.isReport,
-      };
-    } else {
-      const drivers = this.members
-        .filter((m) => {
-          if (m.isAi || !m.location || !isLive(m.location)) return false;
-          if (Number(m.location.speed || 0) < 20) return false;
-          if (this.home) {
-            const dh = Math.hypot((m.location.lat - this.home.lat) * 111320, (m.location.lon - this.home.lon) * 85000);
-            if (dh < 700) return false; // Uy atrofida bo'lsa yordamchi uyga kelmaydi
-          }
-          return true;
-        })
-        .sort((a, b) => Number(b.location.speed || 0) - Number(a.location.speed || 0));
-      if (drivers.length) {
-        const d = drivers[0];
-        target = {
-          lat: d.location.lat + 0.00032,
-          lon: d.location.lon + 0.00032,
-          text: `🤖 ${d.name}: ${Math.round(d.location.speed)} km/soat`,
-          warn: false,
-        };
-      } else {
-        target = this.nextCityPatrolPoint();
+    for (const m of humans) {
+      const { lat, lon, speed } = m.location;
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const spd = Math.round(Number(speed || 0));
+
+      // 40+ km/soat da paydo bo'ladi; miltillamasligi uchun 30+ da qisqa saqlanadi, pastga tushsa yo'qoladi
+      if (spd >= 40) {
+        this.helperVisibleUntil.set(m.id, now + 12_000);
+      } else if (spd < 30) {
+        this.helperVisibleUntil.delete(m.id);
       }
-    }
+      const isActive = spd >= 40 || ((this.helperVisibleUntil.get(m.id) || 0) > now && spd >= 30);
+      if (!isActive) continue;
 
-    if (!target || !Number.isFinite(target.lat) || !Number.isFinite(target.lon)) return;
-    const key = `${target.warn ? 1 : 0}|${target.text}`;
-    const html = `<div class="helper-wrap"><div class="helper-bubble${target.warn ? ' warn' : ''}">${target.text}</div><div class="helper-pin">🤖</div></div>`;
-    const icon = L.divIcon({ html, className: 'pin-icon', iconSize: [180, 62], iconAnchor: [90, 45] });
+      seen.add(m.id);
+      const tierInfo = this.getSpeedSay(spd);
+      const best = this.findNearestHazard(lat, lon, now);
 
-    if (!this.helperMarker) {
-      this.helperMarker = L.marker([target.lat, target.lon], { icon, zIndexOffset: 80 }).addTo(this.map);
-      this.helperMarker.bindPopup('<b>🤖 Yo\'l Yordamchisi</b><br/>Shahar bo\'ylab yuradi, 50-60-70+ km/soat da kamera, radar va GAI dan ogohlantiradi.');
-      this.helperIconKey = key;
-    } else {
-      this.animateMarkerTo('__helper__', this.helperMarker, target.lat, target.lon);
-      if (this.helperIconKey !== key) {
-        this.helperMarker.setIcon(icon);
-        this.helperIconKey = key;
-      }
-    }
-  }
-
-  ensurePatrolRoute() {
-    const anchor = this.home || this.members.find((m) => !m.isAi && m.location)?.location || { lat: DEFAULT_VIEW[0], lon: DEFAULT_VIEW[1] };
-    const aKey = `${Number(anchor.lat).toFixed(3)}|${Number(anchor.lon).toFixed(3)}|${this.cameras.length}`;
-    if (aKey === this.patrolAnchorKey && this.patrolRoute.length >= 3) return;
-    this.patrolAnchorKey = aKey;
-
-    // Uyga yaqin (< 1.2 km) nuqtalarni umuman kiritmaymiz — faqat shahar yo'llari bo'ylab yuradi
-    const raw = this.cameras.filter((c) => {
-      if (Math.abs(c.lat - anchor.lat) > 0.12 || Math.abs(c.lon - anchor.lon) > 0.14) return false;
-      if (this.home) {
-        const dHome = Math.hypot((c.lat - this.home.lat) * 111320, (c.lon - this.home.lon) * 85000);
-        if (dHome < 1200) return false;
-      }
-      return true;
-    });
-    const dedup = [];
-    for (const c of raw) {
-      if (!dedup.some((u) => Math.hypot((u.lat - c.lat) * 111320, (u.lon - c.lon) * 85000) < 250)) {
-        dedup.push({ lat: c.lat, lon: c.lon });
-      }
-    }
-
-    const hadCams = this.patrolFromCams;
-    if (dedup.length >= 3) {
-      const ordered = [dedup.shift()];
-      while (dedup.length && ordered.length < 16) {
-        const prev = ordered[ordered.length - 1];
-        let bestIdx = 0;
-        let bestD = Infinity;
-        for (let i = 0; i < dedup.length; i++) {
-          const d = Math.hypot(dedup[i].lat - prev.lat, dedup[i].lon - prev.lon);
-          if (d < bestD) { bestD = d; bestIdx = i; }
+      let text;
+      let warn = false;
+      if (best) {
+        const distRounded = Math.max(20, Math.round(best.dist / 10) * 10);
+        const kindTxt = best.kind === 'gai' ? '🚔 GAI posti' : best.limit ? `📸 Radar (${best.limit})` : '📸 Kamera';
+        text = tierInfo
+          ? `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase} • ~${distRounded} m da ${kindTxt}!`
+          : `⚠️ ${m.name} (${spd} km/s): ~${distRounded} m da ${kindTxt}!`;
+        warn = true;
+        const ck = `${m.id}:${best.id}`;
+        if (now - (this.localCool.get(ck) || 0) > 120_000) {
+          this.localCool.set(ck, now);
+          this.showAlertBanner(text, true);
         }
-        ordered.push(dedup.splice(bestIdx, 1)[0]);
+      } else if (tierInfo) {
+        text = `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase}`;
+        warn = tierInfo.warn;
+        const ck = `${m.id}:spd:${tierInfo.tier}`;
+        if (now - (this.localCool.get(ck) || 0) > 90_000) {
+          this.localCool.set(ck, now);
+          this.showAlertBanner(text, warn);
+        }
+      } else {
+        text = `🤖 ${m.name}: ${spd} km/soat`;
       }
-      this.patrolRoute = ordered;
-      this.patrolFromCams = true;
-    } else {
-      // Kameralar yuklanayotgan ilk soniyada ham shahar markazi tomonda turadi (uyga kirmaydi)
-      const baseLat = anchor.lat + 0.016;
-      const baseLon = anchor.lon - 0.009;
-      this.patrolRoute = [
-        { lat: baseLat, lon: baseLon },
-        { lat: baseLat + 0.012, lon: baseLon + 0.012 },
-        { lat: baseLat + 0.020, lon: baseLon - 0.005 },
-        { lat: baseLat + 0.006, lon: baseLon - 0.016 },
-      ];
-      this.patrolFromCams = false;
+
+      const hLat = lat + 0.00032;
+      const hLon = lon + 0.00032;
+      const key = `${warn ? 1 : 0}|${text}`;
+      const html = `<div class="helper-wrap"><div class="helper-bubble${warn ? ' warn' : ''}">${text}</div><div class="helper-pin">🤖</div></div>`;
+      const icon = L.divIcon({ html, className: 'pin-icon', iconSize: [190, 62], iconAnchor: [95, 45] });
+
+      let hm = this.helperMarkers.get(m.id);
+      if (!hm) {
+        hm = L.marker([hLat, hLon], { icon, zIndexOffset: 80 }).addTo(this.map);
+        hm.bindPopup(`<b>🤖 ${m.name} ning Yo'l Yordamchisi</b><br/>40+ km/soat da paydo bo'lib kamera, radar, GAI va tezlikdan ogohlantiradi.`);
+        this.helperMarkers.set(m.id, hm);
+        this.helperIconKeys.set(m.id, key);
+      } else {
+        this.animateMarkerTo(`__h_${m.id}`, hm, hLat, hLon);
+        if (this.helperIconKeys.get(m.id) !== key) {
+          hm.setIcon(icon);
+          this.helperIconKeys.set(m.id, key);
+        }
+      }
     }
 
-    if (this.patrolState.lat == null || (!hadCams && this.patrolFromCams)) {
-      this.patrolState = { idx: 0, lat: this.patrolRoute[0].lat, lon: this.patrolRoute[0].lon };
+    // 40 dan pasga tushgan yoki to'xtagan a'zolarning yordamchisini yashirish
+    for (const [id, hm] of this.helperMarkers) {
+      if (!seen.has(id)) {
+        const animKey = `__h_${id}`;
+        const raf = this.animFrames.get(animKey);
+        if (raf) cancelAnimationFrame(raf);
+        this.animFrames.delete(animKey);
+        this.animTargets.delete(animKey);
+        this.helperIconKeys.delete(id);
+        hm.remove();
+        this.helperMarkers.delete(id);
+      }
     }
-  }
-
-  nextCityPatrolPoint() {
-    this.ensurePatrolRoute();
-    const route = this.patrolRoute;
-    if (!route.length) return null;
-
-    if (this.patrolState.lat == null) {
-      this.patrolState = { idx: 0, lat: route[0].lat, lon: route[0].lon };
-    }
-
-    const wp = route[this.patrolState.idx % route.length];
-    const dLat = wp.lat - this.patrolState.lat;
-    const dLon = wp.lon - this.patrolState.lon;
-    const distM = Math.hypot(dLat * 111320, dLon * 85000);
-    const stepM = 48; // Har 2 soniyada ~48 m (~85 km/soat shahar bo'ylab silliq yurish)
-
-    if (distM <= stepM) {
-      this.patrolState.lat = wp.lat;
-      this.patrolState.lon = wp.lon;
-      this.patrolState.idx = (this.patrolState.idx + 1) % route.length;
-    } else {
-      const k = stepM / distM;
-      this.patrolState.lat += dLat * k;
-      this.patrolState.lon += dLon * k;
-    }
-
-    return {
-      lat: this.patrolState.lat,
-      lon: this.patrolState.lon,
-      text: "🤖 Shahar patruli: yo'llar tinch",
-      warn: false,
-    };
   }
 
   fit() {

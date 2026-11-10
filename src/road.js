@@ -8,7 +8,7 @@ const HAZARDS_FILE = path.join(__dirname, '..', 'data', 'hazards.json');
 
 const GAI_TTL_MS = 2 * 60 * 60 * 1000;   // Jonli GAI / ko'chma radar: 2 soat
 const ALERT_DIST_M = 450;                // 450 m qolganda ogohlantirish
-const ALERT_MIN_SPEED = 45;              // 50-60-70+ km/soat harakatda ogohlantirish (45+ GPS bilan aniq ushlaydi)
+const ALERT_MIN_SPEED = 40;              // 40+ km/soat dan kamera/radar/GAI ogohlantirishi ishga tushadi
 const ALERT_COOLDOWN_MS = 4 * 60 * 1000; // Bir xil nuqta uchun 4 daqiqa qayta bezovta qilmaslik
 
 function distanceMeters(lat1, lon1, lat2, lon2) {
