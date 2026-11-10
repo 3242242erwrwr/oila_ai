@@ -2,7 +2,6 @@ package uz.oilaviy.uy;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -39,24 +38,19 @@ public class LocationService extends Service implements LocationListener {
     private PowerManager.WakeLock wakeLock;
     private final ExecutorService netPool = Executors.newSingleThreadExecutor();
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private boolean listeningRegistered = false;
 
+    private Location bestLocation = null;
     private double lastSentLat = Double.NaN;
     private double lastSentLon = Double.NaN;
-    private float lastSentAcc = 20f;
+    private float lastSentAcc = 15f;
     private volatile long lastSentAt = 0;
-    private long lastMoveAt = 0;
     private long lastLocationFixTime = 0;
-    private long lastGpsRealFixAt = 0;
-    private long lastAlarmScheduledAt = 0;
 
     private final Runnable periodicTask = new Runnable() {
         @Override
         public void run() {
-            ensureListening();
-            pollAndHeartbeat();
-            scheduleWatchdogAlarm();
-            handler.postDelayed(this, 4000);
+            pollAndSend();
+            handler.postDelayed(this, 6000);
         }
     };
 
@@ -66,59 +60,17 @@ public class LocationService extends Service implements LocationListener {
         acquireWakeLock();
         startForegroundCompat();
         startListeningLocation();
-        pollAndHeartbeat();
-        scheduleWatchdogAlarm();
-        handler.postDelayed(periodicTask, 4000);
+        pollAndSend();
+        handler.postDelayed(periodicTask, 6000);
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         acquireWakeLock();
         startForegroundCompat();
-        ensureListening();
-        pollAndHeartbeat();
-        scheduleWatchdogAlarm();
+        startListeningLocation();
+        pollAndSend();
         return START_STICKY;
-    }
-
-    @Override
-    public void onTaskRemoved(Intent rootIntent) {
-        // Android 8+ da PendingIntent.getService xato berishining oldini olish uchun BroadcastReceiver orqali tiriltiramiz
-        try {
-            Intent restartIntent = new Intent(getApplicationContext(), BootReceiver.class);
-            int piFlags = PendingIntent.FLAG_ONE_SHOT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                piFlags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-            PendingIntent pi = PendingIntent.getBroadcast(getApplicationContext(), 1, restartIntent, piFlags);
-            AlarmManager am = (AlarmManager) getApplicationContext().getSystemService(Context.ALARM_SERVICE);
-            if (am != null) {
-                am.set(AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + 1500, pi);
-            }
-        } catch (Exception ignored) {}
-        super.onTaskRemoved(rootIntent);
-    }
-
-    private void scheduleWatchdogAlarm() {
-        long now = System.currentTimeMillis();
-        if (now - lastAlarmScheduledAt < 45000L) return;
-        lastAlarmScheduledAt = now;
-        try {
-            AlarmManager am = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
-            if (am == null) return;
-            Intent i = new Intent(getApplicationContext(), BootReceiver.class);
-            int piFlags = PendingIntent.FLAG_UPDATE_CURRENT;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                piFlags |= PendingIntent.FLAG_IMMUTABLE;
-            }
-            PendingIntent pi = PendingIntent.getBroadcast(getApplicationContext(), 999, i, piFlags);
-            long triggerAt = now + 60000L;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi);
-            } else {
-                am.set(AlarmManager.RTC_WAKEUP, triggerAt, pi);
-            }
-        } catch (Exception ignored) {}
     }
 
     @SuppressLint("WakelockTimeout")
@@ -143,7 +95,7 @@ public class LocationService extends Service implements LocationListener {
                         "Oilaviy Uy Jonli Joylashuv",
                         NotificationManager.IMPORTANCE_LOW
                 );
-                ch.setDescription("24/7 fon rejimida oilaviy xarita uchun jonli joylashuvni uzatadi");
+                ch.setDescription("24/7 fon rejimida oilaviy xarita uchun joylashuvni uzatadi");
                 ch.setShowBadge(false);
                 nm.createNotificationChannel(ch);
             }
@@ -159,7 +111,7 @@ public class LocationService extends Service implements LocationListener {
                     : new Notification.Builder(this);
 
             nb.setContentTitle("🏠 Oilaviy Uy")
-              .setContentText("🟢 24/7 Aniq GPS datchigi faol")
+              .setContentText("📍 24/7 Real-Time joylashuv ishlayapti")
               .setSmallIcon(R.drawable.ic_launcher)
               .setContentIntent(pi)
               .setOngoing(true);
@@ -173,12 +125,6 @@ public class LocationService extends Service implements LocationListener {
         } catch (Exception ignored) {}
     }
 
-    private void ensureListening() {
-        if (!listeningRegistered) {
-            startListeningLocation();
-        }
-    }
-
     @SuppressLint("MissingPermission")
     private void startListeningLocation() {
         if (!hasLocationPerm()) return;
@@ -188,23 +134,20 @@ public class LocationService extends Service implements LocationListener {
             }
             if (locationManager == null) return;
             try {
-                locationManager.removeUpdates(this);
-            } catch (Exception ignored) {}
-
-            boolean registeredAny = false;
-            try {
                 if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000L, 0f, this, Looper.getMainLooper());
-                    registeredAny = true;
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 4000L, 0f, this, Looper.getMainLooper());
                 }
             } catch (Exception ignored) {}
             try {
                 if (locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 15000L, 0f, this, Looper.getMainLooper());
-                    registeredAny = true;
+                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 4000L, 0f, this, Looper.getMainLooper());
                 }
             } catch (Exception ignored) {}
-            listeningRegistered = registeredAny;
+            try {
+                if (locationManager.isProviderEnabled(LocationManager.PASSIVE_PROVIDER)) {
+                    locationManager.requestLocationUpdates(LocationManager.PASSIVE_PROVIDER, 4000L, 0f, this, Looper.getMainLooper());
+                }
+            } catch (Exception ignored) {}
         } catch (Exception ignored) {}
     }
 
@@ -215,82 +158,59 @@ public class LocationService extends Service implements LocationListener {
     }
 
     @SuppressLint("MissingPermission")
-    private void pollAndHeartbeat() {
-        if (!hasLocationPerm()) return;
-        final long now = System.currentTimeMillis();
+    private void pollAndSend() {
+        if (!hasLocationPerm() || locationManager == null) return;
+        try {
+            Location gps = null;
+            Location net = null;
+            Location passive = null;
+            try { gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER); } catch (Exception ignored) {}
+            try { net = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER); } catch (Exception ignored) {}
+            try { passive = locationManager.getLastKnownLocation(LocationManager.PASSIVE_PROVIDER); } catch (Exception ignored) {}
 
-        // Agar oxirgi GPS keshda yangi koordinata bo'lsa darrov tekshiramiz (ba'zi telefonlarda callback kechikishi mumkin)
-        if (locationManager != null) {
-            try {
-                Location gps = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-                if (gps != null && gps.getTime() > lastLocationFixTime && (!gps.hasAccuracy() || gps.getAccuracy() <= 50f)) {
-                    lastGpsRealFixAt = now;
-                    lastLocationFixTime = gps.getTime();
-                    considerSending(gps);
-                    return;
-                }
-            } catch (Exception ignored) {}
-        }
+            Location candidate = pickBetter(gps, net);
+            candidate = pickBetter(candidate, passive);
+            candidate = pickBetter(bestLocation, candidate);
+            if (candidate != null) {
+                bestLocation = candidate;
+                considerSending(candidate);
+            } else {
+                sendHeartbeatPingOnly();
+            }
+        } catch (Exception ignored) {}
+    }
 
-        if (now - lastSentAt < 18000L) return;
-
-        // Agar tayanch nuqtamiz bo'lsa, turgan joyidan tebrantirmasdan jonli heartbeat yuboramiz
-        if (!Double.isNaN(lastSentLat) && !Double.isNaN(lastSentLon)) {
-            sendAnchoredHeartbeat();
-            return;
-        }
-
-        // Birinchi ishga tushganda NETWORK dan boshlang'ich nuqta olamiz
-        if (locationManager != null) {
-            try {
-                Location net = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-                if (net != null && (!net.hasAccuracy() || net.getAccuracy() <= 45f)) {
-                    if (net.getTime() > 0) lastLocationFixTime = net.getTime();
-                    considerSending(net);
-                    return;
-                }
-            } catch (Exception ignored) {}
-        }
-
-        sendHeartbeatPingOnly();
+    private Location pickBetter(Location a, Location b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        // 3 soniya (20 soniya emas!) — eski nuqta hech qachon yangisini orqaga tortmaydi
+        long timeDelta = b.getTime() - a.getTime();
+        if (timeDelta > 3000) return b;
+        if (timeDelta < -3000) return a;
+        float accA = a.hasAccuracy() ? a.getAccuracy() : 20f;
+        float accB = b.hasAccuracy() ? b.getAccuracy() : 20f;
+        return accB <= accA ? b : a;
     }
 
     @Override
     public void onLocationChanged(Location loc) {
         if (loc == null) return;
-        final long now = System.currentTimeMillis();
-        final String provider = loc.getProvider() != null ? loc.getProvider() : "";
-        final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
-
         if (loc.getTime() > 0 && lastLocationFixTime > 0 && loc.getTime() + 1500L < lastLocationFixTime) {
             return;
         }
-
-        boolean isGps = LocationManager.GPS_PROVIDER.equals(provider);
-        if (isGps) {
-            if (acc > 55f) return;
-            lastGpsRealFixAt = now;
-            if (loc.getTime() > 0) lastLocationFixTime = loc.getTime();
-            considerSending(loc);
-            return;
-        }
-
-        if (!Double.isNaN(lastSentLat) && (now - lastGpsRealFixAt < 120000L || acc > 35f)) {
-            return;
-        }
-        if (acc > 45f) return;
         if (loc.getTime() > 0) lastLocationFixTime = loc.getTime();
-        considerSending(loc);
+        bestLocation = pickBetter(bestLocation, loc);
+        considerSending(bestLocation);
     }
 
     private void considerSending(final Location loc) {
         if (loc == null) return;
         final float acc = loc.hasAccuracy() ? loc.getAccuracy() : 15f;
-        if (acc > 55f && !Double.isNaN(lastSentLat)) return;
-        if (acc > 80f) return;
+        if (acc > 120f) return;
 
-        final String uid = getUid();
-        if (uid.isEmpty()) return;
+        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
+        final String uid = sp.getString("uid", "");
+        if (uid == null || uid.trim().isEmpty()) return;
 
         final double lat = loc.getLatitude();
         final double lon = loc.getLongitude();
@@ -300,65 +220,54 @@ public class LocationService extends Service implements LocationListener {
 
         boolean first = Double.isNaN(lastSentLat);
         double distMoved = first ? Double.POSITIVE_INFINITY : distanceMeters(lastSentLat, lastSentLon, lat, lon);
+        double minRealMove = Math.min(18.0, Math.max(5.0, acc * 0.65));
 
-        if (!first && lastMoveAt > 0) {
-            double dtSec = Math.max(1.0, (now - lastMoveAt) / 1000.0);
-            if ((distMoved / dtSec) > 75.0 && acc > 12f) {
-                return;
-            }
-        }
+        final double sendLat;
+        final double sendLon;
+        final float sendSpeed;
+        final String sendProv;
 
-        double minRealMove = acc <= 15f ? 7.0 : Math.min(22.0, Math.max(12.0, acc * 0.9));
-
-        if (first || distMoved >= minRealMove) {
-            if (!first && (now - lastSentAt) < 2200L) {
-                return;
-            }
+        if (first || (acc <= 65f && distMoved >= minRealMove)) {
+            sendLat = lat;
+            sendLon = lon;
+            sendSpeed = speedKmh;
+            sendProv = provider;
             lastSentLat = lat;
             lastSentLon = lon;
             lastSentAcc = acc;
             lastSentAt = now;
-            lastMoveAt = now;
-            sendAsyncLocation(uid, lat, lon, acc, speedKmh, provider);
-        } else if (now - lastSentAt >= 18000L) {
+        } else if (now - lastSentAt >= 20000L) {
+            sendLat = lastSentLat;
+            sendLon = lastSentLon;
+            sendSpeed = 0f;
+            sendProv = "heartbeat";
             lastSentAt = now;
-            sendAsyncLocation(uid, lastSentLat, lastSentLon, lastSentAcc, 0f, provider);
+        } else {
+            return;
         }
-    }
 
-    private void sendAnchoredHeartbeat() {
-        final String uid = getUid();
-        if (uid.isEmpty()) return;
-        lastSentAt = System.currentTimeMillis();
-        sendAsyncLocation(uid, lastSentLat, lastSentLon, lastSentAcc, 0f, "heartbeat");
-    }
-
-    private String getUid() {
-        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
-        String uid = sp.getString("uid", "");
-        return uid == null ? "" : uid.trim();
-    }
-
-    private void sendAsyncLocation(final String uid, final double lat, final double lon, final float acc, final float speedKmh, final String provider) {
+        final String cleanUid = uid.trim();
         netPool.execute(new Runnable() {
             @Override
             public void run() {
-                boolean ok = postLocation(uid, lat, lon, acc, speedKmh, provider);
+                boolean ok = postLocation(cleanUid, sendLat, sendLon, lastSentAcc, sendSpeed, sendProv);
                 if (!ok) {
-                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 13000L);
+                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 15000L);
                 }
             }
         });
     }
 
     private void sendHeartbeatPingOnly() {
-        final String uid = getUid();
-        if (uid.isEmpty()) return;
+        SharedPreferences sp = getSharedPreferences("family_prefs", Context.MODE_PRIVATE);
+        final String uid = sp.getString("uid", "");
+        if (uid == null || uid.trim().isEmpty()) return;
 
         final long now = System.currentTimeMillis();
-        if (now - lastSentAt < 18000L) return;
+        if (now - lastSentAt < 20000L) return;
         lastSentAt = now;
 
+        final String cleanUid = uid.trim();
         netPool.execute(new Runnable() {
             @Override
             public void run() {
@@ -372,7 +281,7 @@ public class LocationService extends Service implements LocationListener {
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
-                    String json = "{\"type\":\"apk_ping\",\"id\":" + uid + ",\"source\":\"android_apk\"}";
+                    String json = "{\"type\":\"apk_ping\",\"id\":" + cleanUid + ",\"source\":\"android_apk\"}";
                     byte[] body = json.getBytes(StandardCharsets.UTF_8);
                     conn.setFixedLengthStreamingMode(body.length);
                     OutputStream os = conn.getOutputStream();
@@ -433,17 +342,12 @@ public class LocationService extends Service implements LocationListener {
     }
 
     @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
-    @Override
-    public void onProviderEnabled(String provider) {
-        listeningRegistered = false;
-        startListeningLocation();
-    }
+    @Override public void onProviderEnabled(String provider) {}
     @Override public void onProviderDisabled(String provider) {}
 
     @Override
     public void onDestroy() {
         handler.removeCallbacks(periodicTask);
-        listeningRegistered = false;
         try {
             if (locationManager != null) locationManager.removeUpdates(this);
         } catch (Exception ignored) {}
