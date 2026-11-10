@@ -63,7 +63,7 @@ export class FamilyMap {
     this.home = null;
     this.followId = null;
     this.myUid = null;
-    setInterval(() => this.isOpen && this.render(), 3000);
+    setInterval(() => this.isOpen && this.render(), 2000);
   }
 
   get isOpen() {
@@ -274,11 +274,6 @@ export class FamilyMap {
     }
     this.animTargets.set(id, [toLat, toLon]);
 
-    // Agar ushbu odam "Kuzatish" rejimida bo'lsa, xarita ham u bilan birga silliq siljib yuradi
-    if (this.followId != null && Number(id) === Number(this.followId) && this.map && this.isOpen) {
-      this.map.panTo([toLat, toLon], { animate: true, duration: 0.85, easeLinearity: 1 });
-    }
-
     const cur = marker.getLatLng();
     if (!cur) {
       marker.setLatLng([toLat, toLon]);
@@ -291,20 +286,32 @@ export class FamilyMap {
     const prevRaf = this.animFrames.get(id);
     if (prevRaf) cancelAnimationFrame(prevRaf);
 
-    // Juda uzoqqa (2+ km) sakraganda darhol o'tkazamiz, yaqin masofada esa bir tekis sirpanadi
+    const isFollowed = this.followId != null && Number(id) === Number(this.followId) && this.map && this.isOpen;
+
+    // Juda uzoqqa (2+ km) sakraganda darhol o'tkazamiz
     if (Math.abs(dLat) > 0.02 || Math.abs(dLon) > 0.02) {
       marker.setLatLng([toLat, toLon]);
+      if (isFollowed) this.map.setView([toLat, toLon], this.map.getZoom(), { animate: false });
       return;
     }
+
+    const approxMeters = Math.hypot(dLat * 111320, dLon * 85000);
+    const duration = approxMeters <= 40
+      ? 1050
+      : Math.min(2200, Math.max(1150, Math.round(approxMeters * 12)));
 
     const fromLat = cur.lat;
     const fromLon = cur.lng;
     const start = performance.now();
-    const duration = 900;
 
     const step = (now) => {
       const t = Math.min(1, (now - start) / duration);
-      marker.setLatLng([fromLat + dLat * t, fromLon + dLon * t]);
+      const curLat = fromLat + dLat * t;
+      const curLon = fromLon + dLon * t;
+      marker.setLatLng([curLat, curLon]);
+      if (this.followId != null && Number(id) === Number(this.followId) && this.map && this.isOpen) {
+        this.map.setView([curLat, curLon], this.map.getZoom(), { animate: false });
+      }
       if (t < 1) {
         this.animFrames.set(id, requestAnimationFrame(step));
       } else {

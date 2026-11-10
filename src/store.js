@@ -178,6 +178,15 @@ class Store extends EventEmitter {
     fs.renameSync(tmp, this.file);
   }
 
+  scheduleSave() {
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(() => {
+      this._saveTimer = null;
+      try { this.save(); } catch {}
+    }, 2000);
+    if (this._saveTimer.unref) this._saveTimer.unref();
+  }
+
   all() {
     return this.data.members.map((m) => ({ ...m, appearance: { ...m.appearance } }));
   }
@@ -211,7 +220,7 @@ class Store extends EventEmitter {
       apkInstalled: false,
     };
     this.data.members.push(member);
-    this.save();
+    this.scheduleSave();
     this.emit('joined', { ...member });
     this.emit('change');
     return member;
@@ -223,7 +232,7 @@ class Store extends EventEmitter {
     const idx = this.data.members.findIndex((m) => Number(m.id) === num);
     if (idx === -1) return false;
     const [removed] = this.data.members.splice(idx, 1);
-    this.save();
+    this.scheduleSave();
     this.emit('left', removed);
     this.emit('change');
     return true;
@@ -238,7 +247,7 @@ class Store extends EventEmitter {
     if (job) m.job = job;
     m.appearance = buildAppearance({ gender: m.gender, age: m.age, job: m.job, existing: m.appearance });
     m.updatedAt = new Date().toISOString();
-    this.save();
+    this.scheduleSave();
     this.emit('change');
     return m;
   }
@@ -254,7 +263,7 @@ class Store extends EventEmitter {
       }
     }
     Object.assign(m, patch, { updatedAt: now });
-    this.save();
+    this.scheduleSave();
     this.emit('change');
     return m;
   }
@@ -275,7 +284,7 @@ class Store extends EventEmitter {
       }
     }
     if (changed) {
-      this.save();
+      this.scheduleSave();
       this.emit('change');
     }
   }
@@ -296,13 +305,13 @@ class Store extends EventEmitter {
   setGroupChatId(chatId) {
     if (this.data.groupChatId !== chatId) {
       this.data.groupChatId = chatId;
-      this.save();
+      this.scheduleSave();
     }
   }
 
   setHome(lat, lon, setBy) {
     this.data.home = { lat, lon, setBy, at: new Date().toISOString() };
-    this.save();
+    this.scheduleSave();
     this.emit('change');
   }
 
@@ -326,7 +335,9 @@ class Store extends EventEmitter {
         lon = prev.lon;
       } else {
         const dtSec = prev.at ? Math.max(1, (Date.now() - new Date(prev.at).getTime()) / 1000) : 10;
-        const minRealMove = accuracy != null && accuracy <= 15 ? 3.5 : (accuracy != null ? Math.min(16, Math.max(5, accuracy * 0.6)) : 5);
+        const spd = loc.speed != null ? Number(loc.speed) : 0;
+        const isGpsMoving = loc.provider === 'gps' && accuracy != null && accuracy <= 25 && spd >= 3;
+        const minRealMove = isGpsMoving ? 2.5 : (accuracy != null && accuracy <= 12 ? 4.0 : (accuracy != null ? Math.min(15, Math.max(5.5, accuracy * 0.55)) : 5));
         if ((stepDist / dtSec > 75 && (accuracy == null || accuracy > 12)) || stepDist <= minRealMove) {
           lat = prev.lat;
           lon = prev.lon;
@@ -372,7 +383,7 @@ class Store extends EventEmitter {
       prev &&
       Number.isFinite(prev.lat) &&
       Number.isFinite(prev.lon) &&
-      distanceMeters(prev.lat, prev.lon, lat, lon) < 5;
+      distanceMeters(prev.lat, prev.lon, lat, lon) < 2.0;
 
     m.location = {
       ...loc,
@@ -385,7 +396,7 @@ class Store extends EventEmitter {
       at: now,
     };
 
-    this.save();
+    this.scheduleSave();
     if (event) this.emit('moved', { id, name: m.name, event });
     this.emit('change');
 
@@ -422,7 +433,7 @@ class Store extends EventEmitter {
       const m = this.get(id);
       if (m && m.location) {
         m.location.address = formatted;
-        this.save();
+        this.scheduleSave();
         this.emit('change');
       }
     } catch {}
@@ -450,7 +461,7 @@ class Store extends EventEmitter {
       uid: null,
       name: null,
     };
-    this.save();
+    this.scheduleSave();
     return code;
   }
 
@@ -489,7 +500,7 @@ class Store extends EventEmitter {
     m.apkInstalled = true;
     m.lastApkPing = Date.now();
     m.welcomeSent = true;
-    this.save();
+    this.scheduleSave();
     this.emit('change');
     return { uid: String(m.id), name: m.name };
   }

@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=63';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=64';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -468,7 +468,7 @@ function createWebApi() {
       .catch(() => {});
 
   // Cloudflare tunnel ba'zan SSE oqimini buferlagani uchun har 1.2 soniyada holatni tekshirib turamiz
-  setInterval(pollState, 1200);
+  setInterval(pollState, 800);
 
   const es = new EventSource('/api/events');
   es.onmessage = (ev) => {

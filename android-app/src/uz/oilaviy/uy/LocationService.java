@@ -52,7 +52,7 @@ public class LocationService extends Service implements LocationListener {
         @Override
         public void run() {
             pollAndSend();
-            handler.postDelayed(this, 3000);
+            handler.postDelayed(this, 2000);
         }
     };
 
@@ -63,7 +63,7 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndSend();
-        handler.postDelayed(periodicTask, 3000);
+        handler.postDelayed(periodicTask, 2000);
     }
 
     @Override
@@ -97,7 +97,7 @@ public class LocationService extends Service implements LocationListener {
                         "Oilaviy Uy Jonli Joylashuv",
                         NotificationManager.IMPORTANCE_LOW
                 );
-                ch.setDescription("24/7 fon rejimida oilaviy xarita uchun joylashuvni uzatadi");
+                ch.setDescription("24/7 Real-Time 1 Hz GPS kuzatuv");
                 ch.setShowBadge(false);
                 nm.createNotificationChannel(ch);
             }
@@ -113,7 +113,7 @@ public class LocationService extends Service implements LocationListener {
                     : new Notification.Builder(this);
 
             nb.setContentTitle("🏠 Oilaviy Uy")
-              .setContentText("📍 24/7 Aniq Real-Time GPS faol")
+              .setContentText("🟢 24/7 Real-Time GPS (1s) faol")
               .setSmallIcon(R.drawable.ic_launcher)
               .setContentIntent(pi)
               .setOngoing(true);
@@ -137,7 +137,7 @@ public class LocationService extends Service implements LocationListener {
             if (locationManager == null) return;
             try {
                 if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1500L, 0f, this, Looper.getMainLooper());
+                    locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, this, Looper.getMainLooper());
                 }
             } catch (Exception ignored) {}
             try {
@@ -208,17 +208,12 @@ public class LocationService extends Service implements LocationListener {
         long ageA = ageMs(a);
         long ageB = ageMs(b);
 
-        // Toza GPS (<25 soniya yosh va <=40m aniqlik) har doim NETWORK dan ustun turadi
-        if (aIsGps && !bIsGps && accA <= 40f && ageA < 25000L) {
-            return a;
-        }
-        if (bIsGps && !aIsGps && accB <= 40f && ageB < 25000L) {
-            return b;
-        }
+        if (aIsGps && !bIsGps && accA <= 40f && ageA < 25000L) return a;
+        if (bIsGps && !aIsGps && accB <= 40f && ageB < 25000L) return b;
 
-        // Monoton (soat farqisiz) yosh solishtiruvi: 3 soniyadan yangirog'i yutadi
-        if (ageB + 3000L < ageA) return b;
-        if (ageA + 3000L < ageB) return a;
+        // Yangiroq nuqta har doim g'olib (0.5s dan yangi bo'lsa darrov oladi!)
+        if (ageB + 500L < ageA) return b;
+        if (ageA + 500L < ageB) return a;
         return accB <= accA ? b : a;
     }
 
@@ -230,12 +225,12 @@ public class LocationService extends Service implements LocationListener {
         float acc = loc.hasAccuracy() ? loc.getAccuracy() : 20f;
 
         if (isGps) {
-            // Faqat o'z provayderining eski dublikatini rad etamiz — NETWORK soati bilan hech qachon to'qnashmaydi!
             if (elNs > 0L && lastGpsElapsedNs > 0L && elNs < lastGpsElapsedNs) {
                 return;
             }
             if (elNs > 0L) lastGpsElapsedNs = elNs;
-            if (acc <= 40f || bestLocation == null || !LocationManager.GPS_PROVIDER.equals(bestLocation.getProvider())) {
+            // Yangi GPS kelgan zahoti kesh kutmasdan darhol yangilaymiz
+            if (acc <= 45f || bestLocation == null || !LocationManager.GPS_PROVIDER.equals(bestLocation.getProvider())) {
                 bestLocation = loc;
             } else {
                 bestLocation = pickBetter(bestLocation, loc);
@@ -244,7 +239,6 @@ public class LocationService extends Service implements LocationListener {
             return;
         }
 
-        // NETWORK / PASSIVE: agar oxirgi 25 soniyada aniq GPS ishlagan bo'lsa, sakramasligi uchun o'tkazib yuboramiz
         long sinceGpsMs = lastGpsElapsedNs > 0L ? (SystemClock.elapsedRealtimeNanos() - lastGpsElapsedNs) / 1_000_000L : Long.MAX_VALUE;
         if (sinceGpsMs < 25000L && bestLocation != null && (bestLocation.hasAccuracy() ? bestLocation.getAccuracy() : 20f) <= 40f) {
             return;
@@ -270,12 +264,15 @@ public class LocationService extends Service implements LocationListener {
         final double lon = loc.getLongitude();
         final long now = System.currentTimeMillis();
         final String provider = loc.getProvider() != null ? loc.getProvider() : "gps";
-        final float speedKmh = loc.hasSpeed() ? Math.max(0f, loc.getSpeed() * 3.6f) : 0f;
+        final float speedMps = loc.hasSpeed() ? Math.max(0f, loc.getSpeed()) : 0f;
+        final float speedKmh = speedMps * 3.6f;
 
         boolean first = Double.isNaN(lastSentLat);
         double distMoved = first ? Double.POSITIVE_INFINITY : distanceMeters(lastSentLat, lastSentLon, lat, lon);
-        double minRealMove = acc <= 15f ? 3.5 : Math.min(15.0, Math.max(5.0, acc * 0.6));
 
+        // Harakat bo'lsa (tezlik >= 1 m/s) 2.5m dan ham darrov yuboramiz; to'xtab turganda esa 4.5-14m sakrashni bloklaymiz
+        boolean isMoving = LocationManager.GPS_PROVIDER.equals(provider) && speedMps >= 1.0f && acc <= 25f;
+        double minRealMove = isMoving ? 2.5 : (acc <= 12f ? 4.5 : Math.min(14.0, Math.max(5.5, acc * 0.55)));
         boolean accuracyOk = (acc <= 65f) || (acc <= 85f && distMoved >= 20.0);
 
         final double sendLat;
@@ -284,7 +281,7 @@ public class LocationService extends Service implements LocationListener {
         final String sendProv;
 
         if (first || (accuracyOk && distMoved >= minRealMove)) {
-            if (!first && (now - lastSentAt) < 1200L) {
+            if (!first && (now - lastSentAt) < 850L) {
                 return;
             }
             sendLat = lat;
@@ -295,7 +292,7 @@ public class LocationService extends Service implements LocationListener {
             lastSentLon = lon;
             lastSentAcc = acc;
             lastSentAt = now;
-        } else if (now - lastSentAt >= 20000L) {
+        } else if (now - lastSentAt >= 15000L) {
             sendLat = lastSentLat;
             sendLon = lastSentLon;
             sendSpeed = 0f;
@@ -311,7 +308,7 @@ public class LocationService extends Service implements LocationListener {
             public void run() {
                 boolean ok = postLocation(cleanUid, sendLat, sendLon, lastSentAcc, sendSpeed, sendProv);
                 if (!ok) {
-                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 15000L);
+                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 12000L);
                 }
             }
         });
@@ -323,7 +320,7 @@ public class LocationService extends Service implements LocationListener {
         if (uid == null || uid.trim().isEmpty()) return;
 
         final long now = System.currentTimeMillis();
-        if (now - lastSentAt < 20000L) return;
+        if (now - lastSentAt < 15000L) return;
         lastSentAt = now;
 
         final String cleanUid = uid.trim();
@@ -335,8 +332,8 @@ public class LocationService extends Service implements LocationListener {
                     URL url = new URL(API_URL);
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
-                    conn.setConnectTimeout(6000);
-                    conn.setReadTimeout(6000);
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(5000);
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
@@ -362,8 +359,8 @@ public class LocationService extends Service implements LocationListener {
             URL url = new URL(API_URL);
             conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(8000);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
