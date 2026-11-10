@@ -63,7 +63,44 @@ export class FamilyMap {
     this.home = null;
     this.followId = null;
     this.myUid = null;
+    this.isDark = (() => { try { return localStorage.getItem('familyMapDark') === '1'; } catch { return false; } })();
+    this.showTraffic = (() => { try { return localStorage.getItem('familyMapTraffic') === '1'; } catch { return false; } })();
+    this.activeBaseName = '';
+    this.trafficLayer = null;
+    this.applyThemeUi();
     setInterval(() => this.isOpen && this.render(), 2000);
+  }
+
+  applyThemeUi() {
+    if (this.wrap) this.wrap.classList.toggle('map-dark', this.isDark);
+    const nativeVisual = this.activeBaseName.includes("Sun'iy") || this.activeBaseName.includes('Qora');
+    if (this.mapEl) this.mapEl.classList.toggle('dark-tiles', this.isDark && !nativeVisual);
+    const darkBtn = document.getElementById('map-dark');
+    if (darkBtn) {
+      darkBtn.classList.toggle('dark-on', this.isDark);
+      darkBtn.textContent = this.isDark ? '☀️ Kunduzgi' : '🌙 Tungi';
+    }
+    const trBtn = document.getElementById('map-traffic');
+    if (trBtn) {
+      trBtn.classList.toggle('traffic-on', this.showTraffic);
+      trBtn.textContent = this.showTraffic ? '🚦 Probka ✓' : '🚦 Probka';
+    }
+  }
+
+  toggleDark() {
+    this.isDark = !this.isDark;
+    try { localStorage.setItem('familyMapDark', this.isDark ? '1' : '0'); } catch {}
+    this.applyThemeUi();
+  }
+
+  toggleTraffic() {
+    this.showTraffic = !this.showTraffic;
+    try { localStorage.setItem('familyMapTraffic', this.showTraffic ? '1' : '0'); } catch {}
+    if (this.map && this.trafficLayer) {
+      if (this.showTraffic) this.trafficLayer.addTo(this.map);
+      else this.map.removeLayer(this.trafficLayer);
+    }
+    this.applyThemeUi();
   }
 
   get isOpen() {
@@ -158,25 +195,64 @@ export class FamilyMap {
       attribution: '© Yandex Xarita',
     });
 
-    // 5. OpenStreetMap
+    // 5. CartoDB Dark (Haqiqiy tungi xarita)
+    const cartoDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 20,
+      attribution: '© CartoDB Dark',
+    });
+
+    // 6. OpenStreetMap
     const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap',
     });
 
+    // Haqiqiy Google jonli tirbandlik (Probka) qatlami
+    this.trafficLayer = L.tileLayer('https://{s}.google.com/vt/lyrs=h@221097413,traffic&hl=uz&scale=2&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+      zIndex: 15,
+      opacity: 0.9,
+      attribution: '© Google Traffic',
+    });
+    if (this.showTraffic) this.trafficLayer.addTo(this.map);
+
     L.control.layers(
       {
         "🇺🇿 O'zbekcha HD Xarita": googleUz,
         '🛰️ Sun\'iy yo\'ldosh (Gibrid HD)': hybridSatUz,
+        '🌑 Qora Xarita (CartoDB)': cartoDark,
         '🇷🇺 Ruscha HD Xarita': googleRu,
         '🟡 Yandex Xarita': yandexLayer,
         '🌍 OpenStreetMap': osm,
       },
-      null,
+      {
+        '🚦 Jonli Probka (Tirbandlik)': this.trafficLayer,
+      },
       { position: 'topright' }
     ).addTo(this.map);
 
+    this.map.on('baselayerchange', (e) => {
+      this.activeBaseName = e.name || '';
+      this.applyThemeUi();
+    });
+    this.map.on('overlayadd', (e) => {
+      if (e.layer === this.trafficLayer && !this.showTraffic) {
+        this.showTraffic = true;
+        try { localStorage.setItem('familyMapTraffic', '1'); } catch {}
+        this.applyThemeUi();
+      }
+    });
+    this.map.on('overlayremove', (e) => {
+      if (e.layer === this.trafficLayer && this.showTraffic) {
+        this.showTraffic = false;
+        try { localStorage.setItem('familyMapTraffic', '0'); } catch {}
+        this.applyThemeUi();
+      }
+    });
+
     this.updateFollowUi();
+    this.applyThemeUi();
     this.render();
   }
 

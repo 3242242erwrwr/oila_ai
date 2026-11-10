@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=65';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=67';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -43,6 +43,8 @@ document.getElementById('map-btn').addEventListener('click', () => {
   fmap.toggle();
 });
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
+document.getElementById('map-dark')?.addEventListener('click', () => fmap.toggleDark());
+document.getElementById('map-traffic')?.addEventListener('click', () => fmap.toggleTraffic());
 document.getElementById('map-follow')?.addEventListener('click', () => fmap.toggleFollowMe());
 document.getElementById('map-fit').addEventListener('click', () => {
   fmap.stopFollow();

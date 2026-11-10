@@ -190,6 +190,53 @@ html, body {
   color: #fff !important;
   box-shadow: 0 2px 0 #065f46 !important;
 }
+.btn.dark-on {
+  background: #312e81 !important;
+  color: #fde68a !important;
+  box-shadow: 0 2px 0 #1e1b4b !important;
+}
+.btn.traffic-on {
+  background: #ea580c !important;
+  color: #fff !important;
+  box-shadow: 0 2px 0 #9a3412 !important;
+}
+.map-wrap.map-dark .map-box {
+  background: #141122;
+  border-color: #38305a;
+  box-shadow: 0 8px 0 #090712;
+}
+.map-wrap.map-dark .map-head {
+  background: #1d1833;
+  color: #f1f5f9;
+  border-bottom-color: #38305a;
+}
+.map-wrap.map-dark .map-foot {
+  background: #1d1833;
+  color: #cbd5e1;
+  border-top-color: #38305a;
+}
+.map-wrap.map-dark .home-badge {
+  background: #272042;
+  color: #f1f5f9;
+  border-color: #4c4178;
+}
+.map-wrap.map-dark .map {
+  background: #0f172a;
+}
+.map-wrap.map-dark .map.dark-tiles .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(94%) contrast(92%) saturate(85%);
+}
+.map-wrap.map-dark .leaflet-control-layers,
+.map-wrap.map-dark .leaflet-bar a {
+  background: #1e1936;
+  color: #e2e8f0;
+  border-color: #3b3363;
+}
+.map-wrap.map-dark .leaflet-popup-content-wrapper,
+.map-wrap.map-dark .leaflet-popup-tip {
+  background: #1e1936;
+  color: #f1f5f9;
+}
 .home-badge {
   margin-left: 8px;
   font-size: 12px;
