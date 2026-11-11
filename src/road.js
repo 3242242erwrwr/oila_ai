@@ -44,6 +44,7 @@ class RoadGuard extends EventEmitter {
     this.cameras = [];
     this.hazards = [];
     this.cooldowns = new Map();
+    this.pendingVoice = new Map();
     this.latestAlert = null;
     this._attached = false;
     this.load();
@@ -257,6 +258,10 @@ class RoadGuard extends EventEmitter {
           speed: spd,
           text: `${prefix}Oldinda ~${distRounded} m da ${label}!`,
         };
+        this.pendingVoice.set(Number(member.id), {
+          key: best.kind === 'gai' ? 'gai' : 'radar',
+          at: now,
+        });
         this.latestAlert = alert;
         this.emit('alert', alert);
         this.emit('change');
@@ -286,6 +291,10 @@ class RoadGuard extends EventEmitter {
           speed: spd,
           text: `${tierInfo.emoji} ${member.name} (${spd} km/s): ${tierInfo.phrase}`,
         };
+        this.pendingVoice.set(Number(member.id), {
+          key: `spd${tierInfo.tier}`,
+          at: now,
+        });
         this.latestAlert = alert;
         this.emit('alert', alert);
         this.emit('change');
@@ -294,6 +303,15 @@ class RoadGuard extends EventEmitter {
     }
 
     return null;
+  }
+
+  consumeVoice(memberId) {
+    const keyNum = Number(memberId);
+    const item = this.pendingVoice.get(keyNum);
+    if (!item) return null;
+    this.pendingVoice.delete(keyNum);
+    if (Date.now() - item.at > 20_000) return null;
+    return item.key;
   }
 }
 

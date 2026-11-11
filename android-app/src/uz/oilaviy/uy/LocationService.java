@@ -12,9 +12,12 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
+import android.content.res.AssetFileDescriptor;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.AudioAttributes;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -23,6 +26,8 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.os.SystemClock;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -47,6 +52,8 @@ public class LocationService extends Service implements LocationListener {
     private volatile long lastSentAt = 0;
     private long lastGpsElapsedNs = 0;
     private long lastNetElapsedNs = 0;
+    private long lastVoiceAt = 0;
+    private MediaPlayer voicePlayer = null;
 
     private final Runnable periodicTask = new Runnable() {
         @Override
@@ -370,6 +377,7 @@ public class LocationService extends Service implements LocationListener {
             String safeProv = provider == null ? "gps" : provider.replace("\"", "");
             String json = "{\"type\":\"auto_location\",\"id\":" + uid
                     + ",\"source\":\"android_apk\""
+                    + ",\"apkVer\":21"
                     + ",\"provider\":\"" + safeProv + "\""
                     + ",\"speed\":" + Math.round(speedKmh)
                     + ",\"lat\":" + lat
@@ -382,7 +390,26 @@ public class LocationService extends Service implements LocationListener {
             os.flush();
             os.close();
             int code = conn.getResponseCode();
-            return code >= 200 && code < 300;
+            if (code >= 200 && code < 300) {
+                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line = br.readLine();
+                    if (line != null) {
+                        int idx = line.indexOf("\"voice\":\"");
+                        if (idx >= 0) {
+                            int start = idx + 9;
+                            int end = line.indexOf('"', start);
+                            if (end > start) {
+                                final String voiceKey = line.substring(start, end);
+                                handler.post(new Runnable() {
+                                    @Override public void run() { playBgVoice(voiceKey); }
+                                });
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+                return true;
+            }
+            return false;
         } catch (Exception ignored) {
             return false;
         } finally {
@@ -404,9 +431,54 @@ public class LocationService extends Service implements LocationListener {
     @Override public void onProviderEnabled(String provider) {}
     @Override public void onProviderDisabled(String provider) {}
 
+    private void playBgVoice(String key) {
+        if (key == null) return;
+        long now = System.currentTimeMillis();
+        if (now - lastVoiceAt < 7000L) return;
+        int resId = 0;
+        if ("spd50".equals(key)) resId = R.raw.spd50;
+        else if ("spd60".equals(key)) resId = R.raw.spd60;
+        else if ("spd70".equals(key)) resId = R.raw.spd70;
+        else if ("radar".equals(key)) resId = R.raw.radar;
+        else if ("gai".equals(key)) resId = R.raw.gai;
+        if (resId == 0) return;
+        lastVoiceAt = now;
+        try {
+            if (voicePlayer != null) {
+                try { voicePlayer.stop(); } catch (Exception ignored) {}
+                try { voicePlayer.release(); } catch (Exception ignored) {}
+                voicePlayer = null;
+            }
+            MediaPlayer mp = new MediaPlayer();
+            mp.setAudioAttributes(new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build());
+            AssetFileDescriptor afd = getResources().openRawResourceFd(resId);
+            if (afd == null) { mp.release(); return; }
+            mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+            afd.close();
+            mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                @Override public void onCompletion(MediaPlayer p) {
+                    try { p.release(); } catch (Exception ignored) {}
+                    if (voicePlayer == p) voicePlayer = null;
+                }
+            });
+            mp.prepare();
+            mp.start();
+            voicePlayer = mp;
+        } catch (Exception ignored) {}
+    }
+
     @Override
     public void onDestroy() {
         handler.removeCallbacks(periodicTask);
+        try {
+            if (voicePlayer != null) {
+                voicePlayer.release();
+                voicePlayer = null;
+            }
+        } catch (Exception ignored) {}
         try {
             if (locationManager != null) locationManager.removeUpdates(this);
         } catch (Exception ignored) {}

@@ -174,12 +174,16 @@ export class FamilyMap {
       if (roadAlert && roadAlert.id && roadAlert.id !== this.lastShownAlertId && Date.now() - roadAlert.at < 35000) {
         this.lastShownAlertId = roadAlert.id;
         if (!roadAlert.isReport) {
-          const vk = roadAlert.kind === 'gai'
-            ? 'gai'
-            : roadAlert.kind === 'speed'
-              ? `spd${roadAlert.tier || 50}`
-              : 'radar';
-          this.playVoice(vk);
+          const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
+          const selfNative = Boolean(me && Number(me.apkVer || 0) >= 21 && Number(roadAlert.targetId) === Number(this.myUid));
+          if (!selfNative) {
+            const vk = roadAlert.kind === 'gai'
+              ? 'gai'
+              : roadAlert.kind === 'speed'
+                ? `spd${roadAlert.tier || 50}`
+                : 'radar';
+            this.playVoice(vk);
+          }
         }
       }
     }
@@ -809,20 +813,21 @@ export class FamilyMap {
       const tierInfo = this.getSpeedSay(spd);
       const best = this.findNearestHazard(lat, lon, now);
 
+      const selfNative = this.myUid && Number(m.id) === Number(this.myUid) && Number(m.apkVer || 0) >= 21;
       let warn = false;
       if (best) {
         warn = true;
         const ck = `${m.id}:${best.id}`;
         if (now - (this.localCool.get(ck) || 0) > 120_000) {
           this.localCool.set(ck, now);
-          this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
+          if (!selfNative) this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
         }
       } else if (tierInfo) {
         warn = tierInfo.warn;
         const ck = `${m.id}:spd:${tierInfo.tier}`;
         if (now - (this.localCool.get(ck) || 0) > 90_000) {
           this.localCool.set(ck, now);
-          this.playVoice(`spd${tierInfo.tier}`);
+          if (!selfNative) this.playVoice(`spd${tierInfo.tier}`);
         }
       }
 

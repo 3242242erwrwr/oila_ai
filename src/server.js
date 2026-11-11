@@ -318,9 +318,10 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       req.on('end', async () => {
         try {
           const payload = JSON.parse(body || '{}');
-          await onWebAction?.(payload);
+          const resData = await onWebAction?.(payload);
+          const out = resData && typeof resData === 'object' ? { ok: true, ...resData } : { ok: true };
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-          res.end(JSON.stringify({ ok: true }));
+          res.end(JSON.stringify(out));
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));

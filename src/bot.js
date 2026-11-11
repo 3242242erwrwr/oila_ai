@@ -1030,6 +1030,9 @@ async function handleRoomAction(payload) {
     const wasInstalled = Boolean(m.apkInstalled);
     m.lastApkPing = Date.now();
     m.apkInstalled = true;
+    if (payload.apkVer != null && Number.isFinite(Number(payload.apkVer))) {
+      m.apkVer = Number(payload.apkVer);
+    }
     store.save();
 
     if ((!wasInstalled || !m.welcomeSent) && bot) {
@@ -1085,6 +1088,8 @@ async function handleRoomAction(payload) {
         live: true,
         liveUntil: Date.now() + 86_400_000,
       });
+      const voice = road.consumeVoice(id);
+      if (voice) return { voice };
     }
     return;
   }
