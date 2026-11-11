@@ -206,6 +206,31 @@ public class MainActivity extends Activity {
         });
         contentLayout.addView(btnBat);
 
+        // 2.5 Fon ovozini sinash tugmasi
+        Button btnTestVoice = createStyledButton("🔊 Fon ovozini sinash (Test)", "#0ea5e9");
+        LinearLayout.LayoutParams pVoice = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        pVoice.setMargins(0, 10, 0, 0);
+        btnTestVoice.setLayoutParams(pVoice);
+        btnTestVoice.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    Intent svc = new Intent(MainActivity.this, LocationService.class);
+                    svc.putExtra("test_voice", "p_camera");
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(svc);
+                    } else {
+                        startService(svc);
+                    }
+                    Toast.makeText(MainActivity.this, "🔊 Fon ovozi ishga tushirildi!", Toast.LENGTH_SHORT).show();
+                } catch (Exception ex) {
+                    Toast.makeText(MainActivity.this, "⚠️ Xato: " + ex.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        contentLayout.addView(btnTestVoice);
+
         // 3. Joylashuvni 'Har doim' qilish
         Button btnLoc = createStyledButton("📍 2. Joylashuvni 'Har doim' qilish", "#d97706");
         LinearLayout.LayoutParams pLoc = new LinearLayout.LayoutParams(
@@ -514,7 +539,7 @@ public class MainActivity extends Activity {
                             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
                             String json = "{\"type\":\"auto_location\",\"id\":" + uid.trim()
-                                    + ",\"source\":\"android_apk\""
+                                    + ",\"source\":\"android_apk_init\""
                                     + ",\"lat\":" + lat
                                     + ",\"lon\":" + lon
                                     + ",\"accuracy\":" + acc + "}";

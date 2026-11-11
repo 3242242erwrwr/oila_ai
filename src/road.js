@@ -231,12 +231,23 @@ class RoadGuard extends EventEmitter {
     };
     this.emit('alert', this.latestAlert);
     this.emit('change');
+
+    // Belgi qo'yilgan zahoti allaqachon 200 m ichida turgan boshqa jonli a'zolarga darhol ovoz yuborish
+    if (preset && this.store && typeof this.store.all === 'function') {
+      for (const m of this.store.all()) {
+        if (!m || m.isAi || !m.location) continue;
+        if (reportedBy != null && Number(m.id) === Number(reportedBy)) continue;
+        if (!m.location.live || !Number.isFinite(m.location.lat) || !Number.isFinite(m.location.lon)) continue;
+        this.checkPresets(m, m.location.lat, m.location.lon, now);
+      }
+    }
     return item;
   }
 
   attachStore(store) {
     if (this._attached) return;
     this._attached = true;
+    this.store = store;
     store.on('location', (member) => this.checkMember(member));
   }
 
@@ -429,7 +440,7 @@ class RoadGuard extends EventEmitter {
     const item = this.pendingVoice.get(keyNum);
     if (!item) return null;
     this.pendingVoice.delete(keyNum);
-    if (Date.now() - item.at > 20_000) return null;
+    if (Date.now() - item.at > 60_000) return null;
     return item.key;
   }
 }

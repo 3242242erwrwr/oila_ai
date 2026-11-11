@@ -127,9 +127,17 @@ export class FamilyMap {
   }
 
   unlockAudio() {
-    if (this.audioUnlocked || !this.voicePlayer) return;
+    if (!this.voicePlayer) return;
+    if (this.audioUnlocked) return;
     this.audioUnlocked = true;
     try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC && !this._ac) {
+        this._ac = new AC();
+      }
+      if (this._ac && this._ac.state === 'suspended') {
+        this._ac.resume().catch(() => {});
+      }
       this.voicePlayer.muted = true;
       this.voicePlayer.src = '/voice/spd50.wav';
       const p = this.voicePlayer.play();
@@ -138,6 +146,11 @@ export class FamilyMap {
           this.voicePlayer.pause();
           this.voicePlayer.currentTime = 0;
           this.voicePlayer.muted = false;
+          if (this.queuedVoice) {
+            const q = this.queuedVoice;
+            this.queuedVoice = null;
+            this.playVoice(q);
+          }
         }).catch(() => {
           this.voicePlayer.muted = false;
           this.audioUnlocked = false;
@@ -158,16 +171,22 @@ export class FamilyMap {
   }
 
   playVoice(key) {
-    if (!this.voiceEnabled || !this.voicePlayer || document.hidden) return;
+    if (!key || !this.voiceEnabled || !this.voicePlayer || document.hidden) return;
     const now = Date.now();
-    const gap = String(key).startsWith('p_') ? 4500 : 7000;
+    const gap = String(key).startsWith('p_') ? 4000 : 6500;
     if (now - this.lastVoiceAt < gap) return;
     this.lastVoiceAt = now;
     try {
       this.voicePlayer.muted = false;
       this.voicePlayer.src = `/voice/${key}.wav`;
       this.voicePlayer.currentTime = 0;
-      this.voicePlayer.play().catch(() => {});
+      const p = this.voicePlayer.play();
+      if (p && typeof p.catch === 'function') {
+        p.catch(() => {
+          this.audioUnlocked = false;
+          this.queuedVoice = key;
+        });
+      }
     } catch {}
   }
 
@@ -187,25 +206,23 @@ export class FamilyMap {
         this.lastShownAlertId = roadAlert.id;
         if (!roadAlert.isReport) {
           const isPreset = Boolean(roadAlert.isPreset || PRESET_MAP[roadAlert.kind]);
-          const isForMe = Boolean(this.myUid && Number(roadAlert.targetId) === Number(this.myUid));
-          const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
+          const isForMe = !this.myUid || !roadAlert.targetId || Number(roadAlert.targetId) === Number(this.myUid);
           if (isPreset) {
             if (isForMe) {
-              if (this.isOpen) this.showAlertBanner(roadAlert.label || roadAlert.text, true);
-              if (Number(me?.apkVer || 0) < 22) {
-                this.playVoice(roadAlert.voice || roadAlert.kind);
+              if (this.myUid && roadAlert.hazardId) {
+                this.presetInside.set(`${this.myUid}:${roadAlert.hazardId}`, true);
               }
+              if (this.isOpen) this.showAlertBanner(roadAlert.label || roadAlert.text, true);
+              this.playVoice(roadAlert.voice || roadAlert.kind);
             }
-          } else {
-            const selfNative = Boolean(me && Number(me.apkVer || 0) >= 21 && isForMe);
-            if (!selfNative) {
-              const vk = roadAlert.kind === 'gai'
-                ? 'gai'
-                : roadAlert.kind === 'speed'
-                  ? `spd${roadAlert.tier || 50}`
-                  : 'radar';
-              this.playVoice(vk);
-            }
+          } else if (isForMe) {
+            const vk = roadAlert.kind === 'gai'
+              ? 'gai'
+              : roadAlert.kind === 'speed'
+                ? `spd${roadAlert.tier || 50}`
+                : 'radar';
+            if (this.isOpen) this.showAlertBanner(roadAlert.text, true);
+            this.playVoice(vk);
           }
         }
       }
@@ -866,7 +883,6 @@ export class FamilyMap {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
 
     const now = Date.now();
-    const selfNativePreset = Number(me.apkVer || 0) >= 22;
     let best = null;
     let bestDist = Infinity;
 
@@ -890,9 +906,7 @@ export class FamilyMap {
     if (!best) return;
     this.presetInside.set(best.zKey, true);
     if (this.isOpen) this.showAlertBanner(`${best.preset.badge}: ${best.preset.text}`, true);
-    if (!selfNativePreset) {
-      this.playVoice(best.h.type);
-    }
+    this.playVoice(best.h.type);
   }
 
   getSpeedSay(speed) {
@@ -944,21 +958,21 @@ export class FamilyMap {
       const tierInfo = this.getSpeedSay(spd);
       const best = this.findNearestHazard(lat, lon, now);
 
-      const selfNative = this.myUid && Number(m.id) === Number(this.myUid) && Number(m.apkVer || 0) >= 21;
+      const isForMe = !this.myUid || Number(m.id) === Number(this.myUid);
       let warn = false;
       if (best) {
         warn = true;
         const ck = `${m.id}:${best.id}`;
         if (now - (this.localCool.get(ck) || 0) > 120_000) {
           this.localCool.set(ck, now);
-          if (!selfNative) this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
+          if (isForMe) this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
         }
       } else if (tierInfo) {
         warn = tierInfo.warn;
         const ck = `${m.id}:spd:${tierInfo.tier}`;
         if (now - (this.localCool.get(ck) || 0) > 90_000) {
           this.localCool.set(ck, now);
-          if (!selfNative) this.playVoice(`spd${tierInfo.tier}`);
+          if (isForMe) this.playVoice(`spd${tierInfo.tier}`);
         }
       }
 

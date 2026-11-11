@@ -1088,8 +1088,10 @@ async function handleRoomAction(payload) {
         live: true,
         liveUntil: Date.now() + 86_400_000,
       });
-      const voice = road.consumeVoice(id);
-      if (voice) return { voice };
+      if (payload.source === 'android_apk' && Number(payload.apkVer || 0) >= 21) {
+        const voice = road.consumeVoice(id);
+        if (voice) return { voice };
+      }
     }
     return;
   }

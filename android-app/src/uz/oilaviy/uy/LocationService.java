@@ -17,6 +17,8 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.media.AudioAttributes;
+import android.media.AudioFocusRequest;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
@@ -54,6 +56,7 @@ public class LocationService extends Service implements LocationListener {
     private long lastNetElapsedNs = 0;
     private long lastVoiceAt = 0;
     private MediaPlayer voicePlayer = null;
+    private Object audioFocusReq = null;
 
     private final Runnable periodicTask = new Runnable() {
         @Override
@@ -78,6 +81,15 @@ public class LocationService extends Service implements LocationListener {
         acquireWakeLock();
         startForegroundCompat();
         startListeningLocation();
+        if (intent != null) {
+            final String testVoice = intent.getStringExtra("test_voice");
+            if (testVoice != null && !testVoice.isEmpty()) {
+                lastVoiceAt = 0;
+                handler.post(new Runnable() {
+                    @Override public void run() { playBgVoice(testVoice); }
+                });
+            }
+        }
         pollAndSend();
         return START_STICKY;
     }
@@ -131,6 +143,27 @@ public class LocationService extends Service implements LocationListener {
             } else {
                 startForeground(NOTIF_ID, notif);
             }
+        } catch (Exception ignored) {}
+    }
+
+    private void updateNotifStatus(String text) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            Intent openIntent = new Intent(this, MainActivity.class);
+            int piFlags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                    ? PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                    : PendingIntent.FLAG_UPDATE_CURRENT;
+            PendingIntent pi = PendingIntent.getActivity(this, 0, openIntent, piFlags);
+            Notification.Builder nb = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? new Notification.Builder(this, CHANNEL_ID)
+                    : new Notification.Builder(this);
+            nb.setContentTitle("🏠 Oilaviy Uy")
+              .setContentText(text)
+              .setSmallIcon(R.drawable.ic_launcher)
+              .setContentIntent(pi)
+              .setOngoing(true);
+            nm.notify(NOTIF_ID, nb.build());
         } catch (Exception ignored) {}
     }
 
@@ -377,7 +410,7 @@ public class LocationService extends Service implements LocationListener {
             String safeProv = provider == null ? "gps" : provider.replace("\"", "");
             String json = "{\"type\":\"auto_location\",\"id\":" + uid
                     + ",\"source\":\"android_apk\""
-                    + ",\"apkVer\":22"
+                    + ",\"apkVer\":23"
                     + ",\"provider\":\"" + safeProv + "\""
                     + ",\"speed\":" + Math.round(speedKmh)
                     + ",\"lat\":" + lat
@@ -431,6 +464,19 @@ public class LocationService extends Service implements LocationListener {
     @Override public void onProviderEnabled(String provider) {}
     @Override public void onProviderDisabled(String provider) {}
 
+    private void releaseVoiceFocus() {
+        try {
+            AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (am == null) return;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && audioFocusReq instanceof AudioFocusRequest) {
+                am.abandonAudioFocusRequest((AudioFocusRequest) audioFocusReq);
+                audioFocusReq = null;
+            } else {
+                am.abandonAudioFocus(null);
+            }
+        } catch (Exception ignored) {}
+    }
+
     private void playBgVoice(String key) {
         if (key == null) return;
         long now = System.currentTimeMillis();
@@ -457,25 +503,72 @@ public class LocationService extends Service implements LocationListener {
                 try { voicePlayer.release(); } catch (Exception ignored) {}
                 voicePlayer = null;
             }
-            MediaPlayer mp = new MediaPlayer();
-            mp.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
+            releaseVoiceFocus();
+
+            AudioManager am = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            boolean useNotifStream = false;
+            if (am != null) {
+                int mediaVol = am.getStreamVolume(AudioManager.STREAM_MUSIC);
+                int notifVol = am.getStreamVolume(AudioManager.STREAM_NOTIFICATION);
+                if (mediaVol == 0 && notifVol > 0) useNotifStream = true;
+            }
+
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(useNotifStream
+                            ? AudioAttributes.USAGE_NOTIFICATION
+                            : AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build());
+                    .build();
+
+            if (am != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    AudioFocusRequest req = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+                            .setAudioAttributes(attrs)
+                            .setAcceptsDelayedFocusGain(false)
+                            .build();
+                    audioFocusReq = req;
+                    am.requestAudioFocus(req);
+                } else {
+                    am.requestAudioFocus(null,
+                            useNotifStream ? AudioManager.STREAM_NOTIFICATION : AudioManager.STREAM_MUSIC,
+                            AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                }
+            }
+
+            MediaPlayer mp = new MediaPlayer();
+            mp.setAudioAttributes(attrs);
+            mp.setVolume(1.0f, 1.0f);
             AssetFileDescriptor afd = getResources().openRawResourceFd(resId);
-            if (afd == null) { mp.release(); return; }
+            if (afd == null) { mp.release(); releaseVoiceFocus(); return; }
             mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
             afd.close();
             mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override public void onCompletion(MediaPlayer p) {
                     try { p.release(); } catch (Exception ignored) {}
                     if (voicePlayer == p) voicePlayer = null;
+                    releaseVoiceFocus();
+                }
+            });
+            mp.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                @Override public boolean onError(MediaPlayer p, int what, int extra) {
+                    try { p.release(); } catch (Exception ignored) {}
+                    if (voicePlayer == p) voicePlayer = null;
+                    releaseVoiceFocus();
+                    return true;
                 }
             });
             mp.prepare();
             mp.start();
             voicePlayer = mp;
-        } catch (Exception ignored) {}
+
+            updateNotifStatus("🔊 Ovoz: " + key);
+            handler.postDelayed(new Runnable() {
+                @Override public void run() { updateNotifStatus("📍 24/7 Aniq Real-Time GPS faol"); }
+            }, 6000);
+        } catch (Exception e) {
+            releaseVoiceFocus();
+            updateNotifStatus("⚠️ Ovoz xatosi: " + e.getClass().getSimpleName());
+        }
     }
 
     @Override
@@ -486,6 +579,7 @@ public class LocationService extends Service implements LocationListener {
                 voicePlayer.release();
                 voicePlayer = null;
             }
+            releaseVoiceFocus();
         } catch (Exception ignored) {}
         try {
             if (locationManager != null) locationManager.removeUpdates(this);
