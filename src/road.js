@@ -244,6 +244,36 @@ class RoadGuard extends EventEmitter {
     return item;
   }
 
+  enqueueVoice(memberId, key, now = Date.now()) {
+    const id = Number(memberId);
+    if (!id || !key) return;
+    let q = this.pendingVoice.get(id);
+    if (!Array.isArray(q)) {
+      q = [];
+      this.pendingVoice.set(id, q);
+    }
+    const last = q[q.length - 1];
+    if (last && last.key === key && now - last.at < 4000) return;
+    q.push({ key, at: now });
+    if (q.length > 6) q.shift();
+  }
+
+  broadcastVoice(key, excludeMemberId = null, now = Date.now(), fallbackMemberId = null) {
+    const members = this.store && typeof this.store.all === 'function' ? this.store.all() : [];
+    let enqueuedAny = false;
+    for (const m of members) {
+      if (!m || m.isAi) continue;
+      if (excludeMemberId != null && Number(m.id) === Number(excludeMemberId)) continue;
+      this.enqueueVoice(m.id, key, now);
+      enqueuedAny = true;
+    }
+    if (!enqueuedAny && fallbackMemberId != null) {
+      if (excludeMemberId == null || Number(fallbackMemberId) !== Number(excludeMemberId)) {
+        this.enqueueVoice(fallbackMemberId, key, now);
+      }
+    }
+  }
+
   attachStore(store) {
     if (this._attached) return;
     this._attached = true;
@@ -275,13 +305,19 @@ class RoadGuard extends EventEmitter {
 
     if (!best) return null;
 
-    const lastVoiceKey = `${member.id}:preset_voice`;
-    const lastVoiceAt = this.cooldowns.get(lastVoiceKey) || 0;
-    if (now - lastVoiceAt < 4500) return null;
-
     this.presetInside.set(best.zKey, true);
-    this.cooldowns.set(lastVoiceKey, now);
 
+    // Bir xil belgi bir necha uydagilar ichida bir soniyada qayta-qayta baqirmasligi uchun 45s umumiy anti-dubl
+    const bcastKey = `hz_bcast:${best.h.id}`;
+    const lastBcast = this.cooldowns.get(bcastKey) || 0;
+    const isSelfReturn = best.h.reportedBy != null && Number(member.id) === Number(best.h.reportedBy);
+    if (!isSelfReturn && now - lastBcast < 45_000) {
+      return null;
+    }
+    this.cooldowns.set(bcastKey, now);
+
+    // Agar qo'ygan odamning o'zi >250m chiqib qaytgan bo'lsa hamma eshitadi; aks holda qo'ygan odamdan boshqa hamma eshitadi
+    const excludeReporterId = isSelfReturn ? null : (best.h.reportedBy ?? null);
     const distRounded = Math.max(10, Math.round(best.dist / 10) * 10);
     const alert = {
       id: `al_${now}_${Math.floor(Math.random() * 100)}`,
@@ -291,6 +327,8 @@ class RoadGuard extends EventEmitter {
       hazardId: best.h.id,
       kind: best.preset.key,
       isPreset: true,
+      broadcastAll: true,
+      excludeReporterId,
       voice: best.preset.key,
       label: best.preset.text,
       badge: best.preset.badge,
@@ -300,12 +338,9 @@ class RoadGuard extends EventEmitter {
       driverLat: lat,
       driverLon: lon,
       speed: Math.round(Number(member.location?.speed || 0)),
-      text: `${best.preset.badge}: ${best.preset.text}`,
+      text: `${best.preset.badge} (${member.name}): ${best.preset.text}`,
     };
-    this.pendingVoice.set(Number(member.id), {
-      key: best.preset.key,
-      at: now,
-    });
+    this.broadcastVoice(best.preset.key, excludeReporterId, now, member.id);
     this.latestAlert = alert;
     this.emit('alert', alert);
     this.emit('change');
@@ -386,12 +421,11 @@ class RoadGuard extends EventEmitter {
           driverLat: lat,
           driverLon: lon,
           speed: spd,
+          broadcastAll: true,
+          voice: best.kind === 'gai' ? 'gai' : 'radar',
           text: `${prefix}Oldinda ~${distRounded} m da ${label}!`,
         };
-        this.pendingVoice.set(Number(member.id), {
-          key: best.kind === 'gai' ? 'gai' : 'radar',
-          at: now,
-        });
+        this.broadcastVoice(alert.voice, null, now, member.id);
         this.latestAlert = alert;
         this.emit('alert', alert);
         this.emit('change');
@@ -419,12 +453,11 @@ class RoadGuard extends EventEmitter {
           driverLat: lat,
           driverLon: lon,
           speed: spd,
+          broadcastAll: true,
+          voice: `spd${tierInfo.tier}`,
           text: `${tierInfo.emoji} ${member.name} (${spd} km/s): ${tierInfo.phrase}`,
         };
-        this.pendingVoice.set(Number(member.id), {
-          key: `spd${tierInfo.tier}`,
-          at: now,
-        });
+        this.broadcastVoice(alert.voice, null, now, member.id);
         this.latestAlert = alert;
         this.emit('alert', alert);
         this.emit('change');
@@ -437,11 +470,18 @@ class RoadGuard extends EventEmitter {
 
   consumeVoice(memberId) {
     const keyNum = Number(memberId);
-    const item = this.pendingVoice.get(keyNum);
-    if (!item) return null;
+    const q = this.pendingVoice.get(keyNum);
+    if (!Array.isArray(q) || q.length === 0) return null;
+    const now = Date.now();
+    while (q.length > 0) {
+      const item = q.shift();
+      if (now - item.at <= 60_000) {
+        if (q.length === 0) this.pendingVoice.delete(keyNum);
+        return item.key;
+      }
+    }
     this.pendingVoice.delete(keyNum);
-    if (Date.now() - item.at > 60_000) return null;
-    return item.key;
+    return null;
   }
 }
 

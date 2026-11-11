@@ -1057,12 +1057,19 @@ async function handleRoomAction(payload) {
       ).catch(() => {});
     }
 
-    if (payload.type === 'apk_ping' && m.location && Number.isFinite(m.location.lat)) {
-      m.location.live = true;
-      m.location.liveUntil = Date.now() + 86_400_000;
-      m.location.at = new Date().toISOString();
-      store.save();
-      store.emit('change');
+    if (payload.type === 'apk_ping') {
+      if (m.location && Number.isFinite(m.location.lat)) {
+        m.location.live = true;
+        m.location.liveUntil = Date.now() + 86_400_000;
+        m.location.at = new Date().toISOString();
+        store.save();
+        store.emit('change');
+      }
+      if (payload.source === 'android_apk' && Number(payload.apkVer || 0) >= 24) {
+        const voice = road.consumeVoice(id);
+        if (voice) return { voice };
+      }
+      return;
     }
 
     if (payload.type === 'auto_location') {

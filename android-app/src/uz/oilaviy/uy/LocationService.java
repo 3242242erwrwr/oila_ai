@@ -62,7 +62,7 @@ public class LocationService extends Service implements LocationListener {
         @Override
         public void run() {
             pollAndSend();
-            handler.postDelayed(this, 3000);
+            handler.postDelayed(this, 2500);
         }
     };
 
@@ -73,7 +73,7 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndSend();
-        handler.postDelayed(periodicTask, 3000);
+        handler.postDelayed(periodicTask, 2500);
     }
 
     @Override
@@ -335,7 +335,7 @@ public class LocationService extends Service implements LocationListener {
             lastSentLon = lon;
             lastSentAcc = acc;
             lastSentAt = now;
-        } else if (now - lastSentAt >= 20000L) {
+        } else if (now - lastSentAt >= 5000L) {
             sendLat = lastSentLat;
             sendLon = lastSentLon;
             sendSpeed = 0f;
@@ -351,10 +351,29 @@ public class LocationService extends Service implements LocationListener {
             public void run() {
                 boolean ok = postLocation(cleanUid, sendLat, sendLon, lastSentAcc, sendSpeed, sendProv);
                 if (!ok) {
-                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 15000L);
+                    lastSentAt = Math.min(lastSentAt, System.currentTimeMillis() - 3000L);
                 }
             }
         });
+    }
+
+    private void parseAndPlayVoice(HttpURLConnection conn) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+            String line = br.readLine();
+            if (line != null) {
+                int idx = line.indexOf("\"voice\":\"");
+                if (idx >= 0) {
+                    int start = idx + 9;
+                    int end = line.indexOf('"', start);
+                    if (end > start) {
+                        final String voiceKey = line.substring(start, end);
+                        handler.post(new Runnable() {
+                            @Override public void run() { playBgVoice(voiceKey); }
+                        });
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
     }
 
     private void sendHeartbeatPingOnly() {
@@ -363,7 +382,7 @@ public class LocationService extends Service implements LocationListener {
         if (uid == null || uid.trim().isEmpty()) return;
 
         final long now = System.currentTimeMillis();
-        if (now - lastSentAt < 20000L) return;
+        if (now - lastSentAt < 5000L) return;
         lastSentAt = now;
 
         final String cleanUid = uid.trim();
@@ -380,14 +399,17 @@ public class LocationService extends Service implements LocationListener {
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
-                    String json = "{\"type\":\"apk_ping\",\"id\":" + cleanUid + ",\"source\":\"android_apk\"}";
+                    String json = "{\"type\":\"apk_ping\",\"id\":" + cleanUid + ",\"source\":\"android_apk\",\"apkVer\":24}";
                     byte[] body = json.getBytes(StandardCharsets.UTF_8);
                     conn.setFixedLengthStreamingMode(body.length);
                     OutputStream os = conn.getOutputStream();
                     os.write(body);
                     os.flush();
                     os.close();
-                    conn.getResponseCode();
+                    int code = conn.getResponseCode();
+                    if (code >= 200 && code < 300) {
+                        parseAndPlayVoice(conn);
+                    }
                 } catch (Exception ignored) {
                 } finally {
                     if (conn != null) conn.disconnect();
@@ -410,7 +432,7 @@ public class LocationService extends Service implements LocationListener {
             String safeProv = provider == null ? "gps" : provider.replace("\"", "");
             String json = "{\"type\":\"auto_location\",\"id\":" + uid
                     + ",\"source\":\"android_apk\""
-                    + ",\"apkVer\":23"
+                    + ",\"apkVer\":24"
                     + ",\"provider\":\"" + safeProv + "\""
                     + ",\"speed\":" + Math.round(speedKmh)
                     + ",\"lat\":" + lat
@@ -424,22 +446,7 @@ public class LocationService extends Service implements LocationListener {
             os.close();
             int code = conn.getResponseCode();
             if (code >= 200 && code < 300) {
-                try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                    String line = br.readLine();
-                    if (line != null) {
-                        int idx = line.indexOf("\"voice\":\"");
-                        if (idx >= 0) {
-                            int start = idx + 9;
-                            int end = line.indexOf('"', start);
-                            if (end > start) {
-                                final String voiceKey = line.substring(start, end);
-                                handler.post(new Runnable() {
-                                    @Override public void run() { playBgVoice(voiceKey); }
-                                });
-                            }
-                        }
-                    }
-                } catch (Exception ignored) {}
+                parseAndPlayVoice(conn);
                 return true;
             }
             return false;
@@ -480,7 +487,7 @@ public class LocationService extends Service implements LocationListener {
     private void playBgVoice(String key) {
         if (key == null) return;
         long now = System.currentTimeMillis();
-        if (now - lastVoiceAt < 4500L) return;
+        if (now - lastVoiceAt < 2500L) return;
         int resId = 0;
         if ("spd50".equals(key)) resId = R.raw.spd50;
         else if ("spd60".equals(key)) resId = R.raw.spd60;

@@ -80,6 +80,9 @@ export class FamilyMap {
     this.voicePlayer = typeof Audio !== 'undefined' ? new Audio() : null;
     this.audioUnlocked = false;
     this.lastVoiceAt = 0;
+    this.voiceQueue = [];
+    this.voicePlaying = false;
+    this.lastPlayedKeyAt = new Map();
     this.activeBaseName = '';
     this.trafficLayer = null;
     this.cameras = [];
@@ -173,10 +176,33 @@ export class FamilyMap {
   playVoice(key) {
     if (!key || !this.voiceEnabled || !this.voicePlayer || document.hidden) return;
     const now = Date.now();
-    const gap = String(key).startsWith('p_') ? 4000 : 6500;
-    if (now - this.lastVoiceAt < gap) return;
-    this.lastVoiceAt = now;
+    const prevKeyAt = this.lastPlayedKeyAt.get(key) || 0;
+    if (now - prevKeyAt < 4000) return;
+    this.lastPlayedKeyAt.set(key, now);
+    this.voiceQueue.push(key);
+    if (this.voiceQueue.length > 5) this.voiceQueue.shift();
+    this._drainVoiceQueue();
+  }
+
+  _drainVoiceQueue() {
+    if (this.voicePlaying || !this.voiceQueue.length || !this.voicePlayer || !this.voiceEnabled || document.hidden) return;
+    const key = this.voiceQueue.shift();
+    this.voicePlaying = true;
+    this.lastVoiceAt = Date.now();
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(guardTimer);
+      this.voicePlaying = false;
+      setTimeout(() => this._drainVoiceQueue(), 180);
+    };
+    const guardTimer = setTimeout(finish, 6000);
+
     try {
+      this.voicePlayer.onended = finish;
+      this.voicePlayer.onerror = finish;
       this.voicePlayer.muted = false;
       this.voicePlayer.src = `/voice/${key}.wav`;
       this.voicePlayer.currentTime = 0;
@@ -185,9 +211,12 @@ export class FamilyMap {
         p.catch(() => {
           this.audioUnlocked = false;
           this.queuedVoice = key;
+          finish();
         });
       }
-    } catch {}
+    } catch {
+      finish();
+    }
   }
 
   toggleRadars() {
@@ -206,21 +235,22 @@ export class FamilyMap {
         this.lastShownAlertId = roadAlert.id;
         if (!roadAlert.isReport) {
           const isPreset = Boolean(roadAlert.isPreset || PRESET_MAP[roadAlert.kind]);
-          const isForMe = !this.myUid || !roadAlert.targetId || Number(roadAlert.targetId) === Number(this.myUid);
+          const excluded = roadAlert.excludeReporterId != null && this.myUid && Number(this.myUid) === Number(roadAlert.excludeReporterId);
+          const shouldHear = roadAlert.broadcastAll
+            ? !excluded
+            : (!this.myUid || !roadAlert.targetId || Number(roadAlert.targetId) === Number(this.myUid));
+
           if (isPreset) {
-            if (isForMe) {
-              if (this.myUid && roadAlert.hazardId) {
-                this.presetInside.set(`${this.myUid}:${roadAlert.hazardId}`, true);
-              }
-              if (this.isOpen) this.showAlertBanner(roadAlert.label || roadAlert.text, true);
+            if (this.myUid && roadAlert.hazardId && Number(roadAlert.targetId) === Number(this.myUid)) {
+              this.presetInside.set(`${this.myUid}:${roadAlert.hazardId}`, true);
+            }
+            if (shouldHear) {
+              if (this.isOpen) this.showAlertBanner(roadAlert.text || roadAlert.label, true);
               this.playVoice(roadAlert.voice || roadAlert.kind);
             }
-          } else if (isForMe) {
-            const vk = roadAlert.kind === 'gai'
-              ? 'gai'
-              : roadAlert.kind === 'speed'
-                ? `spd${roadAlert.tier || 50}`
-                : 'radar';
+          } else if (shouldHear) {
+            const vk = roadAlert.voice
+              || (roadAlert.kind === 'gai' ? 'gai' : roadAlert.kind === 'speed' ? `spd${roadAlert.tier || 50}` : 'radar');
             if (this.isOpen) this.showAlertBanner(roadAlert.text, true);
             this.playVoice(vk);
           }
@@ -958,21 +988,20 @@ export class FamilyMap {
       const tierInfo = this.getSpeedSay(spd);
       const best = this.findNearestHazard(lat, lon, now);
 
-      const isForMe = !this.myUid || Number(m.id) === Number(this.myUid);
       let warn = false;
       if (best) {
         warn = true;
         const ck = `${m.id}:${best.id}`;
         if (now - (this.localCool.get(ck) || 0) > 120_000) {
           this.localCool.set(ck, now);
-          if (isForMe) this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
+          this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
         }
       } else if (tierInfo) {
         warn = tierInfo.warn;
         const ck = `${m.id}:spd:${tierInfo.tier}`;
         if (now - (this.localCool.get(ck) || 0) > 90_000) {
           this.localCool.set(ck, now);
-          if (isForMe) this.playVoice(`spd${tierInfo.tier}`);
+          this.playVoice(`spd${tierInfo.tier}`);
         }
       }
 
