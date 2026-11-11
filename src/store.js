@@ -419,7 +419,7 @@ class Store extends EventEmitter {
       const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&accept-language=uz`;
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'OilaviyUyApp/1.0 (https://oila-ai.onrender.com)',
+          'User-Agent': 'OilaviyUyApp/1.0 (https://oila-ai-ll6d.onrender.com)',
           Accept: 'application/json',
         },
       });

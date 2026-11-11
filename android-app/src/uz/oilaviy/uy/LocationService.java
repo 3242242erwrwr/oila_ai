@@ -33,7 +33,7 @@ import java.util.concurrent.Executors;
 public class LocationService extends Service implements LocationListener {
     private static final String CHANNEL_ID = "family_gps_channel";
     private static final int NOTIF_ID = 777;
-    private static final String API_URL = "https://oila-ai.onrender.com/api/action";
+    private static final String API_URL = "https://oila-ai-ll6d.onrender.com/api/action";
 
     private LocationManager locationManager;
     private PowerManager.WakeLock wakeLock;

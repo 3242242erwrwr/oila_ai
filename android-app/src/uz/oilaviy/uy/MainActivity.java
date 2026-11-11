@@ -404,7 +404,7 @@ public class MainActivity extends Activity {
             public void run() {
                 HttpURLConnection conn = null;
                 try {
-                    URL url = new URL("https://oila-ai.onrender.com/api/action");
+                    URL url = new URL("https://oila-ai-ll6d.onrender.com/api/action");
                     conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("POST");
                     conn.setConnectTimeout(6000);
@@ -505,7 +505,7 @@ public class MainActivity extends Activity {
                     public void run() {
                         HttpURLConnection conn = null;
                         try {
-                            URL url = new URL("https://oila-ai.onrender.com/api/action");
+                            URL url = new URL("https://oila-ai-ll6d.onrender.com/api/action");
                             conn = (HttpURLConnection) url.openConnection();
                             conn.setRequestMethod("POST");
                             conn.setConnectTimeout(8000);
