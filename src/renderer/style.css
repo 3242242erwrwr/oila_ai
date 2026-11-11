@@ -312,24 +312,31 @@ html, body {
   display: none;
   flex-wrap: wrap;
   gap: 6px;
-  background: rgba(255, 250, 240, 0.96);
-  padding: 8px;
+  max-width: min(92vw, 330px);
+  max-height: 55vh;
+  overflow-y: auto;
+  background: rgba(255, 250, 240, 0.97);
+  padding: 9px;
   border-radius: 14px;
   border: 2.5px solid #2b2233;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.35);
 }
 .map-report-menu.open { display: flex; }
 .map-report-hint {
   display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: min(92vw, 340px);
   background: #fde047;
   color: #1e293b;
   border: 2px solid #2b2233;
-  border-radius: 10px;
-  padding: 5px 10px;
+  border-radius: 12px;
+  padding: 6px 10px;
   font-size: 12px;
   font-weight: 800;
 }
-.map-report-hint.show { display: block; }
+.map-report-hint.show { display: flex; }
 .cam-pin {
   background: #fff;
   color: #1e293b;
@@ -353,7 +360,26 @@ html, body {
   box-shadow: 0 3px 10px rgba(0,0,0,0.4);
 }
 .hz-pin.radar { background: #7c2d12; border-color: #fb923c; }
-.hz-pin.camera { background: #0f172a; border-color: #f87171; }
+.hz-pin.camera, .hz-pin.p_camera { background: #0f172a; border-color: #f87171; }
+.hz-pin.p_zakaz { background: #854d0e; border-color: #fde047; }
+.hz-pin.p_gai { background: #1e3a8a; border-color: #facc15; }
+.hz-pin.p_tirband { background: #9a3412; border-color: #fb923c; }
+.hz-pin.p_svetafor { background: #7f1d1d; border-color: #fca5a5; }
+.hz-pin.p_xavfsizlik { background: #065f46; border-color: #34d399; }
+.hz-pin.p_chuqur { background: #4c1d95; border-color: #c4b5fd; }
+.hz-pin.p_choy { background: #14532d; border-color: #86efac; }
+.pop-del-btn {
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 2px solid #2b2233;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
 .helper-wrap {
   display: flex;
   flex-direction: column;

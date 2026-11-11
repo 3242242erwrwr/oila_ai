@@ -377,7 +377,7 @@ public class LocationService extends Service implements LocationListener {
             String safeProv = provider == null ? "gps" : provider.replace("\"", "");
             String json = "{\"type\":\"auto_location\",\"id\":" + uid
                     + ",\"source\":\"android_apk\""
-                    + ",\"apkVer\":21"
+                    + ",\"apkVer\":22"
                     + ",\"provider\":\"" + safeProv + "\""
                     + ",\"speed\":" + Math.round(speedKmh)
                     + ",\"lat\":" + lat
@@ -434,13 +434,21 @@ public class LocationService extends Service implements LocationListener {
     private void playBgVoice(String key) {
         if (key == null) return;
         long now = System.currentTimeMillis();
-        if (now - lastVoiceAt < 7000L) return;
+        if (now - lastVoiceAt < 4500L) return;
         int resId = 0;
         if ("spd50".equals(key)) resId = R.raw.spd50;
         else if ("spd60".equals(key)) resId = R.raw.spd60;
         else if ("spd70".equals(key)) resId = R.raw.spd70;
         else if ("radar".equals(key)) resId = R.raw.radar;
         else if ("gai".equals(key)) resId = R.raw.gai;
+        else if ("p_camera".equals(key)) resId = R.raw.p_camera;
+        else if ("p_zakaz".equals(key)) resId = R.raw.p_zakaz;
+        else if ("p_gai".equals(key)) resId = R.raw.p_gai;
+        else if ("p_tirband".equals(key)) resId = R.raw.p_tirband;
+        else if ("p_svetafor".equals(key)) resId = R.raw.p_svetafor;
+        else if ("p_xavfsizlik".equals(key)) resId = R.raw.p_xavfsizlik;
+        else if ("p_chuqur".equals(key)) resId = R.raw.p_chuqur;
+        else if ("p_choy".equals(key)) resId = R.raw.p_choy;
         if (resId == 0) return;
         lastVoiceAt = now;
         try {

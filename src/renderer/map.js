@@ -2,6 +2,16 @@ import * as L from 'leaflet';
 
 const DEFAULT_VIEW = [41.311, 69.279]; // Toshkent
 const INDOOR_SET = new Set(['home', 'pc', 'tv', 'insta', 'eat', 'cook', 'sleep', 'wc', 'garage']);
+const PRESET_MAP = {
+  p_camera:     { badge: '📸 Kamera',     text: "Yo'lda kamera bor, ehtiyot bo'lamiz!" },
+  p_zakaz:      { badge: '🚕 Zakaz',      text: "Og'ayni, bizga ham zakaz qolsin!" },
+  p_gai:        { badge: '🚔 GAI bor',    text: "Yo'lingda gayi bor, ehtiyot bo'ling!" },
+  p_tirband:    { badge: '🚗 Tirband',    text: "Shu yo'l juda tirband, sabrli bo'l!" },
+  p_svetafor:   { badge: '🚦 Svetafor',   text: 'Svetafor ishlamayapti!' },
+  p_xavfsizlik: { badge: '🛡️ Xavfsizlik', text: "Yo'lda chalg'imaymiz, eng muhimi xavfsizlik!" },
+  p_chuqur:     { badge: '🕳️ Chuqur',     text: "Shu yo'lda chuqur bor, ehtiyot bo'lamiz!" },
+  p_choy:       { badge: '🍵 Choy ichvol', text: 'Choy ichvolishni unutmaymiz, och qoringa yurmaymiz!' },
+};
 const STATUS_TEXT = {
   home: '🏠 Mehmonxonada',
   pc: '💻 Kompyuterda ishlayapti',
@@ -84,6 +94,7 @@ export class FamilyMap {
     this.reportMode = null;
     this.alertTimer = null;
     this.localCool = new Map();
+    this.presetInside = new Map();
     this.lastShownAlertId = '';
     this.applyThemeUi();
     setInterval(() => this.isOpen && this.render(), 2000);
@@ -149,7 +160,8 @@ export class FamilyMap {
   playVoice(key) {
     if (!this.voiceEnabled || !this.voicePlayer || document.hidden) return;
     const now = Date.now();
-    if (now - this.lastVoiceAt < 7000) return;
+    const gap = String(key).startsWith('p_') ? 4500 : 7000;
+    if (now - this.lastVoiceAt < gap) return;
     this.lastVoiceAt = now;
     try {
       this.voicePlayer.muted = false;
@@ -174,19 +186,31 @@ export class FamilyMap {
       if (roadAlert && roadAlert.id && roadAlert.id !== this.lastShownAlertId && Date.now() - roadAlert.at < 35000) {
         this.lastShownAlertId = roadAlert.id;
         if (!roadAlert.isReport) {
+          const isPreset = Boolean(roadAlert.isPreset || PRESET_MAP[roadAlert.kind]);
+          const isForMe = Boolean(this.myUid && Number(roadAlert.targetId) === Number(this.myUid));
           const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
-          const selfNative = Boolean(me && Number(me.apkVer || 0) >= 21 && Number(roadAlert.targetId) === Number(this.myUid));
-          if (!selfNative) {
-            const vk = roadAlert.kind === 'gai'
-              ? 'gai'
-              : roadAlert.kind === 'speed'
-                ? `spd${roadAlert.tier || 50}`
-                : 'radar';
-            this.playVoice(vk);
+          if (isPreset) {
+            if (isForMe) {
+              if (this.isOpen) this.showAlertBanner(roadAlert.label || roadAlert.text, true);
+              if (Number(me?.apkVer || 0) < 22) {
+                this.playVoice(roadAlert.voice || roadAlert.kind);
+              }
+            }
+          } else {
+            const selfNative = Boolean(me && Number(me.apkVer || 0) >= 21 && isForMe);
+            if (!selfNative) {
+              const vk = roadAlert.kind === 'gai'
+                ? 'gai'
+                : roadAlert.kind === 'speed'
+                  ? `spd${roadAlert.tier || 50}`
+                  : 'radar';
+              this.playVoice(vk);
+            }
           }
         }
       }
     }
+    this.checkPresetProximity();
     if (this.map && this.isOpen) {
       this.renderHazards();
       this.updateHelperBot();
@@ -206,17 +230,74 @@ export class FamilyMap {
   setReportMode(mode) {
     this.reportMode = mode || null;
     const hint = document.getElementById('map-report-hint');
+    const hintText = document.getElementById('map-report-hint-text');
     const menu = document.getElementById('map-report-menu');
     if (menu) menu.classList.remove('open');
     if (hint) {
       if (this.reportMode) {
-        const lbl = this.reportMode === 'gai' ? '🚔 GAI' : this.reportMode === 'radar' ? '📡 Radar' : '📸 Doimiy kamera';
-        hint.textContent = `👇 Xaritada ${lbl} joyini bosing!`;
+        const preset = PRESET_MAP[this.reportMode];
+        const lbl = preset ? preset.badge : '📍 Belgi';
+        if (hintText) hintText.textContent = `👇 Xaritada ${lbl} joyini bosing`;
         hint.classList.add('show');
       } else {
         hint.classList.remove('show');
       }
     }
+  }
+
+  async placeHazardAt(mode, lat, lon) {
+    if (!mode || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
+    try {
+      const res = await fetch('/api/hazard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: mode,
+          lat,
+          lon,
+          reportedBy: this.myUid || null,
+          reportedByName: me?.name || 'Haydovchi',
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.hazard) {
+          this.hazards = [...this.hazards.filter((h) => h.id !== data.hazard.id), data.hazard];
+          if (me?.location && Number.isFinite(me.location.lat) && Number.isFinite(me.location.lon)) {
+            const d = Math.hypot((data.hazard.lat - me.location.lat) * 111320, (data.hazard.lon - me.location.lon) * 85000);
+            if (d <= 250) this.presetInside.set(`${me.id}:${data.hazard.id}`, true);
+          }
+          this.renderHazards();
+          const preset = PRESET_MAP[data.hazard.type];
+          this.showAlertBanner(`✅ ${preset ? preset.badge : 'Belgi'} xaritaga qo'yildi!`, false);
+        }
+      }
+    } catch {}
+  }
+
+  placePresetAtMe() {
+    if (!this.reportMode) return;
+    const mode = this.reportMode;
+    this.setReportMode(null);
+    const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
+    if (me?.location && Number.isFinite(me.location.lat) && Number.isFinite(me.location.lon)) {
+      this.placeHazardAt(mode, me.location.lat, me.location.lon);
+      return;
+    }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => this.placeHazardAt(mode, pos.coords.latitude, pos.coords.longitude),
+        () => {
+          const c = this.map?.getCenter();
+          if (c) this.placeHazardAt(mode, c.lat, c.lng);
+        },
+        { enableHighAccuracy: true, timeout: 4000 }
+      );
+      return;
+    }
+    const c = this.map?.getCenter();
+    if (c) this.placeHazardAt(mode, c.lat, c.lng);
   }
 
   async loadCameras() {
@@ -412,32 +493,11 @@ export class FamilyMap {
     this.map.on('moveend zoomend', () => {
       this.renderCameras();
     });
-    this.map.on('click', async (e) => {
+    this.map.on('click', (e) => {
       if (!this.reportMode) return;
       const mode = this.reportMode;
       this.setReportMode(null);
-      const me = this.myUid && this.members.find((x) => Number(x.id) === Number(this.myUid));
-      try {
-        const res = await fetch('/api/hazard', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: mode,
-            lat: e.latlng.lat,
-            lon: e.latlng.lng,
-            reportedBy: this.myUid || null,
-            reportedByName: me?.name || 'Haydovchi',
-          }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.hazard) {
-            this.hazards = [...this.hazards.filter((h) => h.id !== data.hazard.id), data.hazard];
-            this.renderHazards();
-            this.showAlertBanner('✅ Belgilandi va xaritaga chiqarildi!', false);
-          }
-        }
-      } catch {}
+      this.placeHazardAt(mode, e.latlng.lat, e.latlng.lng);
     });
 
     this.updateFollowUi();
@@ -479,6 +539,7 @@ export class FamilyMap {
     if (members) this.members = members;
     if (home !== undefined) this.home = home;
     this.updateFollowUi();
+    this.checkPresetProximity();
     if (this.map) this.render();
   }
 
@@ -754,13 +815,83 @@ export class FamilyMap {
     const now = Date.now();
     for (const h of this.hazards) {
       if (h.expiresAt && h.expiresAt <= now) continue;
-      const cls = h.type === 'radar' ? 'hz-pin radar' : h.type === 'camera' ? 'hz-pin camera' : 'hz-pin';
-      const lbl = h.type === 'radar' ? '📡 Radar' : h.type === 'camera' ? '📸 Kamera' : '🚔 GAI';
-      const icon = L.divIcon({ html: `<div class="${cls}">${lbl}</div>`, className: 'pin-icon', iconSize: [68, 24], iconAnchor: [34, 12] });
-      const rem = h.expiresAt ? `⏳ ${Math.max(1, Math.round((h.expiresAt - now) / 60000))} daqiqa qoldi` : '📌 Doimiy belgi';
-      const who = h.reportedByName ? `Belgiladi: ${h.reportedByName}` : '';
-      const info = [`<b>${lbl}</b>`, rem, who].filter(Boolean).join('<br/>');
-      L.marker([h.lat, h.lon], { icon, zIndexOffset: 20 }).bindPopup(info).addTo(this.hazardLayer);
+      const preset = PRESET_MAP[h.type];
+      const cls = preset ? `hz-pin preset ${h.type}` : (h.type === 'radar' ? 'hz-pin radar' : h.type === 'camera' ? 'hz-pin camera' : 'hz-pin');
+      const lbl = preset ? preset.badge : (h.type === 'radar' ? '📡 Radar' : h.type === 'camera' ? '📸 Kamera' : '🚔 GAI');
+      const icon = L.divIcon({ html: `<div class="${cls}">${lbl}</div>`, className: 'pin-icon', iconSize: [104, 26], iconAnchor: [52, 13] });
+
+      const box = el('div', 'pop');
+      box.append(el('div', 'pop-name', lbl));
+      if (preset) {
+        box.append(el('div', null, `🔊 "${preset.text}"`));
+        box.append(el('div', 'pop-sub', "📡 200 m radius • tezliksiz"));
+      }
+      if (h.expiresAt) {
+        const mins = Math.max(1, Math.round((h.expiresAt - now) / 60000));
+        const timeText = mins >= 60 ? `${Math.round(mins / 60)} soat qoldi` : `${mins} daqiqa qoldi`;
+        box.append(el('div', 'pop-sub', `⏳ ${timeText}`));
+      } else {
+        box.append(el('div', 'pop-sub', '📌 Doimiy belgi'));
+      }
+      if (h.reportedByName) {
+        box.append(el('div', 'pop-sub', `👤 Belgiladi: ${h.reportedByName}`));
+      }
+      const delBtn = el('button', 'pop-del-btn', "🗑️ Belgini o'chirish");
+      delBtn.type = 'button';
+      delBtn.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          const r = await fetch('/api/hazard/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: h.id }),
+          });
+          if (r.ok) {
+            this.hazards = this.hazards.filter((x) => x.id !== h.id);
+            this.renderHazards();
+          }
+        } catch {}
+      };
+      box.append(delBtn);
+
+      L.marker([h.lat, h.lon], { icon, zIndexOffset: 25 }).bindPopup(box).addTo(this.hazardLayer);
+    }
+  }
+
+  checkPresetProximity() {
+    if (!this.myUid || !this.hazards.length) return;
+    const me = this.members.find((x) => !x.isAi && Number(x.id) === Number(this.myUid) && x.location && isLive(x.location));
+    if (!me) return;
+    const { lat, lon } = me.location;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const now = Date.now();
+    const selfNativePreset = Number(me.apkVer || 0) >= 22;
+    let best = null;
+    let bestDist = Infinity;
+
+    for (const h of this.hazards) {
+      const preset = PRESET_MAP[h.type];
+      if (!preset) continue;
+      if (h.expiresAt && h.expiresAt <= now) continue;
+
+      const zKey = `${me.id}:${h.id}`;
+      const d = Math.hypot((h.lat - lat) * 111320, (h.lon - lon) * 85000);
+      if (d > 250) {
+        this.presetInside.delete(zKey);
+        continue;
+      }
+      if (d <= 200 && !this.presetInside.get(zKey) && d < bestDist) {
+        best = { h, preset, zKey };
+        bestDist = d;
+      }
+    }
+
+    if (!best) return;
+    this.presetInside.set(best.zKey, true);
+    if (this.isOpen) this.showAlertBanner(`${best.preset.badge}: ${best.preset.text}`, true);
+    if (!selfNativePreset) {
+      this.playVoice(best.h.type);
     }
   }
 
@@ -774,7 +905,7 @@ export class FamilyMap {
 
   findNearestHazard(lat, lon, now) {
     const spots = [
-      ...this.hazards.filter((h) => !h.expiresAt || h.expiresAt > now).map((h) => ({ id: h.id, lat: h.lat, lon: h.lon, kind: h.type, limit: h.limit })),
+      ...this.hazards.filter((h) => !PRESET_MAP[h.type] && (!h.expiresAt || h.expiresAt > now)).map((h) => ({ id: h.id, lat: h.lat, lon: h.lon, kind: h.type, limit: h.limit })),
       ...this.cameras.filter((c) => Math.abs(c.lat - lat) <= 0.008 && Math.abs(c.lon - lon) <= 0.008),
     ];
     let best = null;

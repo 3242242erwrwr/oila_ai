@@ -183,7 +183,7 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
-    // 1.8 Xaritadan GAI / Radar / Kamera belgilash
+    // 1.8 Xaritadan Camera/GAI belgilash va o'chirish
     if (pathname === '/api/hazard' && req.method === 'POST') {
       let body = '';
       req.on('data', (chunk) => { if (body.length < 4096) body += chunk; });
@@ -198,10 +198,29 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
             speedLimit: p.speedLimit,
             reportedBy: reporter ? reporter.id : (p.reportedBy || null),
             reportedByName: reporter?.name || p.reportedByName || 'Haydovchi',
+            reporterLocation: reporter?.location || null,
           });
           if (!hz) throw new Error('Koordinata xato');
           res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ ok: true, hazard: hz }));
+        } catch (err) {
+          res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));
+        }
+      });
+      return;
+    }
+
+    if ((pathname === '/api/hazard/delete' && req.method === 'POST') || (pathname === '/api/hazard' && req.method === 'DELETE')) {
+      let body = '';
+      req.on('data', (chunk) => { if (body.length < 2048) body += chunk; });
+      req.on('end', () => {
+        try {
+          const p = body ? JSON.parse(body) : {};
+          const id = p.id || u.searchParams.get('id') || '';
+          const removed = road.removeHazard(id);
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: removed }));
         } catch (err) {
           res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
           res.end(JSON.stringify({ ok: false, error: String(err.message || err) }));

@@ -13,7 +13,7 @@
   <title>Oilaviy Uy</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <link rel="stylesheet" href="../../node_modules/leaflet/dist/leaflet.css" />
-  <link rel="stylesheet" href="style.css?v=16" />
+  <link rel="stylesheet" href="style.css?v=17" />
   <script type="importmap">
     {
       "imports": {
@@ -55,14 +55,23 @@
         <div id="map" class="map"></div>
         <div id="map-alert" class="map-alert"></div>
         <div id="map-report-bar" class="map-report-bar">
-          <button id="map-add-gai" type="button" class="map-fab">🚔 + GAI / Radar</button>
+          <button id="map-add-gai" type="button" class="map-fab">📸 Camera/GAI</button>
           <div id="map-report-menu" class="map-report-menu">
-            <button type="button" class="btn small" data-hz="gai">🚔 GAI (2 soat)</button>
-            <button type="button" class="btn small" data-hz="radar">📡 Radar (2 soat)</button>
-            <button type="button" class="btn small" data-hz="camera">📸 Doimiy kamera</button>
-            <button type="button" class="btn small" id="map-hz-cancel">✖</button>
+            <button type="button" class="btn small" data-hz="p_camera">📸 Kamera</button>
+            <button type="button" class="btn small" data-hz="p_zakaz">🚕 Zakaz qolsin</button>
+            <button type="button" class="btn small" data-hz="p_gai">🚔 Gayi bor</button>
+            <button type="button" class="btn small" data-hz="p_tirband">🚗 Tirband yo'l</button>
+            <button type="button" class="btn small" data-hz="p_svetafor">🚦 Svetafor</button>
+            <button type="button" class="btn small" data-hz="p_xavfsizlik">🛡️ Xavfsizlik</button>
+            <button type="button" class="btn small" data-hz="p_chuqur">🕳️ Chuqur bor</button>
+            <button type="button" class="btn small" data-hz="p_choy">🍵 Choy ichvol</button>
+            <button type="button" class="btn small" id="map-hz-cancel">✖ Yopish</button>
           </div>
-          <div id="map-report-hint" class="map-report-hint"></div>
+          <div id="map-report-hint" class="map-report-hint">
+            <span id="map-report-hint-text"></span>
+            <button type="button" class="btn small" id="map-hz-here" style="background:#10b981;color:#fff;">📍 Shu yerimga</button>
+            <button type="button" class="btn small" id="map-hz-hint-cancel">✖</button>
+          </div>
         </div>
       </div>
     </div>
@@ -124,6 +133,6 @@
     </div>
   </div>
 
-  <script type="module" src="app.js?v=78"></script>
+  <script type="module" src="app.js?v=79"></script>
 </body>
 </html>
