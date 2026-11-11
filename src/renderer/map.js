@@ -173,7 +173,6 @@ export class FamilyMap {
       this.roadAlert = roadAlert;
       if (roadAlert && roadAlert.id && roadAlert.id !== this.lastShownAlertId && Date.now() - roadAlert.at < 35000) {
         this.lastShownAlertId = roadAlert.id;
-        this.showAlertBanner(roadAlert.text, !roadAlert.isReport);
         if (!roadAlert.isReport) {
           const vk = roadAlert.kind === 'gai'
             ? 'gai'
@@ -810,39 +809,29 @@ export class FamilyMap {
       const tierInfo = this.getSpeedSay(spd);
       const best = this.findNearestHazard(lat, lon, now);
 
-      let text;
       let warn = false;
       if (best) {
-        const distRounded = Math.max(20, Math.round(best.dist / 10) * 10);
-        const kindTxt = best.kind === 'gai' ? '🚔 GAI posti' : best.limit ? `📸 Radar (${best.limit})` : '📸 Kamera';
-        text = tierInfo
-          ? `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase} • ~${distRounded} m da ${kindTxt}!`
-          : `⚠️ ${m.name} (${spd} km/s): ~${distRounded} m da ${kindTxt}!`;
         warn = true;
         const ck = `${m.id}:${best.id}`;
         if (now - (this.localCool.get(ck) || 0) > 120_000) {
           this.localCool.set(ck, now);
-          this.showAlertBanner(text, true);
           this.playVoice(best.kind === 'gai' ? 'gai' : 'radar');
         }
       } else if (tierInfo) {
-        text = `${tierInfo.emoji} ${m.name} (${spd} km/s): ${tierInfo.phrase}`;
         warn = tierInfo.warn;
         const ck = `${m.id}:spd:${tierInfo.tier}`;
         if (now - (this.localCool.get(ck) || 0) > 90_000) {
           this.localCool.set(ck, now);
-          this.showAlertBanner(text, warn);
           this.playVoice(`spd${tierInfo.tier}`);
         }
-      } else {
-        text = `🤖 ${m.name}: ${spd} km/soat`;
       }
 
+      const speedText = `${spd} km/s`;
       const hLat = lat + 0.00032;
       const hLon = lon + 0.00032;
-      const key = `${warn ? 1 : 0}|${text}`;
-      const html = `<div class="helper-wrap"><div class="helper-bubble${warn ? ' warn' : ''}">${text}</div><div class="helper-pin">🤖</div></div>`;
-      const icon = L.divIcon({ html, className: 'pin-icon', iconSize: [190, 62], iconAnchor: [95, 45] });
+      const key = `${warn ? 1 : 0}|${speedText}`;
+      const html = `<div class="helper-wrap"><div class="helper-bubble${warn ? ' warn' : ''}">${speedText}</div><div class="helper-pin">🤖</div></div>`;
+      const icon = L.divIcon({ html, className: 'pin-icon', iconSize: [74, 56], iconAnchor: [37, 42] });
 
       let hm = this.helperMarkers.get(m.id);
       if (!hm) {

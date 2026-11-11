@@ -249,13 +249,6 @@ async function startBot(token, onStatus, options = {}) {
   let lastGaiHintAt = 0;
 
   road.removeAllListeners('alert');
-  road.on('alert', (al) => {
-    if (!al || al.isReport || !al.targetId || !bot) return;
-    const msg = al.kind === 'speed'
-      ? `🤖 *Yo'l Yordamchisi:*\n${al.text}`
-      : `🤖 *Yo'l Yordamchisi:*\n${al.text || `⚠️ Oldinda ~${al.dist} m da *${al.label}*!`}`;
-    bot.api.sendMessage(al.targetId, msg, { parse_mode: 'Markdown' }).catch(() => {});
-  });
 
   // Guruh tekshiruvi: faqat "Oila_3d_room" guruhida qoladi
   bot.use(async (ctx, next) => {

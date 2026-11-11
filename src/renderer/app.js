@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=75';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=76';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -1159,10 +1159,7 @@ if (api) {
   api.onBotStatus(showBotStatus);
   api.onRoad?.(({ hazards, roadAlert }) => fmap.setRoadData(hazards, roadAlert));
   api.onRoadAlert?.((al) => {
-    if (al?.text) {
-      toast(`🤖 ${al.text}`);
-      fmap.setRoadData(undefined, al);
-    }
+    if (al) fmap.setRoadData(undefined, al);
   });
   api.onJoined((m) => toast(`🎉 ${m.name} (${m.age} yosh) oilaga qo'shildi!`));
   api.onMoved(({ name, event }) => {
