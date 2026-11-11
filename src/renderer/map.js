@@ -147,7 +147,7 @@ export class FamilyMap {
   }
 
   playVoice(key) {
-    if (!this.voiceEnabled || !this.voicePlayer || !this.isOpen) return;
+    if (!this.voiceEnabled || !this.voicePlayer || document.hidden) return;
     const now = Date.now();
     if (now - this.lastVoiceAt < 7000) return;
     this.lastVoiceAt = now;

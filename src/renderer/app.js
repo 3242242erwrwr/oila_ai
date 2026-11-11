@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=76';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=77';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -43,7 +43,8 @@ document.getElementById('map-btn').addEventListener('click', () => {
   pollLocationOnce(true, true);
   fmap.toggle();
 });
-document.addEventListener('pointerdown', () => fmap.unlockAudio(), { once: true });
+document.addEventListener('pointerdown', () => fmap.unlockAudio(), { passive: true });
+document.addEventListener('touchend', () => fmap.unlockAudio(), { passive: true });
 document.getElementById('map-close').addEventListener('click', () => fmap.close());
 document.getElementById('map-dark')?.addEventListener('click', () => fmap.toggleDark());
 document.getElementById('map-traffic')?.addEventListener('click', () => fmap.toggleTraffic());
