@@ -155,10 +155,12 @@ class Store extends EventEmitter {
 
     for (const m of this.data.members) {
       if (m.isAi) continue;
-      // Bir martalik tuzatish: 7748681452 asli Dilmurod (adashib "Мурат" deb kiritilgan)
-      if (Number(m.id) === 7748681452 && !m.nameFixDilmurod) {
+      // Qat'iy nomlash: 7748681452 = Мурат (uydagi telefon), 5123370336 = Dilmurod
+      if (Number(m.id) === 7748681452) {
+        m.name = 'Мурат';
+        changed = true;
+      } else if (Number(m.id) === 5123370336) {
         m.name = 'Dilmurod';
-        m.nameFixDilmurod = true;
         changed = true;
       }
       if (!m.gender) { m.gender = m.appearance?.hairStyle === 1 || m.appearance?.hairStyle === 2 ? 'female' : 'male'; changed = true; }
