@@ -155,11 +155,11 @@ class Store extends EventEmitter {
 
     for (const m of this.data.members) {
       if (m.isAi) continue;
-      // Qat'iy nomlash: 5123370336 = Мурат (uyda), 7748681452 = Dilmurod (ko'chada)
-      if (Number(m.id) === 5123370336) {
+      // Qat'iy nomlash: 7748681452 = Мурат (foydalanuvchi ushlab turgan telefon), 5123370336 = Dilmurod
+      if (Number(m.id) === 7748681452) {
         m.name = 'Мурат';
         changed = true;
-      } else if (Number(m.id) === 7748681452) {
+      } else if (Number(m.id) === 5123370336) {
         m.name = 'Dilmurod';
         changed = true;
       }
