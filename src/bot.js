@@ -160,11 +160,11 @@ async function sendApkToChat(chatId) {
       new InputFile(APK_PATH, 'Oilaviy_Uy.apk'),
       {
         caption:
-          "📲 *Oilaviy Uy — Fon GPS Datchigi (.apk)*\n\n" +
-          "Bu dastur faqat Telegram yopiq paytda ham joylashuv uzatilib turishi uchun xizmat qiladi.\n\n" +
-          "1️⃣ Fayl ustiga bosib *\"Установить\"* va *\"Открыть\"* qiling.\n" +
-          "2️⃣ So'ralgan ruxsatlarni berib qo'ying.\n\n" +
-          "✅ Bo'ldi! Shundan so'ng dasturni yopib qo'ysangiz ham bo'ladi — 3D Uy va harakatlarni Telegram orqali ko'raverasiz!",
+          "📲 *Oilaviy Uy — Yangi v25.0 Fon GPS Datchigi (.apk)*\n\n" +
+          "⚡️ *YANGILIK:* Ilova, Telegram, Xarita va 3D Uydan butunlay chiqib ketganda ham Camera/GAI ovozlari 24/7 dinamikdan to'xtovsiz yangraydi!\n\n" +
+          "1️⃣ Fayl ustiga bosib *\"Установить\"* (Yangilash) qiling.\n" +
+          "2️⃣ O'rnatgach bir marta *\"Открыть\"* qilib qo'ying.\n\n" +
+          "✅ Bo'ldi! Shundan so'ng telefon ekrani o'chiq bo'lsa ham yo'ldagi belgilar 200m masofada baralla eshitiladi!",
         parse_mode: 'Markdown',
       }
     );
@@ -405,7 +405,17 @@ async function startBot(token, onStatus, options = {}) {
   bot.command('xona', sendRoomLink);
 
   bot.command('apk', async (ctx) => {
-    await sendApkToChat(ctx.chat?.id);
+    const sent = await sendApkToChat(ctx.chat?.id);
+    if (!sent) {
+      const baseUrl = getPublicUrlFn();
+      await ctx.reply(
+        `📲 *Yangi v25.0 APK ilovasi:*\n\n` +
+        `Yuklab olish uchun havola:\n` +
+        `👉 ${baseUrl}/Oilaviy_Uy.apk\n\n` +
+        `Ushbu versiyada ilova va botdan chiqib ketganda ham 24/7 ovozli ogohlantirishlar 100% ishlaydi!`,
+        { parse_mode: 'Markdown' }
+      );
+    }
   });
 
   bot.command('sozlama', async (ctx) => {
