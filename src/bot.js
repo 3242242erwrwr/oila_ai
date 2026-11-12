@@ -300,7 +300,7 @@ async function startBot(token, onStatus, options = {}) {
       age: existing?.age || 25,
     });
     const intro = isEdit
-      ? `✏️ *${ctx.from.first_name || ''}, profilingizni yangilaymiz!*\n\n1️⃣ *Ismingiz nima?* (Ismingizni yozing):`
+      ? `✏️ *${existing?.name || ctx.from.first_name || ''}, profilingizni yangilaymiz!*\n\n1️⃣ *Ismingiz nima?* (Ismingizni yozing):`
       : "Assalomu alaykum! 🏠 *Oilaviy uyga xush kelibsiz.*\n\n1️⃣ *Ismingiz nima?* (Ismingizni yozing):";
     await ctx.reply(intro, {
       parse_mode: 'Markdown',
