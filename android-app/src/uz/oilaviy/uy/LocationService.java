@@ -62,7 +62,7 @@ public class LocationService extends Service implements LocationListener {
         @Override
         public void run() {
             pollAndSend();
-            handler.postDelayed(this, 2500);
+            handler.postDelayed(this, 1500);
         }
     };
 
@@ -73,7 +73,7 @@ public class LocationService extends Service implements LocationListener {
         startForegroundCompat();
         startListeningLocation();
         pollAndSend();
-        handler.postDelayed(periodicTask, 2500);
+        handler.postDelayed(periodicTask, 1500);
     }
 
     @Override
@@ -335,7 +335,7 @@ public class LocationService extends Service implements LocationListener {
             lastSentLon = lon;
             lastSentAcc = acc;
             lastSentAt = now;
-        } else if (now - lastSentAt >= 5000L) {
+        } else if (now - lastSentAt >= 3000L) {
             sendLat = lastSentLat;
             sendLon = lastSentLon;
             sendSpeed = 0f;
@@ -382,7 +382,7 @@ public class LocationService extends Service implements LocationListener {
         if (uid == null || uid.trim().isEmpty()) return;
 
         final long now = System.currentTimeMillis();
-        if (now - lastSentAt < 5000L) return;
+        if (now - lastSentAt < 3000L) return;
         lastSentAt = now;
 
         final String cleanUid = uid.trim();
@@ -399,7 +399,7 @@ public class LocationService extends Service implements LocationListener {
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/json; charset=utf-8");
 
-                    String json = "{\"type\":\"apk_ping\",\"id\":" + cleanUid + ",\"source\":\"android_apk\",\"apkVer\":24}";
+                    String json = "{\"type\":\"apk_ping\",\"id\":" + cleanUid + ",\"source\":\"android_apk\",\"apkVer\":25}";
                     byte[] body = json.getBytes(StandardCharsets.UTF_8);
                     conn.setFixedLengthStreamingMode(body.length);
                     OutputStream os = conn.getOutputStream();
@@ -432,7 +432,7 @@ public class LocationService extends Service implements LocationListener {
             String safeProv = provider == null ? "gps" : provider.replace("\"", "");
             String json = "{\"type\":\"auto_location\",\"id\":" + uid
                     + ",\"source\":\"android_apk\""
-                    + ",\"apkVer\":24"
+                    + ",\"apkVer\":25"
                     + ",\"provider\":\"" + safeProv + "\""
                     + ",\"speed\":" + Math.round(speedKmh)
                     + ",\"lat\":" + lat

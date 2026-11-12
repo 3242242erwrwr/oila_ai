@@ -201,12 +201,9 @@ export class FamilyMap {
     const guardTimer = setTimeout(finish, 6000);
 
     const ackServer = () => {
-      if (!this.myUid) return;
-      fetch('/api/action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'voice_ack', id: Number(this.myUid), key }),
-      }).catch(() => {});
+      // Izoh: Xaritada ovoz yangraganda APK uchun navbatni o'chirmaymiz (voice_ack yubormaymiz),
+      // chunki foydalanuvchi xaritadan chiqib ketsa ham, ekranni yopsa ham har qanday holatda
+      // har bir a'zoning telefonida mustaqil ravishda ovoz kelishi kerak!
     };
 
     try {

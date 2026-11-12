@@ -504,7 +504,8 @@ class RoadGuard extends EventEmitter {
     const now = Date.now();
     while (q.length > 0) {
       const item = q.shift();
-      if (now - item.at <= 60_000) {
+      // O'chiq telefonlar (uxlagan fon jarayonlari) uchun 5 daqiqa (300_000 ms) kutamiz
+      if (now - item.at <= 300_000) {
         if (q.length === 0) this.pendingVoice.delete(keyNum);
         return item.key;
       }

@@ -37,8 +37,8 @@ public class MainActivity extends Activity {
     private static final String[][] MEMBERS = {
         {"🙋‍♂️ Jamshid", "6280077746", "#3b82f6"},
         {"🙋‍♀️ Dilrabo", "1512600413", "#ec4899"},
-        {"🙋‍♂️ Dilmurod", "7748681452", "#8b5cf6"},
-        {"🙋‍♂️ Мурат", "5123370336", "#0d9488"},
+        {"🙋‍♂️ Мурат", "7748681452", "#8b5cf6"},
+        {"🙋‍♂️ Dilmurod", "5123370336", "#0d9488"},
         {"🙋‍♂️ Jahongir", "780454115", "#f59e0b"}
     };
 

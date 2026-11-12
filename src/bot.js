@@ -1065,7 +1065,7 @@ async function handleRoomAction(payload) {
         store.save();
         store.emit('change');
       }
-      if (payload.source === 'android_apk' && Number(payload.apkVer || 0) >= 24) {
+      if (payload.source === 'android_apk' && Number(payload.apkVer || 0) >= 21) {
         const voice = road.consumeVoice(id);
         if (voice) return { voice };
       }
