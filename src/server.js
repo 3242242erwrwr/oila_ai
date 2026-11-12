@@ -229,6 +229,13 @@ function startWebServer({ getBotStatus, onWebAction, port = Number(process.env.P
       return;
     }
 
+    if (pathname === '/api/hazard/clear' && (req.method === 'POST' || req.method === 'DELETE')) {
+      const count = road.clearHazards();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ ok: true, count }));
+      return;
+    }
+
     // 2. Holat ma'lumotlari
     if (pathname === '/api/state' && req.method === 'GET') {
       const payload = JSON.stringify({

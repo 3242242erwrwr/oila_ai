@@ -1,4 +1,4 @@
-const CACHE_NAME = 'oila-uy-v6';
+const CACHE_NAME = 'oila-uy-v7';
 
 const isImmutableStatic = (url) => {
   const p = url.pathname;

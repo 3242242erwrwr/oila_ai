@@ -4,7 +4,7 @@ import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
 import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js';
 import { Room, DOOR } from './room.js?v=22';
 import { Character, STATUS_ICON, JOB_ICON } from './character.js?v=22';
-import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=81';
+import { FamilyMap, timeAgo, formatDistance, isLive } from './map.js?v=82';
 
 const STATUS_TEXT = {
   home: 'Mehmonxonada',
@@ -55,6 +55,7 @@ document.getElementById('map-add-gai')?.addEventListener('click', () => {
   if (fmap.reportMode) fmap.setReportMode(null);
   else reportMenu?.classList.toggle('open');
 });
+document.getElementById('map-hz-clear')?.addEventListener('click', () => fmap.clearAllHazards());
 document.getElementById('map-hz-cancel')?.addEventListener('click', () => fmap.setReportMode(null));
 document.getElementById('map-hz-hint-cancel')?.addEventListener('click', () => fmap.setReportMode(null));
 document.getElementById('map-hz-here')?.addEventListener('click', () => fmap.placePresetAtMe());

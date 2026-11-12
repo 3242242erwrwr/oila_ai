@@ -177,7 +177,7 @@ export class FamilyMap {
     if (!key || !this.voiceEnabled || !this.voicePlayer || document.hidden) return;
     const now = Date.now();
     const prevKeyAt = this.lastPlayedKeyAt.get(key) || 0;
-    if (now - prevKeyAt < 4000) return;
+    if (now - prevKeyAt < 15000) return;
     this.lastPlayedKeyAt.set(key, now);
     this.voiceQueue.push(key);
     if (this.voiceQueue.length > 5) this.voiceQueue.shift();
@@ -200,6 +200,15 @@ export class FamilyMap {
     };
     const guardTimer = setTimeout(finish, 6000);
 
+    const ackServer = () => {
+      if (!this.myUid) return;
+      fetch('/api/action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'voice_ack', id: Number(this.myUid), key }),
+      }).catch(() => {});
+    };
+
     try {
       this.voicePlayer.onended = finish;
       this.voicePlayer.onerror = finish;
@@ -207,16 +216,31 @@ export class FamilyMap {
       this.voicePlayer.src = `/voice/${key}.wav`;
       this.voicePlayer.currentTime = 0;
       const p = this.voicePlayer.play();
-      if (p && typeof p.catch === 'function') {
-        p.catch(() => {
+      if (p && typeof p.then === 'function') {
+        p.then(ackServer).catch(() => {
           this.audioUnlocked = false;
           this.queuedVoice = key;
           finish();
         });
+      } else {
+        ackServer();
       }
     } catch {
       finish();
     }
+  }
+
+  async clearAllHazards() {
+    this.setReportMode(null);
+    try {
+      const r = await fetch('/api/hazard/clear', { method: 'POST' });
+      if (r.ok) {
+        this.hazards = [];
+        this.presetInside.clear();
+        this.renderHazards();
+        this.showAlertBanner("🗑️ Barcha belgilar o'chirildi!", false);
+      }
+    } catch {}
   }
 
   toggleRadars() {

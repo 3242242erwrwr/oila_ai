@@ -151,6 +151,19 @@ class RoadGuard extends EventEmitter {
     return true;
   }
 
+  clearHazards() {
+    const count = this.hazards.length;
+    this.hazards = [];
+    this.presetInside.clear();
+    for (const k of this.cooldowns.keys()) {
+      if (k.startsWith('hz_bcast:')) this.cooldowns.delete(k);
+    }
+    this.latestAlert = null;
+    this.saveHazards();
+    this.emit('change');
+    return count;
+  }
+
   addHazard({ type = 'p_camera', lat, lon, speedLimit = null, reportedBy = null, reportedByName = '', reporterLocation = null } = {}) {
     const cleanLat = Number(lat);
     const cleanLon = Number(lon);
@@ -482,6 +495,15 @@ class RoadGuard extends EventEmitter {
     }
     this.pendingVoice.delete(keyNum);
     return null;
+  }
+
+  ackVoice(memberId, key) {
+    const keyNum = Number(memberId);
+    const q = this.pendingVoice.get(keyNum);
+    if (!Array.isArray(q) || !key) return;
+    const idx = q.findIndex((item) => item.key === key);
+    if (idx >= 0) q.splice(idx, 1);
+    if (q.length === 0) this.pendingVoice.delete(keyNum);
   }
 }
 

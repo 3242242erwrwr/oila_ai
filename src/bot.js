@@ -1103,6 +1103,12 @@ async function handleRoomAction(payload) {
     return;
   }
 
+  if (payload.type === 'voice_ack') {
+    const id = Number(payload.id);
+    if (id && payload.key) road.ackVoice(id, String(payload.key));
+    return;
+  }
+
   if (payload.type === 'send_apk') {
     const id = Number(payload.id);
     if (id) await sendApkToChat(id).catch(() => {});
