@@ -155,6 +155,12 @@ class Store extends EventEmitter {
 
     for (const m of this.data.members) {
       if (m.isAi) continue;
+      // Bir martalik tuzatish: 7748681452 asli Dilmurod (adashib "Мурат" deb kiritilgan)
+      if (Number(m.id) === 7748681452 && !m.nameFixDilmurod) {
+        m.name = 'Dilmurod';
+        m.nameFixDilmurod = true;
+        changed = true;
+      }
       if (!m.gender) { m.gender = m.appearance?.hairStyle === 1 || m.appearance?.hairStyle === 2 ? 'female' : 'male'; changed = true; }
       if (!m.age) { m.age = 25; changed = true; }
       if (!m.job) { m.job = 'other'; changed = true; }

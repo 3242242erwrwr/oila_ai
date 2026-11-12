@@ -930,6 +930,10 @@ export class FamilyMap {
   }
 
   checkPresetProximity() {
+    // O'CHIRILDI: Camera/GAI ovozini faqat server hal qiladi va HAMMA a'zolarga birdek yuboradi.
+    // Mahalliy tekshiruv faqat o'ziga ovoz chiqarib, boshqalarga yubormas edi.
+    return;
+    // eslint-disable-next-line no-unreachable
     if (!this.myUid || !this.hazards.length) return;
     const me = this.members.find((x) => !x.isAi && Number(x.id) === Number(this.myUid) && x.location && isLive(x.location));
     if (!me) return;

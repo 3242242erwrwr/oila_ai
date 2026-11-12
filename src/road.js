@@ -174,6 +174,15 @@ class RoadGuard extends EventEmitter {
     const now = Date.now();
     this.pruneExpired(false);
 
+    // Qo'ygan odamning joylashuvi berilmagan bo'lsa (bot orqali), serverdagi oxirgi joylashuvini olamiz —
+    // shunda qo'yilgan zahoti o'ziga/hammaga ovoz chiqib ketmaydi
+    if (!reporterLocation && reportedBy != null && this.store && typeof this.store.get === 'function') {
+      const rep = this.store.get(reportedBy);
+      if (rep?.location && Number.isFinite(rep.location.lat) && Number.isFinite(rep.location.lon)) {
+        reporterLocation = { lat: rep.location.lat, lon: rep.location.lon };
+      }
+    }
+
     // 80 m (preset) yoki 120 m atrofida shu turdagi belgi allaqachon bo'lsa muddatini yangilaymiz
     const dedupRadius = preset ? 80 : 120;
     const existing = this.hazards.find(
@@ -292,6 +301,14 @@ class RoadGuard extends EventEmitter {
     this._attached = true;
     this.store = store;
     store.on('location', (member) => this.checkMember(member));
+    // Belgilardagi "kim qo'ydi" ismini a'zoning hozirgi ismi bilan moslash
+    let renamed = false;
+    for (const h of this.hazards) {
+      if (h.reportedBy == null) continue;
+      const m = store.get(h.reportedBy);
+      if (m?.name && h.reportedByName !== m.name) { h.reportedByName = m.name; renamed = true; }
+    }
+    if (renamed) this.saveHazards();
   }
 
   // Camera/GAI belgilari: TEZLIKKA BOG'LIQ EMAS (0+ km/soat), 200 m ga kirganda ishlaydi, 250 m dan chiqib qaytsa yana ishlaydi
@@ -320,17 +337,16 @@ class RoadGuard extends EventEmitter {
 
     this.presetInside.set(best.zKey, true);
 
-    // Bir xil belgi bir necha uydagilar ichida bir soniyada qayta-qayta baqirmasligi uchun 45s umumiy anti-dubl
+    // Bir xil belgi bir necha kishi birga kirganda qayta-qayta baqirmasligi uchun 45s umumiy anti-dubl
     const bcastKey = `hz_bcast:${best.h.id}`;
     const lastBcast = this.cooldowns.get(bcastKey) || 0;
-    const isSelfReturn = best.h.reportedBy != null && Number(member.id) === Number(best.h.reportedBy);
-    if (!isSelfReturn && now - lastBcast < 45_000) {
+    if (now - lastBcast < 45_000) {
       return null;
     }
     this.cooldowns.set(bcastKey, now);
 
-    // Agar qo'ygan odamning o'zi >250m chiqib qaytgan bo'lsa hamma eshitadi; aks holda qo'ygan odamdan boshqa hamma eshitadi
-    const excludeReporterId = isSelfReturn ? null : (best.h.reportedBy ?? null);
+    // QOIDA: kimdir (qo'ygan odam ham, >250m chiqib qaytsa) 200 m ga kirsa — HAMMA a'zolar eshitadi, hech kim chiqarilmaydi
+    const excludeReporterId = null;
     const distRounded = Math.max(10, Math.round(best.dist / 10) * 10);
     const alert = {
       id: `al_${now}_${Math.floor(Math.random() * 100)}`,
